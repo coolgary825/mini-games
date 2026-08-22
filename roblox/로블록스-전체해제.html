@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>미니 로블록스</title>
+<title>미니 로블록스 (전체해제판)</title>
 <meta name="theme-color" content="#e2231a" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="apple-mobile-web-app-title" content="미니 로블록스" />
+<meta name="apple-mobile-web-app-title" content="로블록스 전체해제" />
 <link rel="manifest" href="manifest.json" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
 <link rel="icon" href="icon-192.png" />
@@ -56,7 +56,7 @@
 <body>
 <a href="../" style="position:fixed;top:10px;right:10px;z-index:70;font-size:13px;padding:8px 12px;font-family:inherit;font-weight:800;color:#fff;background:#b8860b;border:2px solid #ffd54a;border-radius:10px;text-decoration:none">🏠 게임천국</a>
 <div id="app">
-  <h1>🎮 미니 로블록스</h1>
+  <h1>🎮 미니 로블록스 <span style="font-size:14px;color:#43d693">(전체해제 · 로벅스 ∞)</span></h1>
   <div class="bar">
     <span class="chip click" id="acctChip" onclick="switchAccount()">👤 <b id="pName">-</b></span>
     <span class="chip">🟡 <b id="rbx">0</b></span>
@@ -113,7 +113,15 @@ const sfx={jump:()=>beep(500,.1,'square',.1,720),coin:()=>beep(880,.07,'square',
   win:()=>beep(600,.4,'sine',.16,1600),shoot:()=>beep(680,.05,'square',.05),ui:()=>beep(520,.08,'sine',.1,760)};
 
 // ===== 계정/저장 =====
-const SAVE_BASE="roblox_save_v1", PMETA_KEY=SAVE_BASE+"_profiles";
+const SAVE_BASE="roblox_unlock_v1", PMETA_KEY=SAVE_BASE+"_profiles";
+const UNLIMITED=1e9;  // 전체해제판: 로벅스 무제한
+function applyUnlock(){
+  robux=Math.max(robux, UNLIMITED);                    // 로벅스 무제한
+  avatar.ownedC=SHOP_COLORS.map(x=>x.v);               // 모든 색 해제
+  avatar.ownedH=SHOP_HATS.map(x=>x.v);                 // 모든 모자 해제
+  BOOSTS.forEach(b=>boosts[b.k]=true);                 // 모든 부스트 해제
+  ACH.forEach(a=>achUnlocked[a.k]=true);               // 모든 업적 해제
+}
 const PROFILES=[{k:"papa",n:"아빠",e:"👨"},{k:"junwoo",n:"준우",e:"🧒"},{k:"eunwoo",n:"은우",e:"👦"},{k:"riu",n:"리우",e:"👶"}];
 const AVATARS=["👨","👩","🧒","👦","👧","👶","🧑","🦸","🦹","🧙","🥷","🐱","🐶","🐼","🦊","🐸","🦁","🐯","🤖","👽","🦄","🐲","👑","⭐"];
 // 🛍️ 상점 아이템 (로벅스로 구매, c=가격)
@@ -151,8 +159,8 @@ function loadPMeta(){ try{return JSON.parse(localStorage.getItem(PMETA_KEY))||{}
 function savePMeta(m){ try{localStorage.setItem(PMETA_KEY,JSON.stringify(m));}catch(e){} }
 function profMeta(k){ let m=loadPMeta(),d=PROFILES.find(p=>p.k===k)||{n:k,e:"👤"},e=m[k]||{}; return {name:e.name||d.n,avatar:e.avatar||d.e}; }
 function setProfMeta(k,p){ let m=loadPMeta(); m[k]=Object.assign(profMeta(k),m[k]||{},p); savePMeta(m); }
-function load(){ try{ let s=JSON.parse(localStorage.getItem(SAVE)); if(s){ robux=s.robux||0; best=s.best||{}; if(s.avatar) avatar=s.avatar; boosts=s.boosts||{}; xp=s.xp||0; lastDaily=s.lastDaily||""; if(s.pstats)pstats=s.pstats; if(s.achUnlocked)achUnlocked=s.achUnlocked; } }catch(e){} ensureOwned(); }
-function save(){ try{ localStorage.setItem(SAVE,JSON.stringify({robux,best,avatar,boosts,xp,lastDaily,pstats,achUnlocked})); }catch(e){} }
+function load(){ try{ let s=JSON.parse(localStorage.getItem(SAVE)); if(s){ robux=s.robux||0; best=s.best||{}; if(s.avatar) avatar=s.avatar; boosts=s.boosts||{}; xp=s.xp||0; lastDaily=s.lastDaily||""; if(s.pstats)pstats=s.pstats; if(s.achUnlocked)achUnlocked=s.achUnlocked; } }catch(e){} ensureOwned(); applyUnlock(); }
+function save(){ if(robux<UNLIMITED) robux=UNLIMITED; try{ localStorage.setItem(SAVE,JSON.stringify({robux,best,avatar,boosts,xp,lastDaily,pstats,achUnlocked})); }catch(e){} }
 function checkAch(){ ACH.forEach(a=>{ if(!achUnlocked[a.k]&&a.chk()){ achUnlocked[a.k]=true; robux+=a.rew; toast(`🏅 업적: ${a.n}! +${a.rew}`); sfx.win(); } }); }
 function toast(t){ setTimeout(()=>{ let d=document.createElement('div'); d.textContent=t; d.style.cssText="position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:200;background:#141b34;border:2px solid #ffd54a;color:#fff;font-weight:800;padding:10px 18px;border-radius:12px;box-shadow:0 8px 20px rgba(0,0,0,.5)"; document.body.appendChild(d); setTimeout(()=>d.remove(),2200); },10); }
 function acctScore(k){ try{ let s=JSON.parse(localStorage.getItem(SAVE_BASE+"_"+k)); if(!s) return {val:-1,label:"기록 없음"};

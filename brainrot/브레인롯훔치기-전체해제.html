@@ -55,6 +55,7 @@
 </style>
 </head>
 <body>
+<a href="../" style="position:fixed;top:10px;right:10px;z-index:70;font-size:13px;padding:8px 12px;font-family:inherit;font-weight:800;color:#fff;background:#b8860b;border:2px solid #ffd54a;border-radius:10px;text-decoration:none">🏠 게임천국</a>
 <div id="wrap">
   <button id="switchBtn" onclick="switchAccount()" style="display:none;position:fixed;top:10px;left:10px;z-index:60;font-size:13px;padding:8px 12px;font-family:inherit;font-weight:800;color:#fff;background:#7a3dd6;border:2px solid #b06fd6;border-radius:10px;cursor:pointer">🔄 계정</button>
   <div id="topbar">
@@ -78,7 +79,7 @@
     <!-- 시작 -->
     <div id="startScreen" class="panel"><div class="card">
       <h2>🧠 브레인롯 훔치기 <span style="font-size:14px;color:#43d693">(전체해제 · 돈 ∞)</span></h2>
-      <p>💻 <b>개발자 모드</b>: 돈 무제한 · 도감 전부 해제! 맘껏 뽑고 합성하세요.<br>
+      <p>💻 <b>개발자 모드</b>: 돈 무제한 · 도감 전부 해제 · <b>펫 전부·업그레이드 전부·환생 무제한</b>! 맘껏 뽑고 합성하세요.<br>
       돈으로 <b>럭키블록·룰렛·퓨즈머신</b>을 돌려 더 좋은 브레인롯을 모으세요.</p>
       <div class="row" style="font-size:13px;color:#b9c6f0;line-height:1.8">
         🎮 이동 <b>W A S D</b> · <b>Shift</b> 질주 · 상호작용 <b>E</b>(스페이스)<br>
@@ -328,7 +329,7 @@ const ACH=[
   {id:"admin",n:"관리자?!",txt:"관리자 등급 획득",chk:()=>stats.admin>=1,rew:50000},
 ];
 function checkAch(){ ACH.forEach(a=>{ if(!achUnlocked[a.id] && a.chk()){ achUnlocked[a.id]=true; cash+=a.rew;cashF+=a.rew; toast(`🏅 업적: ${a.n}! +${fmt(a.rew)}💰`); sfx.win(); } }); }
-function doRebirth(){ if(best<rebirthReq()) return; rebirths++; cash=0;cashF=0;inv=[]; myPods.forEach(p=>p.br=null); combo=0;
+function doRebirth(){ rebirths++; inv=[]; myPods.forEach(p=>p.br=null); combo=0;   // 전체해제: 환생 무제한(조건 없음, 돈은 무제한 유지)
   toast(`🔄 환생! 영구 수익 +50% (총 ${Math.round((rebirthMult()-1)*100)}%)`); sfx.win(); closePanel(); save(); }
 
 // ===== 상태 =====
@@ -466,9 +467,9 @@ $('muteBtn').addEventListener('click',()=>{ muted=!muted; $('muteBtn').textConte
 function renderAch(){ let el=$('achList'); el.innerHTML=""; ACH.forEach(a=>{ let ok=achUnlocked[a.id]; let d=document.createElement('div');
   d.style.cssText="text-align:left;padding:8px 10px;margin:6px 0;border-radius:10px;border:1px solid "+(ok?"#43d693":"#2e3a66")+";background:"+(ok?"#12291f":"#0f1526");
   d.innerHTML=`<b>${ok?"✅":"🔒"} ${a.n}</b> <span style="font-size:12px;color:#9fb0e6">— ${a.txt}</span><br><span style="font-size:12px;color:#ffd54a">보상 +${fmt(a.rew)}💰</span>`; el.appendChild(d); }); }
-function renderRebirth(){ let req=rebirthReq(), can=best>=req;
-  $('rebirthInfo').innerHTML=`현재 영구 배율: <span style="color:#43d693">x${rebirthMult().toFixed(1)}</span><br>환생 조건: 최고기록 <b>${fmt(req)}</b> (현재 ${fmt(best)})<br>${can?"✅ 환생 가능! (+50% 영구)":"❌ 아직 부족해요"}`;
-  $('rebirthGo').disabled=!can; }
+function renderRebirth(){
+  $('rebirthInfo').innerHTML=`현재 영구 배율: <span style="color:#43d693">x${rebirthMult().toFixed(1)}</span><br>🔓 전체해제판: <b>무제한 환생</b> (조건 없이 언제나!) · 환생마다 +50% 영구<br>✅ 지금 바로 환생 가능!`;
+  $('rebirthGo').disabled=false; }
 
 // 럭키블록
 function rarityCard(b){ let r=R[b.r]; return `<div class="result" style="border-color:${r.c}">
@@ -751,7 +752,10 @@ function renderAcct(){ let box=$('acctBox');
 }
 function pickProfile(k){ SAVE=SAVE_BASE+"_"+k; let mt=profMeta(k); profileName=mt.name;
   newGame(); load();
-  if(ALL_UNLOCK){ cashF=1e12; cash=1e12; BR.forEach(b=>discovered[b.id]=true); }   // 개발자: 돈 무제한 + 도감 해제
+  if(ALL_UNLOCK){ cashF=1e12; cash=1e12; BR.forEach(b=>discovered[b.id]=true);   // 개발자: 돈 무제한 + 도감 해제
+    PETORDER.forEach(k=>ownedPets[k]=true); if(!activePet) activePet="alien";     // 펫 전부 해제(외계인 장착)
+    if(upg.spd<12) upg.spd=12; if(upg.inc<25) upg.inc=25;                         // 업그레이드 전부 해제
+  }
   $('profileScreen').classList.remove('open'); $('startScreen').classList.add('open');
   let sb=$('switchBtn'); sb.style.display='block'; sb.textContent="🔄 "+mt.avatar+" "+mt.name; }
 function switchAccount(){ try{ save(); }catch(e){} location.reload(); }
