@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>미니 로블록스</title>
+<meta name="theme-color" content="#e2231a" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="미니 로블록스" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;background:#0e1220;color:#eef;font-family:"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;-webkit-user-select:none;user-select:none;}
+  .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;text-align:center;}
+  .logo{width:120px;height:120px;border-radius:28px;box-shadow:0 12px 30px rgba(0,0,0,.5);}
+  h1{font-size:28px;margin:0;}
+  p{color:#9fb0e6;margin:0;font-size:15px;}
+  a.btn{text-decoration:none;color:#fff;font-weight:800;font-size:18px;padding:18px 30px;border-radius:16px;border:2px solid #ff6a5c;background:#e2231a;box-shadow:0 6px 16px rgba(226,35,26,.4);transition:.12s;}
+  a.btn:hover{transform:translateY(-2px);}
+  #install{display:none;background:#b8860b;border-color:#ffd54a;}
+  .tip{font-size:12px;color:#6b7bb0;max-width:340px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="logo" src="icon-512.png" alt="아이콘" />
+  <div><h1>🎮 미니 로블록스</h1><p>6가지 미니게임 · 로벅스 · 아바타 꾸미기</p></div>
+  <a class="btn" href="로블록스.html">▶️ 시작하기</a>
+  <a class="btn" id="install" href="#">📲 홈 화면에 앱 설치</a>
+  <div class="tip">폰에서 <b>공유 → 홈 화면에 추가</b>(아이폰) 또는 <b>메뉴 → 앱 설치</b>(안드로이드)로 진짜 앱처럼!</div>
+</div>
+<script>
+  if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+  let deferred=null;
+  window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferred=e; let b=document.getElementById('install'); b.style.display='inline-block';
+    b.addEventListener('click',async ev=>{ ev.preventDefault(); if(!deferred)return; deferred.prompt(); deferred=null; b.style.display='none'; }); });
+</script>
+</body>
+</html>

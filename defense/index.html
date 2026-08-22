@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>몬스터 디펜스</title>
+<meta name="theme-color" content="#3a56d6" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="몬스터 디펜스" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: #0f1226; color: #eef;
+    font-family: "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    -webkit-user-select: none; user-select: none; }
+  .wrap { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 24px; text-align: center; }
+  .logo { width: 120px; height: 120px; border-radius: 28px; box-shadow: 0 12px 30px rgba(0,0,0,.5); }
+  h1 { font-size: 30px; margin: 0; letter-spacing: 1px; }
+  p { color: #9fb0e6; margin: 0; font-size: 15px; }
+  .menu { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 340px; }
+  a.btn { text-decoration: none; color: #fff; font-weight: 800; font-size: 18px;
+    padding: 18px; border-radius: 16px; border: 2px solid #6f8bff; background: #3a56d6;
+    box-shadow: 0 6px 16px rgba(58,86,214,.4); transition: .12s; }
+  a.btn:hover { transform: translateY(-2px); }
+  a.btn.alt { background: #2f6b47; border-color: #43d693; box-shadow: 0 6px 16px rgba(67,214,147,.3); }
+  a.btn small { display: block; font-weight: 500; font-size: 12px; opacity: .85; margin-top: 4px; }
+  .tip { font-size: 12px; color: #6b7bb0; max-width: 340px; line-height: 1.6; }
+  #install { display: none; background: #b8860b; border-color: #ffd54a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="logo" src="icon-512.png" alt="아이콘" />
+  <div>
+    <h1>🛡️ 몬스터 디펜스</h1>
+    <p>귀여운 타워로 몬스터를 막아라!</p>
+  </div>
+  <div class="menu">
+    <a class="btn" href="디펜스게임.html">▶️ 게임 시작 <small>정식 — 뽑기로 무기 모으기</small></a>
+    <a class="btn alt" href="디펜스게임-전체해제.html">🔓 전체해제판 <small>모든 무기 해제 · 개발자 무기 · 젬 무제한</small></a>
+    <a class="btn" id="install" href="#">📲 홈 화면에 앱 설치</a>
+  </div>
+  <div class="tip">폰에서 <b>공유 → 홈 화면에 추가</b>(아이폰) 또는 <b>메뉴 → 앱 설치</b>(안드로이드)를 누르면 진짜 앱처럼 홈 화면에 추가돼요.</div>
+</div>
+<script>
+  // 서비스워커 등록(오프라인 + 설치 가능)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  }
+  // 안드로이드 설치 버튼
+  let deferred = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); deferred = e;
+    const b = document.getElementById('install'); b.style.display = 'block';
+    b.addEventListener('click', async (ev) => { ev.preventDefault(); if (!deferred) return; deferred.prompt(); deferred = null; b.style.display='none'; });
+  });
+</script>
+</body>
+</html>

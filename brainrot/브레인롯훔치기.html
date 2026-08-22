@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>브레인롯 훔치기</title>
+<meta name="theme-color" content="#7a3dd6" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="브레인롯 훔치기" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" href="icon-192.png" />
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:#0c1020;color:#eef;
+    font-family:"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;-webkit-user-select:none;user-select:none;overflow:hidden;}
+  #wrap{display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px;}
+  #topbar{display:flex;gap:14px;align-items:center;font-weight:800;font-size:16px;flex-wrap:wrap;justify-content:center;}
+  .chip{background:#171d38;border:1px solid #2e3a66;border-radius:999px;padding:6px 14px;}
+  .chip b{color:#ffd54a;}
+  #stage{position:relative;}
+  canvas{background:#0f1830;border-radius:14px;border:2px solid #2e3a66;display:block;box-shadow:0 12px 30px rgba(0,0,0,.5);max-width:100%;height:auto;}
+  .hint{font-size:12px;color:#8fa0d6;text-align:center;max-width:900px;line-height:1.6;}
+  /* 패널 */
+  .panel{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(6,9,20,.82);border-radius:14px;padding:16px;}
+  .panel.open{display:flex;}
+  .card{background:#141b34;border:2px solid #2e3a66;border-radius:16px;padding:20px;max-width:92%;text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.5);}
+  .card h2{margin:0 0 6px;font-size:24px;}
+  .card p{margin:0 0 14px;color:#9fb0e6;font-size:14px;}
+  button{font-family:inherit;font-weight:800;font-size:15px;color:#fff;background:#3a56d6;border:2px solid #6f8bff;border-radius:12px;padding:11px 20px;cursor:pointer;transition:.12s;}
+  button:hover{background:#4762e6;transform:translateY(-1px);}
+  button:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+  .close{background:#3a4266;border-color:#586296;}
+  .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;align-items:center;}
+  /* 결과 카드 */
+  .result{margin:14px auto;width:170px;padding:14px;border-radius:14px;background:#0f1526;border:3px solid #444;}
+  .result .em{font-size:56px;}
+  .result .nm{font-weight:800;margin-top:6px;}
+  .result .rr{font-size:12px;font-weight:800;margin-top:2px;}
+  .result .in{font-size:12px;color:#ffd54a;margin-top:4px;}
+  /* 룰렛 */
+  #rouWin{position:relative;width:min(560px,86vw);height:110px;overflow:hidden;border-radius:12px;border:2px solid #2e3a66;background:#0d142a;}
+  #rouStrip{display:flex;position:absolute;left:0;top:0;height:110px;will-change:transform;}
+  .rcell{width:110px;height:110px;flex:0 0 110px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:1px solid #1c2646;}
+  .rcell .em{font-size:44px;}
+  .rcell .rr{font-size:10px;font-weight:800;}
+  #rouMark{position:absolute;left:50%;top:0;width:4px;height:110px;background:#ffd54a;transform:translateX(-2px);box-shadow:0 0 10px #ffd54a;z-index:2;}
+  /* 퓨즈 */
+  .inv{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:560px;max-height:200px;overflow:auto;padding:6px;}
+  .chipx{background:#0f1526;border:2px solid #2e3a66;border-radius:10px;padding:6px 8px;cursor:pointer;font-size:12px;font-weight:700;min-width:70px;}
+  .chipx.sel{border-color:#43d693;background:#12291f;}
+  .chipx .em{font-size:24px;display:block;}
+  #startScreen .card{max-width:520px;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <button id="switchBtn" onclick="switchAccount()" style="display:none;position:fixed;top:10px;left:10px;z-index:60;font-size:13px;padding:8px 12px;font-family:inherit;font-weight:800;color:#fff;background:#7a3dd6;border:2px solid #b06fd6;border-radius:10px;cursor:pointer">🔄 계정</button>
+  <div id="topbar">
+    <span class="chip">💰 <b id="cash">0</b></span>
+    <span class="chip">📈 초당 <b id="cps">0</b></span>
+    <span class="chip">🎒 <b id="invN">0</b></span>
+    <span class="chip">🐾 <b id="petName">-</b></span>
+    <span class="chip" id="dexBtn" style="cursor:pointer">📖 도감</span>
+    <span class="chip" id="missionBtn" style="cursor:pointer">📋 미션</span>
+    <span class="chip" id="achBtn" style="cursor:pointer">📜 업적</span>
+    <span class="chip" id="rebirthBtn" style="cursor:pointer">🔄 환생 <b id="rbN">0</b></span>
+    <span class="chip" id="muteBtn" style="cursor:pointer">🔊</span>
+    <span class="chip">🏆 <b id="best">-</b></span>
+  </div>
+  <div id="stage">
+    <canvas id="cv" width="920" height="600"></canvas>
+
+    <!-- 계정 선택 -->
+    <div id="profileScreen" class="panel open"><div class="card" id="acctBox" style="min-width:min(520px,90vw)"></div></div>
+
+    <!-- 시작 -->
+    <div id="startScreen" class="panel"><div class="card">
+      <h2>🧠 브레인롯 훔치기</h2>
+      <p>라이벌의 브레인롯을 <b>훔쳐서</b> 내 진열대에 놓으면 <b>초당 돈</b>이 벌려요!<br>
+      돈으로 <b>럭키블록·룰렛·퓨즈머신</b>을 돌려 더 좋은 브레인롯을 모으세요.</p>
+      <div class="row" style="font-size:13px;color:#b9c6f0;line-height:1.8">
+        🎮 이동 <b>W A S D</b> · <b>Shift</b> 질주 · 상호작용 <b>E</b>(스페이스)<br>
+        😈 <b>도둑</b>이 내 브레인롯을 훔치러 와요 — <b>몸으로 부딪혀</b> 막으세요!
+      </div>
+      <div class="row" style="margin-top:14px"><button id="playBtn">▶️ 시작</button></div>
+    </div></div>
+
+    <!-- 럭키블록 -->
+    <div id="luckyPanel" class="panel"><div class="card">
+      <h2>🎁 럭키블록</h2>
+      <p>열면 랜덤 브레인롯이 나와요. 좋은 등급일수록 확률이 낮아요!</p>
+      <div id="luckyResult"></div>
+      <div class="row"><button id="luckyOpen"></button><button class="close" data-close>닫기</button></div>
+    </div></div>
+
+    <!-- 룰렛 -->
+    <div id="roulettePanel" class="panel"><div class="card">
+      <h2>🎰 룰렛</h2>
+      <p>돌려서 멈추는 브레인롯을 획득! (럭키블록보다 좋은 확률)</p>
+      <div id="rouWin"><div id="rouMark"></div><div id="rouStrip"></div></div>
+      <div class="row" style="margin-top:14px"><button id="rouSpin"></button><button class="close" data-close>닫기</button></div>
+    </div></div>
+
+    <!-- 업그레이드 -->
+    <div id="upgPanel" class="panel"><div class="card">
+      <h2>💪 업그레이드</h2>
+      <p>돈으로 능력을 올려서 더 빠르게 부자가 되세요!</p>
+      <div id="upgList"></div>
+      <div class="row" style="margin-top:12px"><button class="close" data-close>닫기</button></div>
+    </div></div>
+
+    <!-- 펫상점 -->
+    <div id="petPanel" class="panel"><div class="card">
+      <h2>🐾 펫 상점</h2>
+      <p>펫은 따라다니며 <b>수익을 올려주고</b>, 일부는 <b>도둑을 자동으로</b> 막아줘요! (하나만 장착)</p>
+      <div id="petList"></div>
+      <div class="row" style="margin-top:12px"><button class="close" data-close>닫기</button></div>
+    </div></div>
+
+    <!-- 환생 -->
+    <div id="rebirthPanel" class="panel"><div class="card">
+      <h2>🔄 환생</h2>
+      <p>모든 돈·브레인롯을 포기하는 대신 <b>영구 수익 배율</b>을 얻어요! 환생할수록 부자되기 쉬워져요.</p>
+      <div id="rebirthInfo" style="margin:12px 0;font-weight:800"></div>
+      <div class="row"><button id="rebirthGo">🔄 환생하기</button><button class="close" data-close>닫기</button></div>
+    </div></div>
+
+    <!-- 업적 -->
+    <div id="achPanel" class="panel"><div class="card">
+      <h2>📜 업적</h2>
+      <p>도전과제를 달성하면 보상을 받아요!</p>
+      <div id="achList" style="max-height:300px;overflow:auto"></div>
+      <div class="row" style="margin-top:12px"><button class="close" data-close>닫기</button></div>
+    </div></div>
+
+    <!-- 도감 -->
+    <div id="dexPanel" class="panel"><div class="card" style="max-width:min(640px,92vw)">
+      <h2>📖 브레인롯 도감 <span id="dexCount" style="font-size:14px;color:#9fb0e6"></span></h2>
+      <p>내가 얻어본 브레인롯이 기록돼요! 아직 못 얻은 건 ❓</p>
+      <div id="dexList" style="max-height:56vh;overflow:auto"></div>
+      <div class="row" style="margin-top:12px"><button class="close" data-close>닫기</button></div>
+    </div></div>
+
+    <!-- 미션 -->
+    <div id="missionPanel" class="panel"><div class="card">
+      <h2>📋 미션</h2>
+      <p>미션을 깨면 보상을 받아요. 완료하면 새 미션이 나와요!</p>
+      <div id="missionList"></div>
+      <div class="row" style="margin-top:12px"><button class="close" data-close>닫기</button></div>
+    </div></div>
+
+    <!-- 퓨즈 -->
+    <div id="fusePanel" class="panel"><div class="card">
+      <h2>⚗️ 퓨즈머신</h2>
+      <p>가방에서 <b>3개</b>를 골라 합성 → 더 높은 등급이 나올 수 있어요! (같은 등급 3개면 등급 <b>확정 상승</b>)</p>
+      <div class="inv" id="fuseInv"></div>
+      <div id="fuseResult"></div>
+      <div class="row" style="margin-top:10px"><button id="fuseGo" disabled>⚗️ 합성 (3개 선택)</button><button class="close" data-close>닫기</button></div>
+    </div></div>
+  </div>
+  <div class="hint">
+    🟩 <b>내 진열대</b>에 브레인롯을 놓으면 돈이 벌려요 · 🟥 <b>라이벌 진열대</b>에서 <b>E</b>로 훔치기 · 🎁🎰⚗️💵 기계 앞에서 <b>E</b><br>
+    빈 진열대에서 <b>E</b> = 들고있는/가방 브레인롯 놓기 · 놓인 것 앞 <b>E</b> = 다시 집기 · 💵판매대에서 <b>E</b> = 팔기
+  </div>
+</div>
+
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),$=id=>document.getElementById(id);
+const W=cv.width,H=cv.height;
+
+// ===== 사운드 =====
+let actx=null, muted=false;
+function beep(f,d,type='square',v=0.12,slide){ if(muted)return; try{ if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)();
+  let o=actx.createOscillator(),g=actx.createGain(); o.type=type; o.frequency.setValueAtTime(f,actx.currentTime);
+  if(slide)o.frequency.linearRampToValueAtTime(slide,actx.currentTime+d); g.gain.setValueAtTime(v,actx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+d); o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d);}catch(e){} }
+const sfx={ grab:()=>beep(520,0.1,'sine',0.14,760), place:()=>beep(400,0.12,'triangle',0.14,620),
+  cash:()=>beep(880,0.06,'square',0.06,1200), win:()=>beep(600,0.5,'sine',0.18,1700),
+  steal:()=>beep(300,0.15,'sawtooth',0.14,140), catch:()=>beep(700,0.14,'square',0.16,1100),
+  lose:()=>beep(200,0.5,'sawtooth',0.16,80), up:()=>beep(660,0.16,'sine',0.14,1200) };
+
+// ===== 등급 (브레인롯 훔치기와 동일 체계) =====
+const R={
+  common:{name:"일반",     c:"#b8c0d0", w:50,   inc:2},
+  rare:  {name:"레어",     c:"#4fa3ff", w:24,   inc:6},
+  epic:  {name:"에픽",     c:"#b06fff", w:14,   inc:16},
+  legend:{name:"레전드",   c:"#ffb43d", w:7,    inc:45},
+  mythic:{name:"미식",     c:"#ff5bd0", w:3,    inc:120},
+  god:   {name:"브레인롯 갓",c:"#ffe14d", w:1.0,  inc:360, glow:true},
+  secret:{name:"시크릿",   c:"#20e0c0", w:0.15, inc:1400, glow:true},
+  admin: {name:"관리자",   c:"#ff2040", w:0.02, inc:6000, glow:true},
+};
+const RORDER=["common","rare","epic","legend","mythic","god","secret","admin"];
+
+// ===== 브레인롯 도감 =====
+const BR=[
+  // common
+  ["붕가붕가","🐒","common"],["딱콩이","🫘","common"],["뿌직이","💩","common"],["방구벌레","🐛","common"],["꽥꽥오리","🦆","common"],
+  // rare
+  ["트랄라라","🦈","rare"],["봄바르디","🐊","rare"],["치키치키","🐤","rare"],["붕붕카","🚗","rare"],["멍뭉이","🐶","rare"],
+  // epic
+  ["퉁퉁사후르","🥁","epic"],["카푸치노","☕","epic"],["리릴리","🐸","epic"],["냐옹봇","🤖","epic"],["문어대왕","🐙","epic"],
+  // legend
+  ["골드킹","👑","legend"],["라라랜드","🌈","legend"],["부라부라","🔥","legend"],["번개룡","⚡","legend"],["황금돼지","🐷","legend"],
+  // mythic
+  ["사탄상어","🦈","mythic"],["크로커다일로","🐲","mythic"],["핫도그맨","🌭","mythic"],["우주고래","🐋","mythic"],["해골전사","💀","mythic"],
+  // god
+  ["갓브레인","🧠","god"],["무지개킹","🦄","god"],["토랄레로","🛸","god"],["은하수","🌌","god"],
+  // secret
+  ["시크릿엑스","🕳️","secret"],["블랙홀군","🌑","secret"],["???","❓","secret"],
+  // ---- 추가 브레인롯 ----
+  ["삐약이","🐣","common"],["감자칩","🥔","common"],["젤리곰","🧸","common"],["콜록이","🤧","common"],
+  ["펭수","🐧","rare"],["햄찌","🐹","rare"],["로켓냥","🚀","rare"],["버섯맨","🍄","rare"],
+  ["피자왕","🍕","epic"],["유령킹","👻","epic"],["닌자","🥷","epic"],["아이스크림","🍦","epic"],
+  ["불사조","🦅","legend"],["다이아왕","💎","legend"],["별똥별","💫","legend"],["킹크랩","🦀","legend"],
+  ["메가상어","🦈","mythic"],["악마군주","👹","mythic"],["로봇킹","🤖","mythic"],["폭탄곰","🧨","mythic"],
+  ["천사","😇","god"],["드래곤킹","🐲","god"],["별의여신","🌟","god"],
+  ["시크릿오메가","🌀","secret"],["환영술사","🎭","secret"],
+  // admin
+  ["관리자맨","🛡️","admin"],["OG전설","🌠","admin"],["갓오브갓","💠","admin"],
+].map((b,i)=>({name:b[0],e:b[1],r:b[2],inc:Math.round(R[b[2]].inc*(0.85+((i*37)%40)/100)), id:i}));
+
+function pickWeighted(bias){ // bias>0 이면 좋은 등급 확률 상승
+  let pool=RORDER.map(k=>({k, w:R[k].w*(bias?Math.pow(1.6,RORDER.indexOf(k))*0.5+1:1)}));
+  let tot=pool.reduce((s,p)=>s+p.w,0), x=Math.random()*tot;
+  let rk="common"; for(let p of pool){ x-=p.w; if(x<=0){rk=p.k;break;} }
+  let cands=BR.filter(b=>b.r===rk); return cands[Math.floor(Math.random()*cands.length)];
+}
+function mkInst(b){ return {name:b.name,e:b.e,r:b.r,inc:b.inc,id:b.id,bob:Math.random()*6,mut:b.mut!==undefined?b.mut:rollMut()}; }
+
+// ===== 월드(큰 맵) + 카메라 =====
+const WORLD_W=1680, WORLD_H=1140;
+let cam={x:0,y:0};
+const myPods=[];
+for(let r=0;r<2;r++)for(let c=0;c<4;c++) myPods.push({x:660+c*120,y:980+r*72,br:null});
+const rivals=[];
+function addBase(x0,y0,tier,n){ let list=[]; for(let i=0;i<n;i++){ let p={x:x0+i*110,y:y0,br:null,restock:0.5+i*0.3,tier}; rivals.push(p); list.push(p);} return list; }
+addBase(170,150,2,4);    // A 좌상 (에픽까지)
+addBase(1170,150,3,4);   // B 우상 (레전드까지)
+addBase(170,560,4,4);    // C 좌중 (미식까지)
+const stations=[
+  {type:"lucky",x:600,y:560,label:"🎁 럭키블록"},
+  {type:"roulette",x:730,y:560,label:"🎰 룰렛"},
+  {type:"upgrade",x:860,y:560,label:"💪 업그레이드"},
+  {type:"pet",x:990,y:560,label:"🐾 펫상점"},
+  {type:"fuse",x:1120,y:560,label:"⚗️ 퓨즈머신"},
+  {type:"sell",x:1250,y:560,label:"💵 판매대"},
+];
+const zoneList=[
+  {x:120,y:100,w:470,h:110,c:"#b0413a",t:"🟥 라이벌 A (E:훔치기)"},
+  {x:1120,y:100,w:470,h:110,c:"#b0413a",t:"🟥 라이벌 B (좋은 등급)"},
+  {x:120,y:510,w:470,h:110,c:"#b0413a",t:"🟥 라이벌 C (최고 등급!)"},
+  {x:610,y:940,w:500,h:180,c:"#1f8a5a",t:"🟩 내 진열대 (돈 벌이)"},
+  {x:560,y:520,w:820,h:80,c:"#5a6cd6",t:"🏬 상점 거리"},
+];
+
+// ===== 펫 =====
+const PETS={
+  dog:   {name:"강아지",  e:"🐶",cost:500,    inc:0.15,range:0},
+  cat:   {name:"고양이",  e:"🐱",cost:1500,   inc:0.10,range:150},
+  rabbit:{name:"토끼",    e:"🐰",cost:3500,   inc:0.22,range:0},
+  fox:   {name:"여우",    e:"🦊",cost:6000,   inc:0.30,range:120},
+  panda: {name:"판다",    e:"🐼",cost:12000,  inc:0.40,range:160},
+  lion:  {name:"사자",    e:"🦁",cost:22000,  inc:0.50,range:180},
+  dragon:{name:"드래곤",  e:"🐉",cost:30000,  inc:0.60,range:220},
+  unicorn:{name:"유니콘", e:"🦄",cost:80000,  inc:0.90,range:240},
+  robot: {name:"로봇",    e:"🤖",cost:200000, inc:1.20,range:280},
+  alien: {name:"외계인",  e:"👽",cost:600000, inc:2.00,range:340},
+};
+const PETORDER=["dog","cat","rabbit","fox","panda","lion","dragon","unicorn","robot","alien"];
+let ownedPets={}, activePet=null, petE={x:0,y:0};
+function petInc(){ let s=0; if(activePet) s+=PETS[activePet].inc; return s; }
+function petRange(){ return activePet?PETS[activePet].range:0; }
+
+// ===== 미션 =====
+const MISSION_POOL=[
+  {id:"steal",  txt:n=>`브레인롯 ${n}개 훔치기`, goal:()=>3+Math.floor(Math.random()*4), rew:n=>n*120, ev:"steal"},
+  {id:"catch",  txt:n=>`도둑 ${n}명 막기`,       goal:()=>2+Math.floor(Math.random()*3), rew:n=>n*200, ev:"catch"},
+  {id:"cash",   txt:n=>`돈 ${fmt(n)} 모으기`,     goal:()=>500+Math.floor(Math.random()*4)*500, rew:n=>Math.floor(n*0.3), ev:"cash"},
+  {id:"fuse",   txt:n=>`퓨즈 ${n}회 하기`,        goal:()=>2+Math.floor(Math.random()*2), rew:n=>n*300, ev:"fuse"},
+  {id:"epic",   txt:n=>`에픽 이상 ${n}개 얻기`,   goal:()=>2+Math.floor(Math.random()*2), rew:n=>n*400, ev:"epic"},
+];
+let missions=[];
+function newMission(){ let m=MISSION_POOL[Math.floor(Math.random()*MISSION_POOL.length)]; let g=m.goal(); return {id:m.id,ev:m.ev,txt:m.txt(g),goal:g,prog:0,rew:m.rew(g)}; }
+function ensureMissions(){ while(missions.length<3) missions.push(newMission()); }
+function missionEvent(ev,amt){ amt=amt||1; let changed=false;
+  missions.forEach(m=>{ if(m.ev===ev && m.prog<m.goal){ m.prog=Math.min(m.goal,m.prog+amt); changed=true; } });
+  // cash 미션은 절대값
+  missions.forEach(m=>{ if(m.ev==='cash'){ m.prog=Math.min(m.goal,cash); } });
+  missions.forEach(m=>{ if(m.prog>=m.goal && !m.done){ m.done=true; cash+=m.rew;cashF+=m.rew; toast(`📋 미션완료! +${fmt(m.rew)}💰`); sfx.win(); } });
+  missions=missions.filter(m=>!m.done); ensureMissions();
+  if(changed||true) renderMissions();
+}
+
+// ===== 추가 시스템 (환생·변이·콤보·이벤트·부스터·업적·자물쇠) =====
+let rebirths=0, locks=0, combo=0, comboT=0, speedBoostT=0, boosters=[], boosterT=10;
+let ev={type:null,t:0}, evTimer=45, stats={steal:0,catch:0,gold:0,admin:0,boss:0}, achUnlocked={}, lastDaily="";
+function rebirthMult(){ return 1+rebirths*0.5; }
+function comboMult(){ return comboT>0? 1+Math.min(combo,25)*0.05 : 1; }
+function evGold(){ return ev.type==='gold'? 2:1; }
+function brInc(b){ return Math.round(b.inc*(b.mut?b.mut.mult:1)); }
+function rebirthReq(){ return Math.floor(8000*Math.pow(2.3,rebirths)); }
+const MUTS=[{name:'황금',mult:2,c:'#ffd54a',p:0.09},{name:'다이아',mult:3,c:'#8be0ff',p:0.03},{name:'무지개',mult:5,c:'#ff7ad6',p:0.008}];
+function rollMut(){ let x=Math.random(); for(let m of MUTS){ if(x<m.p){ if(m.mult>=3)stats.gold++; return {name:m.name,mult:m.mult,c:m.c}; } x-=m.p; } return null; }
+// 이벤트
+const EVENTS={ gold:{n:"💰 골드러시! 수익 2배",d:25}, raid:{n:"🚨 도둑 습격!",d:1}, luck:{n:"🍀 행운의 시간! 뽑기 대박확률",d:25}, party:{n:"🎉 라이벌 대풍년!",d:1} };
+function startEvent(){ let ks=Object.keys(EVENTS), t=ks[Math.floor(Math.random()*ks.length)]; ev={type:t,t:EVENTS[t].d}; toast(EVENTS[t].n); sfx.win();
+  if(t==='raid'){ for(let i=0;i<3;i++) spawnThief(false,true); }
+  if(t==='party'){ rivals.forEach(pd=>{ restockRival(pd, Math.min(5,pd.tier+1)); }); } }
+function spawnThief(forceBoss,raid){ let mf=myPods.filter(pd=>pd.br && !pd.locked); if(!mf.length) return;
+  let boss=forceBoss|| (Math.random()<0.24 && best>800);
+  let tgt=boss? mf.reduce((a,b)=>brInc(b.br)>brInc(a.br)?b:a) : mf[Math.floor(Math.random()*mf.length)];
+  let edge=Math.random()<0.5? {x:Math.random()*WORLD_W,y:-20} : {x:(Math.random()<0.5?-20:WORLD_W+20),y:Math.random()*WORLD_H};
+  let bhp=boss? 4+Math.floor(best/25000):1, spd=(boss?95:150)+Math.min(120,best/3000)+rebirths*10;
+  thieves.push({x:edge.x,y:edge.y,tgt,carry:null,flee:false,boss,hp:bhp,r:boss?26:15,speed:spd});
+  if(!raid) toast(boss?"🔥 보스 도둑 출현!":"⚠️ 도둑이 나타났다!"); }
+// 업적
+const ACH=[
+  {id:"s10",n:"좀도둑",txt:"10번 훔치기",chk:()=>stats.steal>=10,rew:300},
+  {id:"s50",n:"대도",txt:"50번 훔치기",chk:()=>stats.steal>=50,rew:2000},
+  {id:"c10",n:"경비원",txt:"도둑 10명 막기",chk:()=>stats.catch>=10,rew:1500},
+  {id:"boss5",n:"보스헌터",txt:"보스 5마리 처치",chk:()=>stats.boss>=5,rew:5000},
+  {id:"gold1",n:"금손",txt:"변이 브레인롯 획득",chk:()=>stats.gold>=1,rew:1000},
+  {id:"rich",n:"부자",txt:"10만원 모으기",chk:()=>best>=100000,rew:20000},
+  {id:"rb1",n:"환생자",txt:"환생 1회",chk:()=>rebirths>=1,rew:3000},
+  {id:"admin",n:"관리자?!",txt:"관리자 등급 획득",chk:()=>stats.admin>=1,rew:50000},
+];
+function checkAch(){ ACH.forEach(a=>{ if(!achUnlocked[a.id] && a.chk()){ achUnlocked[a.id]=true; cash+=a.rew;cashF+=a.rew; toast(`🏅 업적: ${a.n}! +${fmt(a.rew)}💰`); sfx.win(); } }); }
+function doRebirth(){ if(best<rebirthReq()) return; rebirths++; cash=0;cashF=0;inv=[]; myPods.forEach(p=>p.br=null); combo=0;
+  toast(`🔄 환생! 영구 수익 +50% (총 ${Math.round((rebirthMult()-1)*100)}%)`); sfx.win(); closePanel(); save(); }
+
+// ===== 상태 =====
+let cash=0, cashF=0, inv=[], player, near=null, uiOpen=false, best=0, discovered={};
+let keys={}, parts=[], floats=[], bgT=0, incTick=0, popTick=0;
+let thieves=[], thiefTimer=18, upg={spd:0,inc:0}, sprintPuff=0;
+const LUCKY_COST=100, ROU_COST=280;
+const SAVE_BASE="brainrot_save_v2";
+const ALL_UNLOCK=false;   // 전체해제판에서 true (돈 무제한 + 도감 전체해제)
+let SAVE=SAVE_BASE, profileName="-";
+const PROFILES=[{k:"papa",n:"아빠",e:"👨"},{k:"junwoo",n:"준우",e:"🧒"},{k:"eunwoo",n:"은우",e:"👦"},{k:"riu",n:"리우",e:"👶"}];
+function speedMult(){ return (1+upg.spd*0.15)*(speedBoostT>0?1.8:1); }
+function incMult(){ return (1+upg.inc*0.25+petInc())*rebirthMult()*comboMult()*evGold(); }
+const UPG={ spd:{name:"👟 이동속도",base:150,step:1.6}, inc:{name:"💵 수익 배율",base:300,step:1.8} };
+function upgCost(k){ return Math.round(UPG[k].base*Math.pow(UPG[k].step,upg[k])); }
+
+function restockRival(p, tierBias){ let b; do{ b=BR[Math.floor(Math.random()*BR.length)]; }while(RORDER.indexOf(b.r)>tierBias); p.br=mkInst(b); }
+
+function newGame(){
+  player={x:WORLD_W/2,y:WORLD_H-90,r:16,speed:210,carry:null,face:"🧑",walkT:0,run:false,moving:false,dir:1};
+  cash=0;cashF=0;inv=[];parts=[];floats=[];thieves=[];thiefTimer=18;
+  ownedPets={};activePet=null; upg={spd:0,inc:0}; missions=[]; ensureMissions();
+  rebirths=0; locks=0; stats={steal:0,catch:0,gold:0,admin:0,boss:0}; achUnlocked={};
+  combo=0;comboT=0;speedBoostT=0;boosters=[];ev={type:null,t:0};evTimer=45; lastDaily=""; discovered={};
+  petE={x:player.x,y:player.y};
+  myPods.forEach(p=>{p.br=null;p.locked=false;});
+  rivals.forEach((p,i)=>{ p.br=null; p.restock=0.5+(i%4)*0.3; });
+}
+function load(){
+  try{ let s=JSON.parse(localStorage.getItem(SAVE)); if(s){ cash=s.cash||0; cashF=cash; best=s.best||0;
+    if(s.upg){ upg.spd=s.upg.spd||0; upg.inc=s.upg.inc||0; }
+    if(s.ownedPets) ownedPets=s.ownedPets; if(s.activePet) activePet=s.activePet;
+    if(s.missions&&s.missions.length) missions=s.missions; ensureMissions();
+    rebirths=s.rebirths||0; locks=s.locks||0; if(s.stats) Object.assign(stats,s.stats); if(s.achUnlocked) achUnlocked=s.achUnlocked; lastDaily=s.lastDaily||""; if(s.discovered) discovered=s.discovered;
+    inv=(s.inv||[]).map(mkInst); s.my && s.my.forEach((b,i)=>{ if(b&&myPods[i]) myPods[i].br=mkInst(b); });
+    inv.concat(myPods.filter(p=>p.br).map(p=>p.br)).forEach(b=>discovered[b.id]=true);
+    applyLocks();
+    // 일일 출석 보상
+    if(lastDaily!==todayStr()){ lastDaily=todayStr(); let rw=1000*(rebirths+1); cash+=rw;cashF+=rw; setTimeout(()=>toast(`🎁 출석 보상! +${fmt(rw)}💰`),700); }
+    // 오프라인 수익
+    if(s.t){ let dt=Math.min((Date.now()-s.t)/1000, 3600); let cps=myCps(); if(cps>0&&dt>5){ let g=Math.floor(cps*dt); cash+=g;cashF=cash; setTimeout(()=>toast(`오프라인 수익 +${fmt(g)}💰`),400);} }
+    return true; } }catch(e){}
+  return false;
+}
+function save(){ try{ localStorage.setItem(SAVE, JSON.stringify({cash,best,upg,ownedPets,activePet,missions,rebirths,locks,stats,achUnlocked,lastDaily,discovered,inv:inv.map(clean),my:myPods.map(p=>p.br?clean(p.br):null),t:Date.now()})); }catch(e){} }
+function todayStr(){ let d=new Date(); return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); }
+function clean(b){ return {name:b.name,e:b.e,r:b.r,inc:b.inc,id:b.id,mut:b.mut||null}; }
+function myCps(){ return Math.round(myPods.reduce((s,p)=>s+(p.br?brInc(p.br):0),0)*incMult()); }
+function fmt(n){ n=Math.floor(n); if(n>=1e9)return (n/1e9).toFixed(1)+"B"; if(n>=1e6)return (n/1e6).toFixed(1)+"M"; if(n>=1e3)return (n/1e3).toFixed(1)+"K"; return ""+n; }
+function toast(t){ addFloat(W/2,H/2-60,t,"#ffd54a",22); }
+function addFloat(x,y,t,c,s){ floats.push({x,y,t,c,s:s||16,life:1.4}); }
+function addParts(x,y,c,n){ for(let i=0;i<n;i++){let a=Math.random()*7,s=80+Math.random()*120;parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c,r:2+Math.random()*2});} }
+
+// ===== 입력 =====
+addEventListener('keydown',e=>{ let k=e.key.toLowerCase(); keys[k]=true;
+  if(k==='e'||k===' '){ e.preventDefault(); if(!uiOpen) interact(); } });
+addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+
+function interact(){
+  if(!near) return;
+  let p=player;
+  if(near.type==='steal'){ if(!p.carry && near.ref.br){ let b=near.ref.br; p.carry=b; near.ref.br=null; near.ref.restock=6+Math.random()*4; addParts(near.ref.x,near.ref.y,"#ff9d3d",10);
+    combo++; comboT=7; stats.steal++; addFloat(p.x,p.y-30, combo>1?`훔침! 🔥x${combo}`:"훔쳤다! 🏃", "#ff9d3d",16); missionEvent("steal"); gotBrainrot(b); } }
+  else if(near.type==='myEmpty'){ let b=p.carry|| (inv.length?inv.shift():null); if(b){ near.ref.br=b; p.carry=(p.carry===b?null:p.carry); addParts(near.ref.x,near.ref.y,"#43d693",10); save(); } }
+  else if(near.type==='myFull'){ if(!p.carry){ p.carry=near.ref.br; near.ref.br=null; sfx.grab(); save(); } }
+  else if(near.type==='sell'){ let b=p.carry; if(b){ let v=Math.round(brInc(b)*12); cash+=v;cashF+=v; p.carry=null; addFloat(player.x,player.y-30,"+"+fmt(v)+"💰","#ffd54a",18); addParts(player.x,player.y,"#ffd54a",12); sfx.cash(); save(); }
+    else if(inv.length){ let v=inv.reduce((s,it)=>s+Math.round(brInc(it)*12),0); cash+=v;cashF+=v; let n=inv.length; inv=[]; toast(`가방 ${n}개 전부 판매! +${fmt(v)}💰`); addParts(player.x,player.y,"#ffd54a",16); sfx.cash(); save(); } }
+  else if(near.type==='lucky') openLucky();
+  else if(near.type==='roulette') openRoulette();
+  else if(near.type==='fuse') openFuse();
+  else if(near.type==='upgrade') openUpg();
+  else if(near.type==='pet') openPet();
+  if(near.type==='steal'&&p.carry) sfx.grab();
+  if(near.type==='myEmpty'&&near.ref.br) sfx.place();
+}
+function gotBrainrot(b){ discovered[b.id]=true; if(RORDER.indexOf(b.r)>=2) missionEvent("epic"); if(b.r==='admin')stats.admin++; if(b.mut&&b.mut.mult>=3)stats.gold++; checkAch(); }
+// 펫 상점
+function openPet(){ renderPet(); openPanel('petPanel'); }
+function renderPet(){ let el=$('petList'); el.innerHTML="";
+  PETORDER.forEach(k=>{ let pt=PETS[k], own=ownedPets[k], act=activePet===k; let d=document.createElement('div'); d.className="row"; d.style.margin="8px 0";
+    d.innerHTML=`<div style="min-width:170px;text-align:left"><b style="font-size:22px">${pt.e}</b> <b>${pt.name}</b><br><span style="font-size:12px;color:#9fb0e6">수익 +${Math.round(pt.inc*100)}%${pt.range?` · 도둑 자동막기`:''}</span></div>`;
+    let b=document.createElement('button');
+    if(!own){ b.textContent=`구매 (${fmt(pt.cost)}💰)`; b.disabled=cash<pt.cost; b.addEventListener('click',()=>{ if(cash<pt.cost)return; cash-=pt.cost;cashF-=pt.cost; ownedPets[k]=true; activePet=k; sfx.up(); renderPet(); save(); }); }
+    else if(act){ b.textContent="✅ 장착중"; b.className="close"; }
+    else { b.textContent="장착"; b.addEventListener('click',()=>{ activePet=k; sfx.up(); renderPet(); save(); }); }
+    d.appendChild(b); el.appendChild(d); });
+  $('petName').textContent=activePet?PETS[activePet].e:"-";
+}
+function renderMissions(){ let el=$('missionList'); if(!el) return; el.innerHTML="";
+  missions.forEach(m=>{ let pct=Math.min(100,Math.round(m.prog/m.goal*100)); let d=document.createElement('div'); d.style.cssText="background:#0f1526;border:1px solid #2e3a66;border-radius:10px;padding:10px;margin:8px 0;text-align:left";
+    d.innerHTML=`<div style="font-weight:800">${m.txt}</div>
+      <div style="height:8px;background:#1a2244;border-radius:6px;margin:6px 0;overflow:hidden"><div style="height:8px;width:${pct}%;background:#43d693"></div></div>
+      <div style="font-size:12px;color:#ffd54a">진행 ${m.prog}/${m.goal} · 보상 +${fmt(m.rew)}💰</div>`;
+    el.appendChild(d); });
+}
+function openUpg(){ renderUpg(); openPanel('upgPanel'); }
+function applyLocks(){ myPods.forEach((p,i)=>p.locked=i<locks); }
+function lockCost(){ return Math.round(400*Math.pow(2,locks)); }
+function renderUpg(){ let el=$('upgList'); el.innerHTML="";
+  Object.keys(UPG).forEach(k=>{ let c=upgCost(k); let d=document.createElement('div'); d.className="row"; d.style.margin="10px 0";
+    d.innerHTML=`<div style="min-width:150px;text-align:left"><b>${UPG[k].name}</b> Lv${upg[k]}<br><span style="font-size:12px;color:#9fb0e6">${k==='spd'?'이동 +15%/레벨':'수익 +25%/레벨'}</span></div>`;
+    let b=document.createElement('button'); b.textContent=`강화 (${fmt(c)}💰)`; b.disabled=cash<c;
+    b.addEventListener('click',()=>{ if(cash<c)return; cash-=c;cashF-=c; upg[k]++; sfx.up(); renderUpg(); save(); });
+    d.appendChild(b); el.appendChild(d); });
+  // 자물쇠
+  let lc=lockCost(), maxed=locks>=myPods.length; let d=document.createElement('div'); d.className="row"; d.style.margin="10px 0";
+  d.innerHTML=`<div style="min-width:150px;text-align:left"><b>🔒 진열대 자물쇠</b> ${locks}/${myPods.length}<br><span style="font-size:12px;color:#9fb0e6">잠긴 칸은 도둑이 못 훔쳐요</span></div>`;
+  let b=document.createElement('button'); b.textContent=maxed?"전부 잠금":`자물쇠 (${fmt(lc)}💰)`; b.disabled=maxed||cash<lc;
+  b.addEventListener('click',()=>{ if(maxed||cash<lc)return; cash-=lc;cashF-=lc; locks++; applyLocks(); sfx.up(); renderUpg(); save(); });
+  d.appendChild(b); el.appendChild(d);
+}
+
+// ===== 패널 =====
+function openPanel(id){ uiOpen=true; $(id).classList.add('open'); }
+function closePanel(){ uiOpen=false; document.querySelectorAll('.panel').forEach(p=>{ if(p.id!=='startScreen') p.classList.remove('open'); }); }
+document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closePanel));
+$('dexBtn').addEventListener('click',()=>{ renderDex(); openPanel('dexPanel'); });
+$('missionBtn').addEventListener('click',()=>{ renderMissions(); openPanel('missionPanel'); });
+function renderDex(){ let el=$('dexList'); el.innerHTML="";
+  let total=BR.length, got=BR.filter(b=>discovered[b.id]).length; $('dexCount').textContent=`(${got}/${total})`;
+  RORDER.forEach(rk=>{ let list=BR.filter(b=>b.r===rk); if(!list.length) return; let r=R[rk];
+    let h=document.createElement('div'); h.style.cssText="text-align:left;font-weight:800;margin:10px 0 4px;color:"+r.c; h.textContent=r.name;
+    el.appendChild(h);
+    let grid=document.createElement('div'); grid.style.cssText="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:6px";
+    list.forEach(b=>{ let ok=discovered[b.id]; let d=document.createElement('div');
+      d.style.cssText="background:#0f1526;border:2px solid "+(ok?r.c:"#2e3a66")+";border-radius:10px;padding:6px;text-align:center;"+(ok?"":"opacity:.55");
+      d.innerHTML=`<div style="font-size:26px">${ok?b.e:"❓"}</div><div style="font-size:10px;font-weight:700">${ok?b.name:"???"}</div>`;
+      grid.appendChild(d); });
+    el.appendChild(grid); });
+}
+$('achBtn').addEventListener('click',()=>{ renderAch(); openPanel('achPanel'); });
+$('rebirthBtn').addEventListener('click',()=>{ renderRebirth(); openPanel('rebirthPanel'); });
+$('rebirthGo').addEventListener('click',doRebirth);
+$('muteBtn').addEventListener('click',()=>{ muted=!muted; $('muteBtn').textContent=muted?"🔇":"🔊"; });
+function renderAch(){ let el=$('achList'); el.innerHTML=""; ACH.forEach(a=>{ let ok=achUnlocked[a.id]; let d=document.createElement('div');
+  d.style.cssText="text-align:left;padding:8px 10px;margin:6px 0;border-radius:10px;border:1px solid "+(ok?"#43d693":"#2e3a66")+";background:"+(ok?"#12291f":"#0f1526");
+  d.innerHTML=`<b>${ok?"✅":"🔒"} ${a.n}</b> <span style="font-size:12px;color:#9fb0e6">— ${a.txt}</span><br><span style="font-size:12px;color:#ffd54a">보상 +${fmt(a.rew)}💰</span>`; el.appendChild(d); }); }
+function renderRebirth(){ let req=rebirthReq(), can=best>=req;
+  $('rebirthInfo').innerHTML=`현재 영구 배율: <span style="color:#43d693">x${rebirthMult().toFixed(1)}</span><br>환생 조건: 최고기록 <b>${fmt(req)}</b> (현재 ${fmt(best)})<br>${can?"✅ 환생 가능! (+50% 영구)":"❌ 아직 부족해요"}`;
+  $('rebirthGo').disabled=!can; }
+
+// 럭키블록
+function rarityCard(b){ let r=R[b.r]; return `<div class="result" style="border-color:${r.c}">
+  <div class="em">${b.e}</div><div class="nm">${b.name}</div>
+  <div class="rr" style="color:${r.c}">${r.name}</div><div class="in">💰 초당 ${fmt(b.inc)}</div></div>`; }
+function openLucky(){ $('luckyResult').innerHTML=""; $('luckyOpen').textContent=`열기 (${fmt(LUCKY_COST)}💰)`; $('luckyOpen').disabled=cash<LUCKY_COST; openPanel('luckyPanel'); }
+$('luckyOpen').addEventListener('click',()=>{ if(cash<LUCKY_COST) return; cash-=LUCKY_COST;cashF-=LUCKY_COST;
+  let b=mkInst(pickWeighted(ev.type==='luck')); inv.push(b); gotBrainrot(b); $('luckyResult').innerHTML=rarityCard(b); if(R[b.r].glow){burst();sfx.win();}else sfx.up();
+  $('luckyOpen').textContent=`열기 (${fmt(LUCKY_COST)}💰)`; $('luckyOpen').disabled=cash<LUCKY_COST; save(); });
+
+// 룰렛
+let rouSpinning=false;
+function openRoulette(){ $('rouSpin').textContent=`돌리기 (${fmt(ROU_COST)}💰)`; $('rouSpin').disabled=cash<ROU_COST;
+  buildStrip(null,0); openPanel('roulettePanel'); }
+function buildStrip(targetB,offset){ let strip=$('rouStrip'); strip.style.transition="none"; strip.style.transform="translateX(0px)"; strip.innerHTML="";
+  let items=[]; for(let i=0;i<44;i++){ let b= (i===39&&targetB)? targetB : BR[Math.floor(Math.random()*BR.length)]; items.push(b);
+    let r=R[b.r]; strip.innerHTML+=`<div class="rcell" style="color:${r.c}"><div class="em">${b.e}</div><div class="rr">${r.name}</div></div>`; }
+  return items;
+}
+$('rouSpin').addEventListener('click',()=>{ if(rouSpinning||cash<ROU_COST) return; cash-=ROU_COST;cashF-=ROU_COST; rouSpinning=true; $('rouSpin').disabled=true;
+  let target=mkInst(pickWeighted(true)); buildStrip(target); let strip=$('rouStrip');
+  let winW=$('rouWin').clientWidth; let dest=-(39*110 + 55 - winW/2) - (Math.random()*40-20);
+  requestAnimationFrame(()=>{ strip.style.transition="transform 3.4s cubic-bezier(.15,.85,.2,1)"; strip.style.transform=`translateX(${dest}px)`; });
+  setTimeout(()=>{ inv.push(target); gotBrainrot(target); rouSpinning=false; if(R[target.r].glow){burst();sfx.win();}else sfx.up(); toast(`${target.e} ${target.name} 획득!`);
+    $('rouSpin').textContent=`돌리기 (${fmt(ROU_COST)}💰)`; $('rouSpin').disabled=cash<ROU_COST; save(); },3550);
+});
+
+// 퓨즈
+let fuseSel=[];
+function openFuse(){ fuseSel=[]; $('fuseResult').innerHTML=""; renderFuseInv(); openPanel('fusePanel'); }
+function renderFuseInv(){ let el=$('fuseInv'); el.innerHTML=""; if(!inv.length){ el.innerHTML=`<div style="color:#8fa0d6;padding:20px">가방이 비었어요. 럭키블록·룰렛으로 모으거나 훔쳐서 채우세요!</div>`; }
+  inv.forEach((b,i)=>{ let r=R[b.r]; let d=document.createElement('div'); d.className='chipx'+(fuseSel.includes(i)?' sel':'');
+    d.innerHTML=`<span class="em">${b.e}</span>${b.name}<br><span style="color:${r.c}">${r.name}</span>`;
+    d.addEventListener('click',()=>{ let k=fuseSel.indexOf(i); if(k>=0)fuseSel.splice(k,1); else if(fuseSel.length<3)fuseSel.push(i); renderFuseInv(); });
+    el.appendChild(d); });
+  $('fuseGo').disabled=fuseSel.length!==3; $('fuseGo').textContent=fuseSel.length===3?"⚗️ 합성!":`⚗️ 합성 (${fuseSel.length}/3)`;
+}
+$('fuseGo').addEventListener('click',()=>{ if(fuseSel.length!==3) return;
+  let sel=fuseSel.map(i=>inv[i]); let tiers=sel.map(b=>RORDER.indexOf(b.r)); let mx=Math.max(...tiers);
+  let allSame=tiers.every(t=>t===tiers[0]); let out=mx; if(allSame) out=Math.min(RORDER.length-1,mx+1); else if(Math.random()<0.5) out=Math.min(RORDER.length-1,mx+1);
+  let cands=BR.filter(b=>b.r===RORDER[out]); let res=mkInst(cands[Math.floor(Math.random()*cands.length)]);
+  inv=inv.filter((_,i)=>!fuseSel.includes(i)); inv.push(res); fuseSel=[]; missionEvent("fuse"); gotBrainrot(res);
+  $('fuseResult').innerHTML=`<div style="margin:12px 0;font-weight:800">✨ 합성 결과 ✨</div>`+rarityCard(res); if(R[res.r].glow){burst();sfx.win();}else sfx.up();
+  renderFuseInv(); save();
+});
+function burst(){ addParts(W/2,H/2,"#ffe14d",40); }
+
+// ===== 근처 상호작용 판정 =====
+function updateNear(){
+  near=null; let bd=52, p=player;
+  function chk(x,y,type,ref){ let d=Math.hypot(p.x-x,p.y-y); if(d<bd){ bd=d; near={type,ref,x,y}; } }
+  rivals.forEach(pod=>{ if(pod.br) chk(pod.x,pod.y,'steal',pod); });
+  myPods.forEach(pod=>{ if(pod.br) chk(pod.x,pod.y,'myFull',pod); else chk(pod.x,pod.y,'myEmpty',pod); });
+  stations.forEach(s=>chk(s.x,s.y,s.type,s));
+}
+
+// ===== 루프 =====
+let last=0;
+function loop(ts){ let dt=Math.min(0.033,(ts-last)/1000)||0; last=ts; bgT+=dt; if(started && !uiOpen && player) update(dt); draw(); requestAnimationFrame(loop); }
+function update(dt){
+  let p=player, mx=0,my=0;
+  if(keys['w']||keys['arrowup'])my--; if(keys['s']||keys['arrowdown'])my++;
+  if(keys['a']||keys['arrowleft'])mx--; if(keys['d']||keys['arrowright'])mx++;
+  let sprint=(keys['shift']||keys['shiftleft']||keys['shiftright']);
+  let l=Math.hypot(mx,my); p.moving=l>0; p.run=sprint&&l>0;
+  if(l>0){ mx/=l;my/=l; let sp=p.speed*speedMult()*(p.carry?0.75:1)*(sprint?1.7:1);
+    if(mx) p.dir=mx>0?1:-1;
+    p.x=Math.max(24,Math.min(WORLD_W-24,p.x+mx*sp*dt)); p.y=Math.max(24,Math.min(WORLD_H-24,p.y+my*sp*dt));
+    if(sprint){ sprintPuff-=dt; if(sprintPuff<=0){ sprintPuff=0.06; addParts(p.x,p.y+12,"#cdd8ff",1,40); } }
+  }
+  p.walkT=(p.walkT||0)+dt*(p.moving?(sprint?14:9):0);
+  // 카메라
+  cam.x=Math.max(0,Math.min(WORLD_W-W, p.x-W/2)); cam.y=Math.max(0,Math.min(WORLD_H-H, p.y-H/2));
+  // 펫 따라오기 + 자동 잡기
+  if(activePet){ let a=Math.atan2(p.y-petE.y,p.x-petE.x), d=Math.hypot(p.x-petE.x,p.y-petE.y);
+    if(d>50){ petE.x+=Math.cos(a)*220*dt; petE.y+=Math.sin(a)*220*dt; } petE.walkT=(petE.walkT||0)+dt*8; }
+  // 라이벌 리스탁
+  rivals.forEach(pod=>{ if(!pod.br){ pod.restock-=dt; if(pod.restock<=0) restockRival(pod,pod.tier); } });
+  updateNear();
+  // 콤보/부스터/이벤트 타이머
+  if(comboT>0){ comboT-=dt; if(comboT<=0) combo=0; }
+  if(speedBoostT>0) speedBoostT-=dt;
+  if(ev.t>0){ ev.t-=dt; if(ev.t<=0) ev.type=null; }
+  evTimer-=dt; if(evTimer<=0){ evTimer=40+Math.random()*30; startEvent(); }
+  // 부스터 코인 스폰/획득
+  boosterT-=dt; if(boosterT<=0 && boosters.length<3){ boosterT=12+Math.random()*8;
+    boosters.push({x:120+Math.random()*(WORLD_W-240),y:120+Math.random()*(WORLD_H-240),t:0}); }
+  for(let bo of boosters){ bo.t+=dt; if(Math.hypot(bo.x-p.x,bo.y-p.y)<28){ bo.got=true; speedBoostT=6; toast("⚡ 스피드 부스트!"); sfx.up(); } }
+  boosters=boosters.filter(b=>!b.got && b.t<20);
+  // ===== 도둑 AI (일반 + 보스) — 점점 어려워짐 =====
+  thiefTimer-=dt;
+  let myFilled=myPods.filter(pd=>pd.br && !pd.locked);
+  let maxThieves=2+Math.min(4,Math.floor(best/30000))+rebirths;
+  if(thiefTimer<=0 && thieves.length<maxThieves && myFilled.length>0){
+    thiefTimer=Math.max(3.5, 11-best/45000-rebirths*0.5);
+    spawnThief(false,false); sfx.steal();
+  }
+  for(let th of thieves){
+    let tx,ty;
+    if(th.flee){ tx=th.gx; ty=th.gy; }
+    else { if(!th.tgt.br){ let f=myPods.filter(pd=>pd.br); if(!f.length){ th.flee=true; th.gx=th.x; th.gy=-60; continue; } th.tgt=f[Math.floor(Math.random()*f.length)]; }
+      tx=th.tgt.x; ty=th.tgt.y; }
+    let a=Math.atan2(ty-th.y,tx-th.x); th.x+=Math.cos(a)*th.speed*dt; th.y+=Math.sin(a)*th.speed*dt;
+    if(!th.flee && th.tgt.br && Math.hypot(th.x-th.tgt.x,th.y-th.tgt.y)<28){ th.carry=th.tgt.br; th.tgt.br=null; th.flee=true; th.gx=th.x; th.gy=-60; addParts(th.x,th.y,"#ff5b6b",10); }
+    // 플레이어/펫이 부딪힘
+    let bump = Math.hypot(th.x-p.x,th.y-p.y)<p.r+th.r || (activePet && petRange()>0 && Math.hypot(th.x-petE.x,th.y-petE.y)<petRange());
+    if(bump && (th.bumpCd||0)<=0){ th.bumpCd=0.4; th.hp--; addParts(th.x,th.y,"#ffd54a",8);
+      let ka=Math.atan2(th.y-p.y,th.x-p.x); th.x+=Math.cos(ka)*30; th.y+=Math.sin(ka)*30; sfx.catch();
+      if(th.hp<=0){ if(th.carry){ let empty=myPods.find(pd=>!pd.br); if(empty) empty.br=th.carry; else inv.push(th.carry);
+          addFloat(th.x,th.y-20,"저지! 🛡️","#43d693",18); addParts(th.x,th.y,"#43d693",16); }
+        if(th.boss){ stats.boss++; let rw=Math.round(300+best*0.06); cash+=rw;cashF+=rw; toast(`보스 처치! +${fmt(rw)}💰`); }
+        stats.catch++; missionEvent("catch"); checkAch(); th.dead=true; }
+    }
+    if(th.bumpCd>0) th.bumpCd-=dt;
+    if(th.flee && th.y<-40){ if(th.carry){ toast("😱 도둑맞았다!"); sfx.lose(); combo=0; } th.dead=true; }
+  }
+  thieves=thieves.filter(t=>!t.dead);
+  // 수익
+  let cps=myCps(); if(cps>0){ cashF+=cps*dt; cash=Math.floor(cashF);
+    popTick-=dt; if(popTick<=0){ popTick=0.7; let f=myPods.filter(pd=>pd.br); if(f.length){ let pd=f[Math.floor(Math.random()*f.length)];
+      addFloat(pd.x,pd.y-20,"+"+fmt(Math.round(brInc(pd.br)*incMult())),"#ffd54a",13); } sfx.cash(); missionEvent("cash",0); } }
+  if(ALL_UNLOCK){ cashF=Math.max(cashF,1e12); cash=Math.floor(cashF); }   // 돈 무제한
+  incTick+=dt; if(incTick>=1){ incTick=0; if(cash>best){best=cash;} checkAch(); save(); }
+  // 반짝이(갓/시크릿)
+  myPods.concat(rivals).forEach(pd=>{ if(pd.br && R[pd.br.r].glow && Math.random()<0.06) addParts(pd.x,pd.y-6,R[pd.br.r].c,1,60); });
+  // 이펙트
+  for(let pt of parts){ pt.x+=pt.vx*dt;pt.y+=pt.vy*dt;pt.vy+=200*dt;pt.life-=dt*1.6; } parts=parts.filter(p=>p.life>0);
+  for(let f of floats){ f.y-=26*dt; f.life-=dt*0.7; } floats=floats.filter(f=>f.life>0);
+  // HUD
+  $('cash').textContent=ALL_UNLOCK?"∞":fmt(cash); $('cps').textContent=fmt(cps); $('invN').textContent=inv.length; $('best').textContent=fmt(best);
+  $('petName').textContent=activePet?PETS[activePet].e:"-"; $('rbN').textContent=rebirths;
+}
+
+// ===== 그리기 =====
+function drawBrainrot(x,y,b,scale){ scale=scale||1; let r=R[b.r]; let s=18*scale; let yy=y+Math.sin(bgT*3+b.bob)*2*scale;
+  ctx.fillStyle="rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(x,y+s*0.7,s*0.7,s*0.3,0,0,7); ctx.fill();
+  if(r.glow||b.mut){ ctx.save(); ctx.shadowColor=b.mut?b.mut.c:r.c; ctx.shadowBlur=b.mut?18:16; }
+  ctx.fillStyle=r.c; ctx.beginPath(); ctx.arc(x,yy,s,0,7); ctx.fill(); if(r.glow||b.mut)ctx.restore();
+  if(b.mut){ ctx.strokeStyle=b.mut.c; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(x,yy,s+2,0,7); ctx.stroke(); }
+  ctx.fillStyle="rgba(255,255,255,.22)"; ctx.beginPath(); ctx.arc(x-s*0.3,yy-s*0.3,s*0.4,0,7); ctx.fill();
+  ctx.font=`${s*1.2}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(b.e,x,yy+1);
+  if(b.mut && scale>=1){ ctx.fillStyle=b.mut.c; ctx.font="800 9px system-ui"; ctx.fillText(b.mut.name,x,yy-s-6); }
+}
+function pedestal(x,y,c){ ctx.fillStyle=c; roundRect(x-26,y+14,52,16,6); ctx.fill(); ctx.fillStyle="rgba(255,255,255,.12)"; roundRect(x-26,y+14,52,5,4); ctx.fill(); }
+function zone(z,label){ ctx.fillStyle=z.c+"22"; roundRect(z.x,z.y,z.w,z.h,14); ctx.fill(); ctx.strokeStyle=z.c; ctx.lineWidth=2; ctx.setLineDash([8,6]); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle=z.c; ctx.font="800 13px system-ui"; ctx.textAlign="left"; ctx.fillText(label,z.x+8,z.y+16); }
+
+function drawPerson(x,y,walkT,face,color,carry){
+  let bounce=Math.abs(Math.sin(walkT))*3, yy=y-bounce;
+  // 다리
+  ctx.strokeStyle=color; ctx.lineWidth=5; ctx.lineCap="round";
+  let lg=Math.sin(walkT)*5;
+  ctx.beginPath(); ctx.moveTo(x-5,yy+12); ctx.lineTo(x-5+lg,y+18); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x+5,yy+12); ctx.lineTo(x+5-lg,y+18); ctx.stroke();
+  // 몸
+  ctx.fillStyle=color; ctx.beginPath(); ctx.arc(x,yy,15,0,7); ctx.fill();
+  ctx.strokeStyle="rgba(255,255,255,.5)"; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle="rgba(255,255,255,.25)"; ctx.beginPath(); ctx.arc(x-4,yy-5,6,0,7); ctx.fill();
+  ctx.font="17px serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(face,x,yy+1);
+  if(carry) drawBrainrot(x,yy-30,carry,0.8);
+}
+function draw(){
+  ctx.save(); ctx.translate(-cam.x,-cam.y);   // 카메라
+  // 바닥
+  let bg=ctx.createLinearGradient(0,0,0,WORLD_H); bg.addColorStop(0,"#101a34"); bg.addColorStop(1,"#0c1428");
+  ctx.fillStyle=bg; ctx.fillRect(0,0,WORLD_W,WORLD_H);
+  ctx.strokeStyle="rgba(120,150,255,.05)"; ctx.lineWidth=1;
+  let c0=Math.floor(cam.x/40)*40, r0=Math.floor(cam.y/40)*40;
+  for(let c=c0;c<=cam.x+W;c+=40){ ctx.beginPath(); ctx.moveTo(c,cam.y); ctx.lineTo(c,cam.y+H); ctx.stroke(); }
+  for(let r=r0;r<=cam.y+H;r+=40){ ctx.beginPath(); ctx.moveTo(cam.x,r); ctx.lineTo(cam.x+W,r); ctx.stroke(); }
+  zoneList.forEach(z=>zone(z,z.t));
+  // 라이벌 진열대
+  rivals.forEach(pod=>{ pedestal(pod.x,pod.y,"#6a2f2f"); if(pod.br) drawBrainrot(pod.x,pod.y,pod.br); });
+  // 내 진열대
+  myPods.forEach(pod=>{ let hl=near&&near.ref===pod; pedestal(pod.x,pod.y, pod.locked?"#2f6a8a":(hl?"#2f8a5e":"#1f5a3e")); if(pod.br){ drawBrainrot(pod.x,pod.y,pod.br);
+    ctx.fillStyle="#ffd54a"; ctx.font="800 11px system-ui"; ctx.textAlign="center"; ctx.fillText("+"+fmt(Math.round(brInc(pod.br)*incMult()))+"/s",pod.x,pod.y-28); }
+    else { ctx.fillStyle="rgba(255,255,255,.25)"; ctx.font="20px serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("＋",pod.x,pod.y); }
+    if(pod.locked){ ctx.font="14px serif"; ctx.fillText("🔒",pod.x+22,pod.y+20); } });
+  // 부스터 코인
+  for(let bo of boosters){ let yy=bo.y+Math.sin(bo.t*5)*3; ctx.save(); ctx.shadowColor="#7fd0ff"; ctx.shadowBlur=12; ctx.fillStyle="#7fd0ff"; ctx.beginPath(); ctx.arc(bo.x,yy,12,0,7); ctx.fill(); ctx.restore(); ctx.font="16px serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("⚡",bo.x,yy+1); }
+  // 기계
+  stations.forEach(s=>{ let hl=near&&near.type===s.type; let pulse=hl?Math.abs(Math.sin(bgT*6))*4:0;
+    ctx.save(); if(hl){ctx.shadowColor="#8fa8ff";ctx.shadowBlur=14;} ctx.fillStyle=hl?"#3a56d6":"#232c4e"; roundRect(s.x-36-pulse/2,s.y-32-pulse/2,72+pulse,64+pulse,12); ctx.fill(); ctx.restore();
+    ctx.strokeStyle=hl?"#aebdff":"#3a466e"; ctx.lineWidth=2; roundRect(s.x-36,s.y-32,72,64,12); ctx.stroke();
+    ctx.font="28px serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(s.label.split(' ')[0],s.x,s.y-6);
+    ctx.font="800 10px system-ui"; ctx.fillStyle="#cdd8ff"; ctx.fillText(s.label.split(' ')[1]||"",s.x,s.y+16); });
+  // 펫
+  if(activePet){ let pt=PETS[activePet]; drawPerson(petE.x,petE.y,petE.walkT||0,pt.e,"#c8a0ff",null);
+    if(petRange()>0){ ctx.strokeStyle="rgba(200,160,255,.25)"; ctx.setLineDash([5,6]); ctx.beginPath(); ctx.arc(petE.x,petE.y,petRange(),0,7); ctx.stroke(); ctx.setLineDash([]); } }
+  // 도둑 (보스 체력바)
+  for(let th of thieves){ let sc=th.boss?1.5:1;
+    ctx.fillStyle="rgba(0,0,0,.3)"; ctx.beginPath(); ctx.ellipse(th.x,th.y+14*sc,14*sc,6*sc,0,0,7); ctx.fill();
+    ctx.fillStyle=th.boss?"#8a1f2f":"#7a2f2f"; ctx.beginPath(); ctx.arc(th.x,th.y,15*sc,0,7); ctx.fill(); ctx.strokeStyle="#ff8b8b"; ctx.lineWidth=2; ctx.stroke();
+    ctx.font=`${17*sc}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(th.boss?"👺":"😈",th.x,th.y+1);
+    if(th.carry) drawBrainrot(th.x,th.y-28*sc,th.carry,0.8*sc);
+    ctx.fillStyle="#ff5b6b"; ctx.font="800 11px system-ui"; ctx.fillText(th.boss?"보스도둑":"도둑!",th.x,th.y-26*sc);
+    if(th.boss){ let w=44; ctx.fillStyle="#000"; ctx.fillRect(th.x-w/2,th.y-42,w,5); ctx.fillStyle="#ff4d6d"; ctx.fillRect(th.x-w/2,th.y-42,w*th.hp/4,5); } }
+  // 플레이어
+  let p=player; if(p){ drawPerson(p.x,p.y,p.walkT||0,"🧑",p.run?"#ffb84d":"#ffd27f",p.carry);
+    if(near){ let txt=promptText(near); if(txt){ ctx.font="800 13px system-ui"; let w=ctx.measureText(txt).width;
+      ctx.fillStyle="rgba(10,14,32,.9)"; roundRect(p.x-w/2-8,p.y-58,w+16,22,6); ctx.fill(); ctx.strokeStyle="#6f8bff"; ctx.lineWidth=1; ctx.stroke();
+      ctx.fillStyle="#fff"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(txt,p.x,p.y-47); } }
+  }
+  // 파티클/글자
+  for(let pt of parts){ ctx.globalAlpha=Math.max(0,pt.life); ctx.fillStyle=pt.c; ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.r,0,7); ctx.fill(); } ctx.globalAlpha=1;
+  for(let f of floats){ ctx.globalAlpha=Math.max(0,Math.min(1,f.life)); ctx.fillStyle=f.c; ctx.font=`800 ${f.s}px system-ui`; ctx.textAlign="center"; ctx.fillText(f.t,f.x,f.y); } ctx.globalAlpha=1;
+  ctx.restore();
+  // ---- 화면 고정 UI ----
+  drawMinimap();
+  // 콤보
+  if(combo>1 && comboT>0){ ctx.fillStyle="#ff9d3d"; ctx.font="800 22px system-ui"; ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+    ctx.fillText(`🔥 ${combo} 콤보  x${comboMult().toFixed(2)}`, 14, 34);
+    ctx.fillStyle="rgba(255,157,61,.3)"; ctx.fillRect(14,40,120,5); ctx.fillStyle="#ff9d3d"; ctx.fillRect(14,40,120*(comboT/7),5); }
+  // 이벤트 배너
+  if(ev.type){ let t=EVENTS[ev.type].n; ctx.textAlign="center"; ctx.fillStyle="rgba(10,14,32,.85)"; let w=ctx.measureText(t).width;
+    ctx.font="800 16px system-ui"; w=ctx.measureText(t).width; roundRect(W/2-w/2-12,50,w+24,28,8); ctx.fill(); ctx.strokeStyle="#ffd54a"; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle="#ffd54a"; ctx.textBaseline="middle"; ctx.fillText(t,W/2,64); }
+  // 스피드 부스트 표시
+  if(speedBoostT>0){ ctx.fillStyle="#7fd0ff"; ctx.font="800 14px system-ui"; ctx.textAlign="center"; ctx.textBaseline="alphabetic"; ctx.fillText("⚡ 스피드!",W/2,100); }
+}
+function drawMinimap(){ let mw=150,mh=mw*WORLD_H/WORLD_W, ox=W-mw-12, oy=12, sx=mw/WORLD_W, sy=mh/WORLD_H;
+  ctx.fillStyle="rgba(6,9,20,.7)"; roundRect(ox,oy,mw,mh,6); ctx.fill(); ctx.strokeStyle="#2e3a66"; ctx.lineWidth=1; ctx.stroke();
+  rivals.forEach(pd=>{ ctx.fillStyle="#b0413a"; ctx.fillRect(ox+pd.x*sx-1,oy+pd.y*sy-1,3,3); });
+  myPods.forEach(pd=>{ ctx.fillStyle="#43d693"; ctx.fillRect(ox+pd.x*sx-1,oy+pd.y*sy-1,3,3); });
+  thieves.forEach(th=>{ ctx.fillStyle="#ff4d6d"; ctx.fillRect(ox+th.x*sx-1,oy+th.y*sy-1,3,3); });
+  if(player){ ctx.fillStyle="#ffd54a"; ctx.fillRect(ox+player.x*sx-2,oy+player.y*sy-2,4,4); }
+}
+function promptText(n){
+  if(n.type==='steal') return player.carry?"먼저 진열대에 놓기":"E: 훔치기 🏃";
+  if(n.type==='myEmpty') return (player.carry||inv.length)?"E: 놓기":"가방이 비었어요";
+  if(n.type==='myFull') return player.carry?"손에 이미 있음":"E: 집기";
+  if(n.type==='sell') return (player.carry||inv.length)?"E: 판매 💵":"팔 게 없어요";
+  if(n.type==='lucky') return "E: 럭키블록 🎁";
+  if(n.type==='roulette') return "E: 룰렛 🎰";
+  if(n.type==='fuse') return "E: 퓨즈머신 ⚗️";
+  if(n.type==='upgrade') return "E: 업그레이드 💪";
+  if(n.type==='pet') return "E: 펫 상점 🐾";
+  return "";
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+// ===== 계정 시스템 (아바타·이름 편집 · 랭킹 · 계정별 저장) =====
+let started=false;
+newGame();  // 기본값(프로필 선택 전 화면 렌더용)
+const PMETA_KEY=SAVE_BASE+"_profiles";
+const AVATARS=["👨","👩","🧒","👦","👧","👶","🧑","🦸","🦹","🧙","🥷","🐱","🐶","🐼","🦊","🐸","🦁","🐯","🤖","👽","🦄","🐲","👑","⭐"];
+function loadPMeta(){ try{ return JSON.parse(localStorage.getItem(PMETA_KEY))||{}; }catch(e){ return {}; } }
+function savePMeta(m){ try{ localStorage.setItem(PMETA_KEY,JSON.stringify(m)); }catch(e){} }
+function profMeta(k){ let m=loadPMeta(), d=PROFILES.find(p=>p.k===k)||{n:k,e:"👤"}, e=m[k]||{}; return {name:e.name||d.n, avatar:e.avatar||d.e}; }
+function setProfMeta(k,patch){ let m=loadPMeta(); m[k]=Object.assign(profMeta(k),m[k]||{},patch); savePMeta(m); }
+function acctScore(k){ try{ let s=JSON.parse(localStorage.getItem(SAVE_BASE+"_"+k)); if(!s) return {val:-1,label:"기록 없음"};
+  let bst=s.best||0, rb=s.rebirths||0; return {val:rb*1e12+bst, label:`최고 ${fmt(bst)}💰 · 환생 ${rb}`}; }catch(e){ return {val:-1,label:"기록 없음"}; } }
+let acctView='select';
+function renderAcct(){ let box=$('acctBox');
+  if(acctView==='select'){
+    box.innerHTML=`<h2 style="margin:0 0 4px;font-size:26px">👤 계정 선택</h2><p style="margin:0 0 16px;color:#9fb0e6">누가 할 거예요? 계정마다 <b>따로 저장</b>돼요!</p><div id="pg" style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center"></div><div style="margin-top:16px;display:flex;gap:8px;justify-content:center"><button id="editB" class="close">✏️ 이름·아바타</button><button id="rankB" style="background:#2f6b47;border-color:#43d693">🏆 랭킹</button></div>`;
+    let pg=box.querySelector('#pg');
+    PROFILES.forEach(p=>{ let mt=profMeta(p.k); let b=document.createElement('button'); b.style.cssText="display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 16px;font-size:15px;min-width:100px";
+      b.innerHTML=`<span style="font-size:40px">${mt.avatar}</span>${mt.name}`; b.onclick=()=>pickProfile(p.k); pg.appendChild(b); });
+    box.querySelector('#editB').onclick=()=>{acctView='edit';renderAcct();};
+    box.querySelector('#rankB').onclick=()=>{acctView='rank';renderAcct();};
+  } else if(acctView==='edit'){
+    box.innerHTML=`<h2 style="margin:0 0 12px">✏️ 이름·아바타 편집</h2><p style="margin:0 0 12px;color:#9fb0e6">아바타를 눌러 바꾸고, 이름을 입력하세요</p><div id="eg" style="display:flex;flex-direction:column;gap:10px"></div><div style="margin-top:14px"><button id="backB" class="close">← 뒤로</button></div>`;
+    let eg=box.querySelector('#eg');
+    PROFILES.forEach(p=>{ let mt=profMeta(p.k); let row=document.createElement('div'); row.style.cssText="display:flex;gap:8px;align-items:center;justify-content:center";
+      let av=document.createElement('button'); av.style.cssText="font-size:28px;padding:6px 10px"; av.textContent=mt.avatar;
+      av.onclick=()=>{ let i=(AVATARS.indexOf(profMeta(p.k).avatar)+1)%AVATARS.length; setProfMeta(p.k,{avatar:AVATARS[i]}); av.textContent=AVATARS[i]; };
+      let inp=document.createElement('input'); inp.value=mt.name; inp.maxLength=8; inp.style.cssText="font-family:inherit;font-size:15px;padding:8px;border-radius:8px;border:2px solid #2e3a66;background:#0f1526;color:#fff;width:120px;text-align:center";
+      inp.oninput=()=>setProfMeta(p.k,{name:inp.value||p.n});
+      row.appendChild(av); row.appendChild(inp); eg.appendChild(row); });
+    box.querySelector('#backB').onclick=()=>{acctView='select';renderAcct();};
+  } else {
+    let rows=PROFILES.map(p=>({p,mt:profMeta(p.k),sc:acctScore(p.k)})).sort((a,b)=>b.sc.val-a.sc.val);
+    let medals=["🥇","🥈","🥉","4️⃣"];
+    box.innerHTML=`<h2 style="margin:0 0 12px">🏆 계정 랭킹</h2><div style="display:flex;flex-direction:column;gap:8px">`+
+      rows.map((r,i)=>`<div style="display:flex;align-items:center;gap:10px;background:#0f1526;border:1px solid #2e3a66;border-radius:10px;padding:10px"><span style="font-size:22px">${medals[i]||""}</span><span style="font-size:26px">${r.mt.avatar}</span><b style="min-width:60px;text-align:left">${r.mt.name}</b><span style="color:#9fb0e6;font-size:13px;margin-left:auto">${r.sc.label}</span></div>`).join('')+
+      `</div><div style="margin-top:14px"><button id="backB" class="close">← 뒤로</button></div>`;
+    box.querySelector('#backB').onclick=()=>{acctView='select';renderAcct();};
+  }
+}
+function pickProfile(k){ SAVE=SAVE_BASE+"_"+k; let mt=profMeta(k); profileName=mt.name;
+  newGame(); load();
+  if(ALL_UNLOCK){ cashF=1e12; cash=1e12; BR.forEach(b=>discovered[b.id]=true); }   // 개발자: 돈 무제한 + 도감 해제
+  $('profileScreen').classList.remove('open'); $('startScreen').classList.add('open');
+  let sb=$('switchBtn'); sb.style.display='block'; sb.textContent="🔄 "+mt.avatar+" "+mt.name; }
+function switchAccount(){ try{ save(); }catch(e){} location.reload(); }
+$('playBtn').addEventListener('click',()=>{ $('startScreen').classList.remove('open'); started=true; });
+renderAcct();
+requestAnimationFrame(loop);
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>브레인롯 훔치기</title>
+<meta name="theme-color" content="#7a3dd6" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="브레인롯 훔치기" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;background:#0c1020;color:#eef;
+    font-family:"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;-webkit-user-select:none;user-select:none;}
+  .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;text-align:center;}
+  .logo{width:120px;height:120px;border-radius:28px;box-shadow:0 12px 30px rgba(0,0,0,.5);}
+  h1{font-size:28px;margin:0;}
+  p{color:#9fb0e6;margin:0;font-size:15px;}
+  a.btn{text-decoration:none;color:#fff;font-weight:800;font-size:18px;padding:18px 30px;border-radius:16px;border:2px solid #b06fd6;background:#7a3dd6;box-shadow:0 6px 16px rgba(122,61,214,.4);transition:.12s;}
+  a.btn:hover{transform:translateY(-2px);}
+  #install{display:none;background:#b8860b;border-color:#ffd54a;}
+  .tip{font-size:12px;color:#6b7bb0;max-width:340px;line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="logo" src="icon-512.png" alt="아이콘" />
+  <div><h1>🧠 브레인롯 훔치기</h1><p>훔치고 · 벌고 · 막고 · 성장하자!</p></div>
+  <a class="btn" href="브레인롯훔치기.html">▶️ 게임 시작</a>
+  <a class="btn" href="브레인롯훔치기-전체해제.html" style="background:#2f6b47;border-color:#43d693">🔓 전체해제판 (돈 ∞)</a>
+  <a class="btn" id="install" href="#">📲 홈 화면에 앱 설치</a>
+  <div class="tip">폰에서 <b>공유 → 홈 화면에 추가</b>(아이폰) 또는 <b>메뉴 → 앱 설치</b>(안드로이드)를 누르면 진짜 앱처럼 홈 화면에 추가돼요.</div>
+</div>
+<script>
+  if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+  let deferred=null;
+  window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferred=e; let b=document.getElementById('install'); b.style.display='inline-block';
+    b.addEventListener('click',async ev=>{ ev.preventDefault(); if(!deferred)return; deferred.prompt(); deferred=null; b.style.display='none'; }); });
+</script>
+</body>
+</html>
