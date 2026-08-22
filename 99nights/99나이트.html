@@ -74,7 +74,7 @@
       <div class="abtn" id="bSkill"><span class="em">⚡</span><span>스킬</span><div class="cd" style="display:none"></div></div>
       <div class="abtn" id="bFeed"><span class="em">🪵</span><span>불지피기</span></div>
       <div class="abtn" id="bEat"><span class="em">🍖</span><span>먹기</span></div>
-      <div class="abtn" id="bBuild"><span class="em">🧱</span><span>방벽</span></div>
+      <div class="abtn" id="bBuild"><span class="em">🔨</span><span>제작</span></div>
     </div>
   </div>
 </div>
@@ -151,7 +151,9 @@ let selClass=CLASSES[0];
 let P=null;                    // 플레이어
 let fire, night, phase, timer, darkness, darkTarget;
 let monsters=[], resources=[], npcs=[], projs=[], parts=[], drops=[], walls=[];
-let woodC,foodC,stoneC, xp,xpNeed,level;
+let animals=[], lootChests=[], supplyChests=[], traps=[], turrets=[], lostKids=[];
+let animalT=0, chestT=0, kidT=0;
+let woodC,foodC,stoneC,leatherC, xp,xpNeed,level;
 let spawnT, toSpawn, nightGold, keys={}, joy={x:0,y:0};
 let floaters=[]; // 화면 텍스트
 const FIRE_X=W/2, FIRE_Y=H/2, FIRE_R=30;
@@ -173,13 +175,14 @@ function beginRun(){
   fire={ fuel:0, max:100+u.fire*15 }; fire.fuel=fire.max;
   night=1; phase='day'; timer=26; darkness=0; darkTarget=0;
   level=1; xp=0; xpNeed=12;
-  woodC=6+u.wood*8; foodC=3+Math.floor(u.wood*3); stoneC=0; nightGold=0;
+  woodC=6+u.wood*8; foodC=3+Math.floor(u.wood*3); stoneC=0; leatherC=0; nightGold=0;
   monsters=[]; projs=[]; parts=[]; drops=[]; walls=[]; floaters=[];
+  animals=[]; lootChests=[]; supplyChests=[]; traps=[]; turrets=[]; lostKids=[];
   spawnT=0; toSpawn=0;
-  spawnResources(); spawnNPCs();
+  spawnResources(); spawnNPCs(); startDay();
   meta.plays++; saveMeta();
   state='playing'; hideModal(); showCtrls(true);
-  toast("☀️ 낮 1일 — 나무를 모아 밤을 대비하세요!", '#ffe08a');
+  toast("☀️ 낮 1일 — 자원·동물을 모으고 아이를 구하세요!", '#ffe08a');
 }
 function spawnResources(){ resources=[];
   const add=(type,n)=>{ for(let i=0;i<n;i++){ let a=Math.random()*7, d=rnd(150,Math.min(W,H)/2-40);
@@ -222,7 +225,8 @@ function monsterKindForNight(){
 // ===== 입력 =====
 addEventListener('keydown',e=>{ keys[e.key.toLowerCase()]=true;
   if(state==='playing'){ let k=e.key.toLowerCase();
-    if(k===' '){e.preventDefault();useSkill();} if(k==='e')feedFire(); if(k==='f')eatFood(); if(k==='b')buildWall(); }
+    if(k===' '){e.preventDefault();useSkill();} if(k==='e')feedFire(); if(k==='f')eatFood(); if(k==='b'||k==='c')openCraft(); }
+  else if((e.key.toLowerCase()==='b'||e.key.toLowerCase()==='c')&&state==='craft')closeCraft();
 });
 addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
 // 조이스틱
@@ -237,7 +241,7 @@ addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
   base.addEventListener('pointerup',end); base.addEventListener('pointercancel',end);
 })();
 function bindBtn(id,fn){ let b=$(id); b.addEventListener('pointerdown',e=>{e.preventDefault();ac();fn();}); }
-bindBtn('bSkill',useSkill); bindBtn('bFeed',feedFire); bindBtn('bEat',eatFood); bindBtn('bBuild',buildWall);
+bindBtn('bSkill',useSkill); bindBtn('bFeed',feedFire); bindBtn('bEat',eatFood); bindBtn('bBuild',openCraft);
 
 function feedFire(){ if(state!=='playing')return; if(woodC>0 && fire.fuel<fire.max){ woodC--; fire.fuel=Math.min(fire.max,fire.fuel+18); sfx.chop(); popText(FIRE_X,FIRE_Y-30,'🔥+18','#ff9d3d'); for(let i=0;i<6;i++)parts.push({x:FIRE_X,y:FIRE_Y-10,vx:rnd(-40,40),vy:rnd(-90,-30),life:0.6,c:'#ffb347'}); } else sfx.ui(); }
 function eatFood(){ if(state!=='playing')return; if(foodC>0 && P.hp<P.hpMax){ foodC--; let h=32*P.foodMult; P.hp=Math.min(P.hpMax,P.hp+h); sfx.coin(); popText(P.x,P.y-24,'❤️+'+Math.round(h),'#43d693'); } else sfx.ui(); }
@@ -259,8 +263,8 @@ function boom(x,y,r,dm){ sfx.boom(); ring(x,y,r,'#ff8a3d'); for(let i=0;i<24;i++
 // ===== 전투 도우미 =====
 function nearestMonster(x,y,rng){ let best=null,bd=rng; monsters.forEach(m=>{ let d=Math.hypot(m.x-x,m.y-y); if(d<bd){bd=d;best=m;} }); return best; }
 function nearestResource(x,y,rng){ let best=null,bd=rng; resources.forEach(r=>{ if(r.hp<=0)return; let d=Math.hypot(r.x-x,r.y-y); if(d<bd){bd=d;best=r;} }); return best; }
-function dmgMonster(m,d){ m.hp-=d; m.flash=0.12; sfx.hit();
-  for(let i=0;i<4;i++)parts.push({x:m.x,y:m.y,vx:rnd(-60,60),vy:rnd(-60,20),life:0.35,c:'#fff'});
+function dmgMonster(m,d,silent){ m.hp-=d; m.flash=0.12; if(!silent)sfx.hit();
+  if(!silent)for(let i=0;i<4;i++)parts.push({x:m.x,y:m.y,vx:rnd(-60,60),vy:rnd(-60,20),life:0.35,c:'#fff'});
   if(m.hp<=0) killMonster(m); }
 function killMonster(m){ let i=monsters.indexOf(m); if(i<0)return; monsters.splice(i,1);
   meta.gold+=m.gold; nightGold+=m.gold; addXp(m.xp); popText(m.x,m.y,'🪙+'+m.gold,'#ffd54a');
@@ -291,8 +295,11 @@ function update(dt){
 
   // 낮/밤
   timer-=dt;
-  if(phase==='day'){ fire.fuel=Math.max(0,fire.fuel-0.5*dt); regrow(dt);
-    darkTarget=0; if(timer<=0)startNight(); }
+  if(phase==='day'){ fire.fuel=Math.max(0,fire.fuel-0.5*dt); regrow(dt); darkTarget=0;
+    animalT-=dt; if(animalT<=0 && animals.length<7){ spawnAnimals(1); animalT=rnd(3.5,7); }
+    kidT-=dt; if(kidT<=0 && lostKids.length<2 && npcs.length+lostKids.length<7){ spawnLostKids(1); kidT=rnd(9,15); }
+    chestT-=dt; if(chestT<=0 && lootChests.length<3){ spawnLootChest(); chestT=rnd(11,18); }
+    if(timer<=0)startNight(); }
   else { fire.fuel=Math.max(0,fire.fuel-2.0*dt); darkTarget=0.85;
     // 스폰
     spawnT-=dt; if(toSpawn>0 && spawnT<=0 && timer>0){ spawnMonster(monsterKindForNight(),false); toSpawn--; spawnT=Math.max(0.4,1.6-night*0.03); }
@@ -308,10 +315,13 @@ function update(dt){
   if(P.atkT<=0){
     let mt=nearestMonster(P.x,P.y,P.range);
     if(mt){ doAttack(mt); P.atkT=cd; }
-    else { let r=nearestResource(P.x,P.y,50); if(r){ gather(r); P.atkT=P.atkCd*0.7; } }
+    else { let an=nearestAnimal(P.x,P.y,P.range);
+      if(an){ attackAnimal(an); P.atkT=cd; }
+      else { let r=nearestResource(P.x,P.y,50); if(r){ gather(r); P.atkT=P.atkCd*0.7; } } }
   }
 
   updateMonsters(dt); updateProjs(dt); updateNPCs(dt); updateDrops(dt); updateParts(dt);
+  updateAnimals(dt); updateLootChests(dt); updateLostKids(dt); updateTraps(dt); updateTurrets(dt);
 }
 function doAttack(m){ let dm=P.baseDmg*P.dmgMul*(P.buffT>0?1.5:1);
   if(P.ranged){ let a=Math.atan2(m.y-P.y,m.x-P.x); projs.push({x:P.x,y:P.y,vx:Math.cos(a)*560,vy:Math.sin(a)*560,dmg:dm,life:1.1,aoe:P.aoe,color:P.cls.k==='mage'?'#ff8a3d':'#e8f0a0'}); sfx.shoot(); }
@@ -348,7 +358,8 @@ function updateMonsters(dt){ monsters.forEach(m=>{ if(m.flash>0)m.flash-=dt;
 }); walls=walls.filter(w=>w.hp>0); }
 
 function updateProjs(dt){ projs.forEach(p=>{ p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
-  for(let m of monsters){ if(Math.hypot(m.x-p.x,m.y-p.y)<m.r+6){ if(p.aoe>0)boom(p.x,p.y,p.aoe*1.6,p.dmg); else dmgMonster(m,p.dmg); p.life=0; break; } }
+  if(p.prey){ for(let a of animals){ if(Math.hypot(a.x-p.x,a.y-p.y)<a.r+6){ dmgAnimal(a,p.dmg); p.life=0; break; } } }
+  else { for(let m of monsters){ if(Math.hypot(m.x-p.x,m.y-p.y)<m.r+6){ if(p.aoe>0)boom(p.x,p.y,p.aoe*1.6,p.dmg); else dmgMonster(m,p.dmg); p.life=0; break; } } }
 }); projs=projs.filter(p=>p.life>0 && p.x>-20&&p.x<W+20&&p.y>-20&&p.y<H+20); }
 
 function updateNPCs(dt){ npcs.forEach(n=>{ if(!n.alive)return; n.wt-=dt;
@@ -363,6 +374,7 @@ function updateParts(dt){ parts.forEach(p=>{ p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=200
   floaters.forEach(f=>{ f.y+=f.vy*dt; f.life-=dt; }); floaters=floaters.filter(f=>f.life>0); }
 
 function startNight(){ phase='night'; timer=Math.min(30,18+night*0.5);
+  animals=[]; lootChests=[]; lostKids=[];   // 동물·야생상자·길잃은 아이는 밤엔 숨음
   toSpawn=4+Math.floor(night*1.4); spawnT=0.5;
   if(night%10===0){ setTimeout(()=>{ if(state==='playing')spawnMonster(null,true); },800); toSpawn=Math.floor(toSpawn*0.6); }
   toast('🌙 '+night+'일째 밤! 모닥불을 지켜라','#9fb4ff'); sfx.ui();
@@ -374,7 +386,98 @@ function endNight(){ // 밤 생존
   toast('🌅 '+night+'일째 생존! +🪙'+bonus+(alive?` (아이 ${alive}명 보호)`:''),'#ffe08a'); sfx.win();
   night++;
   if(night>WIN_NIGHT){ gameWin(); return; }
-  phase='day'; timer= night<=2?24:20; monsters=[];
+  phase='day'; timer= night<=2?24:20; monsters=[]; startDay();
+}
+// ===== 낮 시작: 동물·야생상자·길잃은 아이 등장 + 보급상자 수확 =====
+function startDay(){
+  spawnAnimals(3); spawnLostKids(1+Math.floor(Math.random()*2)); spawnLootChest();
+  animalT=rnd(4,7); kidT=rnd(8,13); chestT=rnd(10,16);
+  if(supplyChests.length){ let w=supplyChests.length*2, f=supplyChests.length; woodC+=w; foodC+=f;
+    toast('🧰 보급상자 수확! 🪵+'+w+' 🍖+'+f,'#43d693'); }
+}
+// ===== 동물(야생) =====
+const ANIMALS={ rabbit:{e:'🐰',hp:10,spd:100,food:2,leather:0.15,r:12,dmg:0},
+  deer:{e:'🦌',hp:26,spd:82,food:4,leather:0.55,r:15,dmg:0},
+  boar:{e:'🐗',hp:48,spd:72,food:5,leather:0.85,r:16,dmg:12} };
+function spawnAnimals(n){ let ks=['rabbit','rabbit','rabbit','deer','deer','boar'];
+  for(let i=0;i<n;i++){ let k=ks[Math.floor(Math.random()*ks.length)],b=ANIMALS[k];
+    let a=Math.random()*7,d=rnd(150,Math.min(W,H)/2-30);
+    animals.push(Object.assign({},b,{type:k,x:clamp(FIRE_X+Math.cos(a)*d,30,W-30),y:clamp(FIRE_Y+Math.sin(a)*d,100,H-30),max:b.hp,vx:0,vy:0,wt:0,tc:0,mad:false,flash:0})); } }
+function nearestAnimal(x,y,rng){ let best=null,bd=rng; animals.forEach(a=>{ let d=Math.hypot(a.x-x,a.y-y); if(d<bd){bd=d;best=a;} }); return best; }
+function attackAnimal(a){ let dm=P.baseDmg*P.dmgMul*(P.buffT>0?1.5:1);
+  if(P.ranged){ let ang=Math.atan2(a.y-P.y,a.x-P.x); projs.push({x:P.x,y:P.y,vx:Math.cos(ang)*560,vy:Math.sin(ang)*560,dmg:dm,life:1.1,aoe:0,color:'#e8f0a0',prey:true}); sfx.shoot(); }
+  else { dmgAnimal(a,dm); } }
+function dmgAnimal(a,d){ a.hp-=d; a.flash=0.12; if(a.type==='boar')a.mad=true; sfx.hit();
+  for(let i=0;i<3;i++)parts.push({x:a.x,y:a.y,vx:rnd(-50,50),vy:rnd(-50,20),life:0.3,c:'#fff'});
+  if(a.hp<=0)killAnimal(a); }
+function killAnimal(a){ let i=animals.indexOf(a); if(i<0)return; animals.splice(i,1);
+  let f=Math.round(a.food*P.foodMult); foodC+=f; popText(a.x,a.y,'🍖+'+f,'#e07a7a');
+  if(Math.random()<a.leather){ leatherC++; popText(a.x,a.y-16,'🟤+1','#b5794a'); }
+  for(let k=0;k<6;k++)parts.push({x:a.x,y:a.y,vx:rnd(-80,80),vy:rnd(-80,40),life:0.5,c:'#e0a0a0'}); sfx.coin(); }
+function updateAnimals(dt){ animals.forEach(a=>{ if(a.flash>0)a.flash-=dt; a.tc-=dt; let dp=dist(a,P);
+  if(a.type==='boar' && a.mad){ let ang=Math.atan2(P.y-a.y,P.x-a.x); a.x+=Math.cos(ang)*a.spd*1.3*dt; a.y+=Math.sin(ang)*a.spd*1.3*dt;
+      if(dp<a.r+P.r && a.tc<=0){ hurtPlayer(a.dmg); a.tc=0.9; } }
+  else if(dp<135){ let ang=Math.atan2(a.y-P.y,a.x-P.x); a.x+=Math.cos(ang)*a.spd*dt; a.y+=Math.sin(ang)*a.spd*dt; }
+  else { a.wt-=dt; if(a.wt<=0){ a.vx=rnd(-22,22); a.vy=rnd(-22,22); a.wt=rnd(0.7,1.8); } a.x+=a.vx*dt; a.y+=a.vy*dt; }
+  a.x=clamp(a.x,20,W-20); a.y=clamp(a.y,90,H-20);
+}); }
+// ===== 야생 상자(주워서 랜덤 보상) =====
+function spawnLootChest(){ let a=Math.random()*7,d=rnd(160,Math.min(W,H)/2-40);
+  lootChests.push({x:clamp(FIRE_X+Math.cos(a)*d,40,W-40),y:clamp(FIRE_Y+Math.sin(a)*d,100,H-40),r:16,bob:Math.random()*6}); }
+function updateLootChests(dt){ for(let i=lootChests.length-1;i>=0;i--){ let c=lootChests[i]; if(dist(c,P)<28){ openLootChest(c); lootChests.splice(i,1); } } }
+function openLootChest(c){ sfx.coin(); ring(c.x,c.y,34,'#ffd54a'); let roll=Math.random();
+  if(roll<0.28){ let n=3+Math.floor(Math.random()*4); woodC+=n; popText(c.x,c.y,'🪵+'+n,'#c8a06a'); }
+  else if(roll<0.5){ let n=2+Math.floor(Math.random()*3); foodC+=n; popText(c.x,c.y,'🍖+'+n,'#e07a7a'); }
+  else if(roll<0.68){ let n=2+Math.floor(Math.random()*3); stoneC+=n; popText(c.x,c.y,'🪨+'+n,'#cfcfcf'); }
+  else if(roll<0.82){ let n=1+Math.floor(Math.random()*2); leatherC+=n; popText(c.x,c.y,'🟤+'+n,'#b5794a'); }
+  else if(roll<0.95){ let g=15+Math.floor(Math.random()*30); meta.gold+=g; nightGold+=g; popText(c.x,c.y,'🪙+'+g,'#ffd54a'); }
+  else { P.dmgMul*=1.1; toast('📦 보물! 공격력 영구 +10%','#ffd54a'); } }
+// ===== 길 잃은 아이 구출 =====
+function spawnLostKids(n){ for(let i=0;i<n;i++){ let a=Math.random()*7,d=rnd(200,Math.min(W,H)/2-30);
+  lostKids.push({x:clamp(FIRE_X+Math.cos(a)*d,40,W-40),y:clamp(FIRE_Y+Math.sin(a)*d,110,H-40),r:14,e:["🧒","👧","👦"][Math.floor(Math.random()*3)]}); } }
+function updateLostKids(dt){ for(let i=lostKids.length-1;i>=0;i--){ let k=lostKids[i];
+  if(dist(k,P)<30 && npcs.length<7){ npcs.push({x:k.x,y:k.y,r:12,hp:60,max:60,e:k.e,vx:0,vy:0,wt:0,alive:true}); lostKids.splice(i,1);
+    sfx.win(); toast('🆘 아이를 구했어요! 모닥불 곁에서 지켜주세요','#43d693'); popText(k.x,k.y,'구출!','#43d693'); } } }
+// ===== 함정 · 화살탑 =====
+function updateTraps(dt){ traps.forEach(t=>{ monsters.forEach(m=>{ if(dist(m,t)<t.r+m.r){ dmgMonster(m,48*dt,true); t.hp-=7*dt; } }); }); traps=traps.filter(t=>t.hp>0); }
+function updateTurrets(dt){ turrets.forEach(t=>{ t.cd-=dt; if(t.cd<=0){ let m=nearestMonster(t.x,t.y,320);
+  if(m){ let ang=Math.atan2(m.y-t.y,m.x-t.x); projs.push({x:t.x,y:t.y,vx:Math.cos(ang)*520,vy:Math.sin(ang)*520,dmg:14+level*1.6,life:1.0,aoe:0,color:'#ffe08a'}); t.cd=1.0; sfx.shoot(); } } }); }
+// ===== 제작 =====
+const RECIPES=[
+  {k:'weapon',n:'무기 강화',e:'🗡️',cost:{wood:5,stone:3},desc:'공격력 영구 +12%'},
+  {k:'armor', n:'갑옷 강화',e:'🛡️',cost:{leather:3,stone:2},desc:'피해 감소 +8% · 최대체력 +15'},
+  {k:'fire',  n:'모닥불 강화',e:'🔥',cost:{wood:8},desc:'모닥불 최대 연료 +20'},
+  {k:'potion',n:'회복 물약',e:'🧪',cost:{food:3,leather:1},desc:'즉시 체력 가득 회복'},
+  {k:'trap',  n:'가시 함정',e:'🪤',cost:{wood:2,stone:3},desc:'밟는 몬스터에게 피해(내 자리에 설치)'},
+  {k:'turret',n:'화살탑',e:'🏹',cost:{wood:8,stone:5},desc:'몬스터를 자동으로 쏨(내 자리에 설치)'},
+  {k:'wall',  n:'방벽',e:'🧱',cost:{stone:5},desc:'몬스터를 막는 벽(내 자리에 설치)'},
+  {k:'chest', n:'보급상자',e:'🧰',cost:{wood:6,stone:2},desc:'설치하면 매일 아침 자원을 줌'},
+];
+const RMAP={wood:'🪵',food:'🍖',stone:'🪨',leather:'🟤'};
+function canAfford(c){ return (!c.wood||woodC>=c.wood)&&(!c.food||foodC>=c.food)&&(!c.stone||stoneC>=c.stone)&&(!c.leather||leatherC>=c.leather); }
+function payCost(c){ if(c.wood)woodC-=c.wood; if(c.food)foodC-=c.food; if(c.stone)stoneC-=c.stone; if(c.leather)leatherC-=c.leather; }
+function openCraft(){ if(state!=='playing')return; state='craft'; showCtrls(false); renderCraft(); }
+function closeCraft(){ state='playing'; hideModal(); showCtrls(true); }
+function renderCraft(){ let items=RECIPES.map(r=>{ let ok=canAfford(r.cost);
+    let ct=Object.keys(r.cost).map(k=>RMAP[k]+r.cost[k]).join(' ');
+    return `<div class="card" style="cursor:default"><div style="font-size:30px">${r.e}</div><b>${r.n}</b>
+      <div class="stat" style="text-align:center;margin:4px 0">${r.desc}</div>
+      <button class="b ${ok?'':'gray'}" ${ok?'':'disabled'} onclick="craft('${r.k}')" style="font-size:13px;padding:8px 12px">${ct}</button></div>`; }).join('');
+  showModal(`<h2>🔨 제작대 <span style="font-size:13px;color:#a9c6b3">🪵${woodC} 🍖${foodC} 🪨${stoneC} 🟤${leatherC}</span></h2>
+    <p>자원으로 다양한 아이템을 만들어요! 설치형은 <b>지금 서 있는 자리</b>에 놓여요.</p>
+    <div class="grid">${items}</div>
+    <button class="b" onclick="closeCraft()">✖️ 닫고 계속하기</button>`);
+}
+function craft(k){ let r=RECIPES.find(x=>x.k===k); if(!r||!canAfford(r.cost)){ sfx.ui(); return; } payCost(r.cost); sfx.coin();
+  if(k==='weapon'){ P.dmgMul*=1.12; toast('🗡️ 무기 강화! 공격력 +12%','#ffd54a'); }
+  else if(k==='armor'){ P.defense=Math.min(0.7,P.defense+0.08); P.hpMax+=15; P.hp+=15; toast('🛡️ 갑옷 강화!','#7fa8ff'); }
+  else if(k==='fire'){ fire.max+=20; fire.fuel=Math.min(fire.max,fire.fuel+20); toast('🔥 모닥불이 커졌다!','#ff9d3d'); }
+  else if(k==='potion'){ P.hp=P.hpMax; toast('🧪 물약! 체력 가득','#43d693'); }
+  else if(k==='trap'){ traps.push({x:P.x,y:P.y,r:20,hp:60}); toast('🪤 함정 설치!','#c8a06a'); }
+  else if(k==='turret'){ turrets.push({x:P.x,y:P.y,r:16,cd:0}); toast('🏹 화살탑 설치!','#ffd54a'); }
+  else if(k==='wall'){ walls.push({x:P.x,y:P.y,r:20,hp:80,max:80}); toast('🧱 방벽 설치!','#9fb0e6'); }
+  else if(k==='chest'){ supplyChests.push({x:P.x,y:P.y,r:16}); toast('🧰 보급상자 설치! 매일 아침 자원','#43d693'); }
+  renderCraft();
 }
 
 function gameOver(reason){ if(state!=='playing')return; state='over'; showCtrls(false); sfx.lose();
@@ -385,7 +488,11 @@ function gameOver(reason){ if(state!=='playing')return; state='over'; showCtrls(
     <div class="row" style="margin-top:14px">
       <button class="b" onclick="beginRun()">🔁 다시 도전</button>
       <button class="b gold" onclick="renderShop()">🛒 골드 상점</button>
-      <button class="b gray" onclick="toClass()">클래스 변경</button>
+      <button class="b gray" onclick="toClass()">🦸 클래스 변경</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="b gray" onclick="toProfile()">🔄 계정 바꾸기</button>
+      <button class="b gray" onclick="location.href='../'">🏠 게임천국</button>
     </div>`);
 }
 function gameWin(){ state='win'; showCtrls(false); sfx.win();
@@ -393,7 +500,11 @@ function gameWin(){ state='win'; showCtrls(false); sfx.win();
   showModal(`<h1>🎉 99일 밤 완전 정복!</h1><p style="font-size:16px;color:#ffe08a">숲의 전설이 되었습니다!</p>
     <div class="big">🏆👑🔥</div><p>보너스 🪙 1000 획득! 총 보유 🪙 ${fmt(meta.gold)}</p>
     <div class="row" style="margin-top:14px"><button class="b" onclick="beginRun()">🔁 다시 플레이</button>
-    <button class="b gray" onclick="toClass()">클래스 변경</button></div>`);
+    <button class="b gray" onclick="toClass()">🦸 클래스 변경</button></div>
+    <div class="row" style="margin-top:10px">
+      <button class="b gray" onclick="toProfile()">🔄 계정 바꾸기</button>
+      <button class="b gray" onclick="location.href='../'">🏠 게임천국</button>
+    </div>`);
 }
 
 // ===== 그리기 =====
@@ -414,11 +525,29 @@ function draw(){
     ctx.font=(r.type==='tree'?'40px':r.type==='rock'?'32px':'28px')+' serif';ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(r.type==='tree'?'🌲':r.type==='rock'?'🪨':'🫐',r.x,r.y);
     if(r.hp<r.max){ bar(r.x-16,r.y-24,32,4,r.hp/r.max,'#43d693'); } });
+  // 함정(바닥)
+  traps.forEach(t=>{ ctx.font='24px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.globalAlpha=0.9; ctx.fillText('🪤',t.x,t.y); ctx.globalAlpha=1; });
   // 방벽
   walls.forEach(w=>{ ctx.font='30px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText('🧱',w.x,w.y); bar(w.x-16,w.y-22,32,4,w.hp/w.max,'#c8a06a'); });
+  // 화살탑
+  turrets.forEach(t=>{ ctx.font='30px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText('🏹',t.x,t.y); });
+  // 보급상자(설치형)
+  supplyChests.forEach(c=>{ ctx.font='26px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText('🧰',c.x,c.y); });
+  // 야생 상자(줍기) — 반짝임
+  lootChests.forEach(c=>{ ctx.font='26px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.save(); ctx.shadowColor='#ffd54a'; ctx.shadowBlur=12+Math.sin(fireFlick+c.bob)*8; ctx.fillText('📦',c.x,c.y); ctx.restore();
+    ctx.font='14px serif'; ctx.fillText('✨',c.x+14,c.y-16); });
+  // 길 잃은 아이(구출 대상)
+  lostKids.forEach(k=>{ ctx.font='22px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText(k.e,k.x,k.y);
+    ctx.font='bold 13px sans-serif'; ctx.fillStyle=(Math.sin(fireFlick*2)>0)?'#ff6a6a':'#ffd54a'; ctx.fillText('🆘',k.x,k.y-20); });
 
   // 모닥불
   drawFire();
+
+  // 동물(야생)
+  animals.forEach(a=>{ if(a.flash>0){ctx.globalAlpha=0.5;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(a.x,a.y,a.r+3,0,7);ctx.fill();ctx.globalAlpha=1;}
+    ctx.font=(a.type==='boar'?'28px':'24px')+' serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText(a.e,a.x,a.y);
+    if(a.hp<a.max)bar(a.x-14,a.y-18,28,3,a.hp/a.max,a.type==='boar'&&a.mad?'#ff6a5c':'#43d693'); });
 
   // NPC
   npcs.forEach(n=>{ if(!n.alive)return; ctx.font='24px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText(n.e,n.x,n.y);
@@ -484,7 +613,7 @@ function drawHUD(){
   ctx.textAlign='center'; ctx.fillStyle='#fff'; ctx.fillText(Math.ceil(fire.fuel), cx+177,52);
   // 자원 (중앙 한 줄)
   ctx.textAlign='center'; ctx.font='bold 14px sans-serif'; ctx.fillStyle='#fff';
-  ctx.fillText(`🪵 ${woodC}    🍖 ${foodC}    🪨 ${stoneC}    🪙 ${fmt(meta.gold)}    ⭐ Lv${level}`, cx, 70);
+  ctx.fillText(`🪵${woodC}  🍖${foodC}  🪨${stoneC}  🟤${leatherC}  🪙${fmt(meta.gold)}  ⭐Lv${level}`, cx, 70);
   updateSkillBtn();
 }
 function updateSkillBtn(){ let b=$('bSkill'), cd=b.querySelector('.cd'); let em=b.querySelector('.em'); em.textContent=P.cls.skill.e;
