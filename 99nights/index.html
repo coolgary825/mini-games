@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>99나이트</title>
+<meta name="theme-color" content="#0c2016" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="99나이트" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;background:linear-gradient(160deg,#0f2416,#07100b);color:#eef;
+    font-family:"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;-webkit-user-select:none;user-select:none;}
+  .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;text-align:center;}
+  .logo{width:120px;height:120px;border-radius:28px;box-shadow:0 12px 30px rgba(0,0,0,.5);}
+  h1{font-size:30px;margin:0;letter-spacing:1px;}
+  p{color:#a9c6b3;margin:0;font-size:15px;}
+  a.btn{text-decoration:none;color:#fff;font-weight:800;font-size:18px;padding:18px 30px;border-radius:16px;border:2px solid #43d693;background:#1f7a48;box-shadow:0 6px 16px rgba(31,122,72,.4);transition:.12s;}
+  a.btn:hover{transform:translateY(-2px);}
+  #install{display:none;background:#b8860b;border-color:#ffd54a;}
+  .tip{font-size:12px;color:#6f9a80;max-width:360px;line-height:1.7;}
+</style>
+</head>
+<body>
+<a href="../" style="position:fixed;top:10px;right:10px;z-index:70;font-size:13px;padding:8px 12px;font-family:inherit;font-weight:800;color:#fff;background:#1f5a37;border:2px solid #43d693;border-radius:10px;text-decoration:none">🏠 게임천국</a>
+<div class="wrap">
+  <img class="logo" src="icon-512.png" alt="아이콘" />
+  <div><h1>🔥 99나이트</h1><p>숲속에서 99일 밤을 버텨라!</p></div>
+  <a class="btn" href="99나이트.html">▶️ 게임 시작</a>
+  <a class="btn" id="install" href="#">📲 홈 화면에 앱 설치</a>
+  <div class="tip">낮엔 🪵나무·🍖음식·🪨돌을 모으고, 밤엔 🔥모닥불을 지키며 몬스터를 막아요. 클래스 6종·레벨업·골드 상점·아이 지키기까지! 폰에서 <b>홈 화면에 추가</b>하면 진짜 앱처럼 돼요.</div>
+</div>
+<script>
+  if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+  let deferred=null;
+  window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferred=e; let b=document.getElementById('install'); b.style.display='inline-block';
+    b.addEventListener('click',async ev=>{ ev.preventDefault(); if(!deferred)return; deferred.prompt(); deferred=null; b.style.display='none'; }); });
+</script>
+</body>
+</html>
