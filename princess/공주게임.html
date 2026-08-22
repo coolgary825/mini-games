@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<title>공주게임</title>
+<meta name="theme-color" content="#ff8ec2" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="공주게임" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;overflow:hidden;background:#ffd9ec;
+    font-family:"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;-webkit-user-select:none;user-select:none;touch-action:none;}
+  #wrap{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+  canvas{display:block;max-width:100%;max-height:100%;image-rendering:auto;box-shadow:0 0 40px rgba(180,60,120,.35);border-radius:8px;}
+  a#home{position:fixed;top:9px;right:9px;z-index:50;font-size:13px;padding:8px 12px;font-weight:800;color:#fff;
+    background:#ff5ca0;border:2px solid #fff;border-radius:12px;text-decoration:none;box-shadow:0 3px 8px rgba(0,0,0,.2);}
+</style>
+</head>
+<body>
+<a href="../" id="home">🏠 게임천국</a>
+<div id="wrap"><canvas id="cv" width="480" height="720"></canvas></div>
+<script>
+"use strict";
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const W=cv.width, H=cv.height;
+const RS=Math.min(3,Math.max(2,Math.ceil(window.devicePixelRatio||1)));
+cv.width=W*RS; cv.height=H*RS; ctx.scale(RS,RS); ctx.imageSmoothingEnabled=true;
+const clamp=(v,a,b)=>v<a?a:v>b?b:v, rnd=(a,b)=>a+Math.random()*(b-a);
+function shade(hex,f){ if(typeof hex!=='string'||hex[0]!=='#')return hex; let n=parseInt(hex.slice(1),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+  return `rgb(${Math.min(255,r*f|0)},${Math.min(255,g*f|0)},${Math.min(255,b*f|0)})`; }
+function rrect(x,y,w,h,r){ r=Math.min(r,w/2,h/2); ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+// ===== 사운드(귀여운 반짝 소리) =====
+let AC=null,muted=false;
+function ac(){ if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}} return AC; }
+function beep(f,d,type,g){ if(muted)return; let a=ac(); if(!a)return; let o=a.createOscillator(),v=a.createGain();
+  o.type=type||'sine'; o.frequency.value=f; v.gain.value=g||0.06; o.connect(v); v.connect(a.destination);
+  let t=a.currentTime; o.start(t); v.gain.exponentialRampToValueAtTime(0.0001,t+d); o.stop(t+d); }
+const sfx={ tap:()=>beep(880,0.12,'sine',0.06), sparkle:()=>{beep(1200,0.1,'sine',0.05);setTimeout(()=>beep(1600,0.12,'sine',0.05),60);},
+  pop:()=>beep(700+Math.random()*400,0.12,'triangle',0.06), yay:()=>{[784,988,1319].forEach((f,i)=>setTimeout(()=>beep(f,0.16,'sine',0.06),i*120));},
+  buy:()=>{[1047,1319,1568].forEach((f,i)=>setTimeout(()=>beep(f,0.14,'triangle',0.06),i*90));}, no:()=>beep(200,0.15,'square',0.05) };
+
+// ===== 계정 저장 =====
+const SAVE_BASE="princess_v1";
+const PROFILES=[{k:"riu",n:"리우",e:"👧"},{k:"eunwoo",n:"은우",e:"🧒"},{k:"junwoo",n:"준우",e:"👦"},{k:"papa",n:"아빠",e:"👨"}];
+let SAVE=SAVE_BASE, save=null;
+function defCfg(){ return {skin:0,hair:4,hairStyle:0,dress:0,dstyle:0,crown:1,shoes:0,wand:0,pet:0,bg:0}; }
+function defSave(){ return {cfg:defCfg(), gems:5, best:0, owned:{}}; }
+function loadSave(){ try{ let s=JSON.parse(localStorage.getItem(SAVE)); if(s){ save=Object.assign(defSave(),s); save.cfg=Object.assign(defCfg(),s.cfg||{}); save.owned=s.owned||{}; return; } }catch(e){} save=defSave(); }
+function store(){ try{ localStorage.setItem(SAVE,JSON.stringify(save)); }catch(e){} }
+
+// ===== 꾸미기 옵션 =====
+const SKIN=[{v:'#ffe0c2'},{v:'#ffcfa6'},{v:'#eec091'},{v:'#d2a274'},{v:'#a97a52'}];
+const HAIRC=[{v:'#4a3020'},{v:'#7a4a22'},{v:'#c99a3a'},{v:'#f0d060'},{v:'#e85fa0'},{v:'#8a5cff'},{v:'#5fc8ff'},{v:'#ff9ad0'},{v:'#ffffff'},{v:'#8affc0'}];
+const HSTYLE=[{v:'긴머리'},{v:'포니테일'},{v:'양갈래'},{v:'단발'},{v:'번헤어'}];
+const DRESS=[{v:'#ff7ab0'},{v:'#ff5c8a'},{v:'#7a86ff'},{v:'#5cc0ff'},{v:'#5fd6a0'},{v:'#ffd54a'},{v:'#ff9a5c'},{v:'#c86fd6'},{v:'#ffffff',cost:6},{v:'#ff3d6d',cost:8}];
+const DSTYLE=[{v:'없음'},{v:'물방울'},{v:'하트'},{v:'별'},{v:'줄무늬'}];
+const CROWN=[{v:''},{v:'👑'},{v:'🎀'},{v:'🌸'},{v:'⭐'},{v:'💎',cost:8},{v:'🌟',cost:6},{v:'🦋',cost:6}];
+const SHOES=[{v:'👠'},{v:'🥿'},{v:'👡'},{v:'🩰'},{v:'✨'}];
+const WAND=[{v:''},{v:'🪄'},{v:'✨'},{v:'🌟'},{v:'🌈',cost:6},{v:'🍭'},{v:'🔮',cost:8}];
+const PET=[{v:''},{v:'🐱'},{v:'🐶'},{v:'🐰'},{v:'🐥'},{v:'🦄',cost:12},{v:'🐴',cost:6},{v:'🐼',cost:6},{v:'🦋',cost:4}];
+const BG=[{v:'castle'},{v:'garden'},{v:'sky'},{v:'rainbow',cost:6},{v:'night',cost:6},{v:'beach',cost:6}];
+const CATS=[
+  {k:'hairStyle',n:'머리모양',arr:HSTYLE,type:'label'},
+  {k:'hair',n:'머리색',arr:HAIRC,type:'color'},
+  {k:'dress',n:'드레스',arr:DRESS,type:'color'},
+  {k:'dstyle',n:'무늬',arr:DSTYLE,type:'label'},
+  {k:'crown',n:'왕관',arr:CROWN,type:'emoji'},
+  {k:'wand',n:'지팡이',arr:WAND,type:'emoji'},
+  {k:'pet',n:'펫',arr:PET,type:'emoji'},
+  {k:'shoes',n:'신발',arr:SHOES,type:'emoji'},
+  {k:'skin',n:'피부',arr:SKIN,type:'color'},
+  {k:'bg',n:'배경',arr:BG,type:'label'},
+];
+const BGNAME={castle:'🏰 성',garden:'🌸 정원',sky:'☁️ 하늘',rainbow:'🌈 무지개',night:'🌙 밤',beach:'🏖️ 바다'};
+function isOwned(cat,i){ let it=cat.arr[i]; if(!it.cost)return true; return !!save.owned[cat.k+':'+i]; }
+
+// ===== 상태 =====
+let state='pick', t=0, catIdx=0, parts=[], hearts=[], playT=0, playScore=0, msg=null, msgT=0, blink=0;
+let hits=[];  // 즉석 UI 버튼 영역
+function toast(txt){ msg=txt; msgT=2.2; }
+
+// ===== 포인터 =====
+function evPos(e){ let r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/r.width*W, y:(e.clientY-r.top)/r.height*H}; }
+cv.addEventListener('pointerdown',e=>{ e.preventDefault(); ac(); let p=evPos(e); onTap(p.x,p.y); });
+function onTap(x,y){
+  if(state==='play'){ // 하트 먼저 터치
+    for(let i=hearts.length-1;i>=0;i--){ let h=hearts[i]; if(Math.hypot(h.x-x,h.y-y)<34){ popHeart(h); hearts.splice(i,1); return; } }
+  }
+  for(let b of hits){ if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h){ b.fn(); return; } }
+}
+
+// ===== UI 도우미 =====
+function btn(x,y,w,h,label,fn,col,fs){ rrect(x,y,w,h,h*0.32); let g=ctx.createLinearGradient(x,y,x,y+h);
+  g.addColorStop(0,shade(col||'#ff6aa8',1.15)); g.addColorStop(1,col||'#ff6aa8'); ctx.fillStyle=g; ctx.fill();
+  ctx.lineWidth=3; ctx.strokeStyle='#fff'; ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.font='800 '+(fs||22)+'px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(label,x+w/2,y+h/2+1);
+  hits.push({x,y,w,h,fn}); }
+function sparkleBurst(x,y,col){ for(let i=0;i<10;i++){ let a=Math.random()*7; parts.push({x,y,vx:Math.cos(a)*rnd(40,150),vy:Math.sin(a)*rnd(40,150),life:rnd(0.5,1),c:col||'#fff',s:rnd(2,5)}); } }
+
+// ===== 배경 그리기 =====
+function drawBG(bg){
+  let g=ctx.createLinearGradient(0,0,0,H);
+  if(bg==='castle'){ g.addColorStop(0,'#bfe3ff');g.addColorStop(1,'#eaf7ff'); ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#c9a6e0'; for(let i=0;i<3;i++){ let bx=60+i*160; ctx.fillRect(bx,H-330,80,180); ctx.beginPath();ctx.moveTo(bx-8,H-330);ctx.lineTo(bx+40,H-380);ctx.lineTo(bx+88,H-330);ctx.closePath();ctx.fill(); }
+    ctx.font='30px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText('☁️',90,120); ctx.fillText('☁️',390,90); }
+  else if(bg==='garden'){ g.addColorStop(0,'#cdeeff');g.addColorStop(0.6,'#e7ffe0');g.addColorStop(1,'#bff0a8'); ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    ctx.font='30px serif';ctx.textAlign='center';ctx.textBaseline='middle'; for(let i=0;i<7;i++)ctx.fillText(['🌷','🌻','🌸','🌼'][i%4],40+i*66,H-150); ctx.fillText('☀️',410,80); }
+  else if(bg==='sky'){ g.addColorStop(0,'#9ed3ff');g.addColorStop(1,'#e9f6ff'); ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    ctx.font='34px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText('☁️',100,140);ctx.fillText('☁️',380,110);ctx.fillText('☁️',240,90);ctx.fillText('🌈',400,200); }
+  else if(bg==='rainbow'){ let cols=['#ff9aa2','#ffdac1','#fdffb6','#caffbf','#9bf6ff','#bdb2ff','#ffc6ff']; for(let i=0;i<cols.length;i++){ctx.fillStyle=cols[i];ctx.fillRect(0,i*H/cols.length,W,H/cols.length+1);} ctx.font='34px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⭐',80,120);ctx.fillText('⭐',400,150); }
+  else if(bg==='night'){ g.addColorStop(0,'#2a2a6a');g.addColorStop(1,'#5a3a7a'); ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff'; for(let i=0;i<40;i++){ ctx.globalAlpha=0.4+0.6*Math.abs(Math.sin(t*2+i)); ctx.beginPath();ctx.arc((i*97)%W,(i*61)%(H-200),1.6,0,7);ctx.fill(); } ctx.globalAlpha=1;
+    ctx.font='40px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🌙',410,100); }
+  else if(bg==='beach'){ g.addColorStop(0,'#8fdfff');g.addColorStop(0.55,'#bff0ff');g.addColorStop(0.56,'#4fb0e0');g.addColorStop(1,'#1f80c0'); ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#ffe4a8';ctx.fillRect(0,H-140,W,140); ctx.font='34px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('☀️',410,90);ctx.fillText('🐚',80,H-90);ctx.fillText('⭐',150,H-70); }
+  else { ctx.fillStyle='#ffe0ef'; ctx.fillRect(0,0,W,H); }
+}
+
+// ===== 공주 그리기 =====
+function drawPrincess(cx,by,s,cfg){
+  let skin=SKIN[cfg.skin].v, hairc=HAIRC[cfg.hair].v, dcol=DRESS[cfg.dress].v, style=cfg.hairStyle;
+  let hcy=by-250*s, hr=44*s, waistY=by-168*s, dbot=by-8*s, dhalf=120*s;
+  // 그림자
+  ctx.fillStyle='rgba(120,40,90,0.12)'; ctx.beginPath(); ctx.ellipse(cx,by+6,dhalf*0.68,15*s,0,0,7); ctx.fill();
+  // 펫
+  if(PET[cfg.pet].v){ ctx.font=(46*s)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(PET[cfg.pet].v, cx+dhalf+30*s, by-24*s); }
+  // 뒤 머리
+  ctx.fillStyle=hairc;
+  if(style===0){ ctx.beginPath(); ctx.ellipse(cx,hcy+30*s,hr+16*s,hr+70*s,0,0,7); ctx.fill(); }         // 긴머리
+  else if(style===1){ ctx.beginPath(); ctx.ellipse(cx+hr,hcy+10*s,20*s,50*s,0.4,0,7); ctx.fill(); }      // 포니테일
+  else if(style===2){ ctx.beginPath(); ctx.ellipse(cx-hr-4*s,hcy+30*s,18*s,44*s,0,0,7); ctx.ellipse(cx+hr+4*s,hcy+30*s,18*s,44*s,0,0,7); ctx.fill(); } // 양갈래
+  else if(style===3){ ctx.beginPath(); ctx.ellipse(cx,hcy+8*s,hr+12*s,hr+18*s,0,0,7); ctx.fill(); }       // 단발
+  else if(style===4){ ctx.beginPath(); ctx.ellipse(cx,hcy+6*s,hr+10*s,hr+14*s,0,0,7); ctx.fill(); ctx.beginPath();ctx.arc(cx,hcy-hr-6*s,20*s,0,7);ctx.fill(); } // 번헤어
+  // 드레스
+  let dg=ctx.createLinearGradient(cx,waistY,cx,dbot); dg.addColorStop(0,shade(dcol,1.12)); dg.addColorStop(1,dcol);
+  ctx.fillStyle=dg; ctx.beginPath(); ctx.moveTo(cx-20*s,waistY); ctx.quadraticCurveTo(cx-dhalf-10*s,dbot-20*s,cx-dhalf,dbot);
+  ctx.lineTo(cx+dhalf,dbot); ctx.quadraticCurveTo(cx+dhalf+10*s,dbot-20*s,cx+20*s,waistY); ctx.closePath(); ctx.fill();
+  // 무늬
+  ctx.save(); ctx.clip();
+  if(cfg.dstyle>0){ let em={1:'⚪',2:'💗',3:'⭐',4:''}[cfg.dstyle];
+    if(cfg.dstyle===4){ ctx.strokeStyle='rgba(255,255,255,0.5)';ctx.lineWidth=6*s; for(let yy=waistY;yy<dbot;yy+=22*s){ctx.beginPath();ctx.moveTo(cx-dhalf,yy);ctx.lineTo(cx+dhalf,yy);ctx.stroke();} }
+    else { ctx.font=(16*s)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.globalAlpha=0.85;
+      for(let yy=waistY+20*s;yy<dbot-6*s;yy+=30*s)for(let xx=cx-dhalf+16*s;xx<cx+dhalf;xx+=34*s)ctx.fillText(em,xx+((Math.round((yy-waistY)/30)%2)*17*s),yy); ctx.globalAlpha=1; } }
+  ctx.restore();
+  // 상의
+  ctx.fillStyle=shade(dcol,0.82); rrect(cx-24*s,by-210*s,48*s,46*s,12*s); ctx.fill();
+  // 팔
+  ctx.strokeStyle=skin; ctx.lineWidth=11*s; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(cx-22*s,by-200*s); ctx.lineTo(cx-40*s,by-150*s); ctx.moveTo(cx+22*s,by-200*s); ctx.lineTo(cx+40*s,by-150*s); ctx.stroke();
+  // 지팡이(오른손)
+  if(WAND[cfg.wand].v){ ctx.font=(30*s)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText(WAND[cfg.wand].v, cx+48*s, by-160*s); }
+  // 목
+  ctx.fillStyle=skin; ctx.fillRect(cx-8*s,by-222*s,16*s,20*s);
+  // 머리
+  ctx.fillStyle=skin; ctx.beginPath(); ctx.arc(cx,hcy,hr,0,7); ctx.fill();
+  // 앞머리(뱅)
+  ctx.fillStyle=hairc; ctx.beginPath(); ctx.arc(cx,hcy,hr,Math.PI*1.02,Math.PI*1.98,false); ctx.lineTo(cx+hr*0.7,hcy-hr*0.2); ctx.quadraticCurveTo(cx,hcy-hr*0.5,cx-hr*0.7,hcy-hr*0.2); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx,hcy-hr*0.55,hr,hr*0.7,0,Math.PI,0); ctx.fill();
+  // 볼(블러시)
+  ctx.fillStyle='rgba(255,130,170,0.55)'; ctx.beginPath(); ctx.arc(cx-20*s,hcy+8*s,7*s,0,7); ctx.arc(cx+20*s,hcy+8*s,7*s,0,7); ctx.fill();
+  // 눈
+  let open=blink>0.1?1:0.15;
+  ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(cx-14*s,hcy-2*s,7*s,9*s*open,0,0,7); ctx.ellipse(cx+14*s,hcy-2*s,7*s,9*s*open,0,0,7); ctx.fill();
+  ctx.fillStyle='#5a3a2a'; ctx.beginPath(); ctx.arc(cx-14*s,hcy-1*s,4.2*s*(open>0.5?1:0.2),0,7); ctx.arc(cx+14*s,hcy-1*s,4.2*s*(open>0.5?1:0.2),0,7); ctx.fill();
+  if(open>0.5){ ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(cx-12*s,hcy-3*s,1.6*s,0,7); ctx.arc(cx+16*s,hcy-3*s,1.6*s,0,7); ctx.fill(); }
+  // 입(웃음)
+  ctx.strokeStyle='#d05070'; ctx.lineWidth=2.4*s; ctx.beginPath(); ctx.arc(cx,hcy+16*s,7*s,0.15*Math.PI,0.85*Math.PI); ctx.stroke();
+  // 왕관
+  if(CROWN[cfg.crown].v){ ctx.font=(40*s)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText(CROWN[cfg.crown].v, cx, hcy-hr-12*s); }
+  // 신발
+  ctx.font=(28*s)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.fillText(SHOES[cfg.shoes].v,cx-26*s,by-2*s); ctx.fillText(SHOES[cfg.shoes].v,cx+26*s,by-2*s);
+}
+
+// ===== 화면들 =====
+function topBar(){ // 💎 젬 + 계정
+  rrect(10,10,120,40,20); ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.fill();
+  ctx.fillStyle='#e0409a'; ctx.font='800 22px sans-serif'; ctx.textAlign='left'; ctx.textBaseline='middle'; ctx.fillText('💎 '+save.gems,22,31);
+  btn(W-92,10,82,40,'🔄 계정',()=>{state='pick';},'#c86fd6',15);
+}
+
+function drawPick(){
+  let g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#ffb3d9');g.addColorStop(1,'#ffe0ef'); ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#fff'; ctx.font='800 34px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('👑 공주게임 👑',W/2,90);
+  ctx.fillStyle='#d0408a'; ctx.font='800 19px sans-serif'; ctx.fillText('누구야? 골라줘!',W/2,140);
+  PROFILES.forEach((p,i)=>{
+    let px=(i%2)?W/2+12:W/2-152, py=200+Math.floor(i/2)*150;
+    rrect(px,py,140,130,24); ctx.fillStyle='#fff'; ctx.fill(); ctx.lineWidth=4; ctx.strokeStyle='#ff8ec2'; ctx.stroke();
+    ctx.font='60px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.e,px+70,py+52);
+    ctx.fillStyle='#d0408a';ctx.font='800 22px sans-serif';ctx.fillText(p.n,px+70,py+104);
+    hits.push({x:px,y:py,w:140,h:130,fn:()=>pick(p.k)}); });
+}
+function pick(k){ SAVE=SAVE_BASE+'_'+k; loadSave(); state='home'; sfx.sparkle(); }
+
+function drawHome(){
+  drawBG(BG[save.cfg.bg].v);
+  topBar();
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#ff6aa8'; ctx.lineWidth=6; ctx.font='800 30px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.strokeText('나의 공주님 ✨',W/2,72); ctx.fillText('나의 공주님 ✨',W/2,72);
+  drawPrincess(W/2, H-250, 1, save.cfg);
+  btn(W/2-150,H-170,300,58,'👗 옷 갈아입기',()=>{state='dress';catIdx=0;sfx.tap();},'#ff5ca0',24);
+  btn(W/2-150,H-104,145,54,'💖 하트받기',()=>startPlay(),'#ff8a4c',20);
+  btn(W/2+5,H-104,145,54,'📸 자랑하기',()=>{state='show';sfx.sparkle();},'#7a86ff',20);
+}
+
+function drawDress(){
+  drawBG(BG[save.cfg.bg].v);
+  topBar();
+  // 공주 미리보기(위쪽)
+  drawPrincess(W/2, 360, 0.78, save.cfg);
+  // 카테고리 탭
+  let cat=CATS[catIdx];
+  btn(12,60,60,44,'◀',()=>{catIdx=(catIdx-1+CATS.length)%CATS.length;sfx.tap();},'#ff8ec2',22);
+  btn(W-72,60,60,44,'▶',()=>{catIdx=(catIdx+1)%CATS.length;sfx.tap();},'#ff8ec2',22);
+  rrect(80,60,W-160,44,22); ctx.fillStyle='rgba(255,255,255,0.92)';ctx.fill();
+  ctx.fillStyle='#d0408a';ctx.font='800 22px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(cat.n,W/2,83);
+  // 옵션 패널
+  rrect(10,H-260,W-20,250,26); ctx.fillStyle='rgba(255,255,255,0.94)';ctx.fill();
+  let cols=4, cw=(W-60)/cols, ch=66, x0=30, y0=H-238;
+  cat.arr.forEach((it,i)=>{ let x=x0+(i%cols)*cw, y=y0+Math.floor(i/cols)*(ch+8);
+    let sel=save.cfg[cat.k]===i, owned=isOwned(cat,i);
+    rrect(x,y,cw-10,ch,14); ctx.fillStyle=sel?'#ffe3f0':'#fff'; ctx.fill(); ctx.lineWidth=sel?4:2; ctx.strokeStyle=sel?'#ff5ca0':'#ffc0dc'; ctx.stroke();
+    let mx=x+(cw-10)/2, my=y+ch/2-6;
+    if(cat.type==='color'){ ctx.fillStyle=it.v; ctx.beginPath(); ctx.arc(mx,my,17,0,7); ctx.fill(); ctx.lineWidth=2;ctx.strokeStyle='#0002';ctx.stroke(); }
+    else if(cat.type==='emoji'){ ctx.font='30px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(it.v||'🚫',mx,my); }
+    else { ctx.font='800 15px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#c0408a';
+      ctx.fillText(cat.k==='bg'?BGNAME[it.v].split(' ')[0]:it.v,mx,my); }
+    // 가격/자물쇠
+    if(!owned){ ctx.font='800 12px sans-serif';ctx.fillStyle='#e0409a';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🔒💎'+it.cost,mx,y+ch-11); }
+    else { ctx.font='11px sans-serif';ctx.fillStyle='#b090a0';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(cat.type==='label'&&cat.k==='bg'?BGNAME[it.v].split(' ')[1]||'':'',mx,y+ch-11); }
+    hits.push({x,y,w:cw-10,h:ch,fn:()=>applyOpt(cat,i)}); });
+  btn(W/2-70,H-300,140,40,'✅ 완성!',()=>{state='home';sfx.yay();sparkleBurst(W/2,360,'#ffd54a');},'#5fc88a',20);
+}
+function applyOpt(cat,i){ if(!isOwned(cat,i)){ let cost=cat.arr[i].cost; if(save.gems>=cost){ save.gems-=cost; save.owned[cat.k+':'+i]=1; save.cfg[cat.k]=i; store(); sfx.buy(); sparkleBurst(W/2,360,'#ffd54a'); toast('✨ 새 아이템 획득!'); } else { sfx.no(); toast('💎 하트받기로 젬을 모아요!'); } return; }
+  save.cfg[cat.k]=i; store(); sfx.tap(); sparkleBurst(W/2,360,cat.type==='color'?cat.arr[i].v:'#fff'); }
+
+function drawShow(){
+  drawBG(BG[save.cfg.bg].v);
+  // 반짝이 액자
+  for(let i=0;i<12;i++){ let a=t+i/12*7; ctx.font='22px serif';ctx.textAlign='center';ctx.textBaseline='middle'; ctx.globalAlpha=0.6+0.4*Math.sin(t*3+i);
+    ctx.fillText('✨',W/2+Math.cos(a)*180,H/2-40+Math.sin(a)*260); } ctx.globalAlpha=1;
+  drawPrincess(W/2,H-240,1.05,save.cfg);
+  ctx.fillStyle='#fff';ctx.strokeStyle='#ff6aa8';ctx.lineWidth=6;ctx.font='800 30px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.strokeText('세상에서 제일 예뻐! 💕',W/2,80); ctx.fillText('세상에서 제일 예뻐! 💕',W/2,80);
+  btn(W/2-150,H-96,145,56,'👗 꾸미기',()=>{state='dress';catIdx=0;sfx.tap();},'#ff5ca0',20);
+  btn(W/2+5,H-96,145,56,'🏠 홈',()=>{state='home';sfx.tap();},'#7a86ff',22);
+}
+
+// ===== 하트받기 미니게임 =====
+const FALL=[{e:'💖',v:1,w:5},{e:'⭐',v:1,w:3},{e:'💎',v:2,w:2},{e:'🌸',v:1,w:3},{e:'🦋',v:1,w:2},{e:'🌈',v:5,w:1}];
+function startPlay(){ state='play'; playT=30; playScore=0; hearts=[]; sfx.sparkle(); }
+function spawnHeart(){ let tot=FALL.reduce((a,b)=>a+b.w,0),x=Math.random()*tot,pick=FALL[0]; for(let f of FALL){x-=f.w;if(x<=0){pick=f;break;}}
+  hearts.push({x:rnd(40,W-40),y:-30,vy:rnd(90,150),e:pick.e,v:pick.v,wob:Math.random()*7}); }
+function popHeart(h){ playScore+=h.v; save.gems+=h.v; sfx.pop(); sparkleBurst(h.x,h.y,'#ff8ac0');
+  for(let i=0;i<h.v;i++)parts.push({x:h.x,y:h.y,vx:rnd(-60,60),vy:rnd(-120,-40),life:1,c:'#ffd54a',s:4,txt:'💎'}); }
+let spawnTimer=0;
+function updatePlay(dt){ playT-=dt; spawnTimer-=dt;
+  if(spawnTimer<=0 && playT>0){ spawnHeart(); spawnTimer=rnd(0.35,0.7); }
+  hearts.forEach(h=>{ h.y+=h.vy*dt; h.x+=Math.sin(t*3+h.wob)*0.6; });
+  hearts=hearts.filter(h=>h.y<H+40);
+  if(playT<=0 && hearts.length===0){ endPlay(); }
+}
+function endPlay(){ if(playScore>save.best)save.best=playScore; store(); state='result'; sfx.yay(); for(let i=0;i<30;i++)parts.push({x:W/2,y:H/2,vx:rnd(-1,1)*220,vy:rnd(-1,1)*220,life:1.2,c:['#ff8ac0','#ffd54a','#8affc0','#8ac0ff'][i%4],s:rnd(3,6)}); }
+function drawPlay(){
+  let g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#ffd0e8');g.addColorStop(1,'#fff0f7'); ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // 하트들
+  hearts.forEach(h=>{ ctx.font='44px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.save();ctx.shadowColor='#ff9ad0';ctx.shadowBlur=10;ctx.fillText(h.e,h.x,h.y);ctx.restore(); });
+  // HUD
+  rrect(10,10,150,44,22);ctx.fillStyle='rgba(255,255,255,0.92)';ctx.fill();
+  ctx.fillStyle='#e0409a';ctx.font='800 22px sans-serif';ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillText('💖 '+playScore,24,33);
+  rrect(W-140,10,130,44,22);ctx.fillStyle='rgba(255,255,255,0.92)';ctx.fill();
+  ctx.fillStyle='#ff7a3a';ctx.textAlign='right';ctx.fillText('⏰ '+Math.ceil(Math.max(0,playT)),W-24,33);
+  ctx.fillStyle='#d0408a';ctx.font='800 18px sans-serif';ctx.textAlign='center';ctx.fillText('반짝이를 콕콕 눌러요! 👆',W/2,80);
+}
+function drawResult(){
+  let g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#ffc0e0');g.addColorStop(1,'#ffe8f4'); ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.font='90px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('🎉',W/2,150);
+  ctx.fillStyle='#d0408a';ctx.font='800 34px sans-serif';ctx.fillText('참 잘했어요!',W/2,240);
+  ctx.fillStyle='#e0409a';ctx.font='800 26px sans-serif';ctx.fillText('💖 '+playScore+'개 모았어요!',W/2,300);
+  ctx.fillStyle='#b060a0';ctx.font='800 20px sans-serif';ctx.fillText('최고기록: '+save.best+' · 💎 '+save.gems,W/2,345);
+  btn(W/2-150,420,300,60,'💖 또 하기',()=>startPlay(),'#ff8a4c',24);
+  btn(W/2-150,492,145,56,'👗 꾸미기',()=>{state='dress';catIdx=0;},'#ff5ca0',20);
+  btn(W/2+5,492,145,56,'🏠 홈',()=>{state='home';},'#7a86ff',22);
+}
+
+// ===== 루프 =====
+let last=0;
+function loop(ts){ let dt=Math.min(0.05,(ts-last)/1000||0); last=ts; t+=dt; hits=[];
+  blink+=dt; if(blink>3.2)blink=-0.15;   // 깜빡임
+  if(state==='play')updatePlay(dt);
+  if(msgT>0)msgT-=dt;
+  // 파티클
+  parts.forEach(p=>{ p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=(p.txt?260:120)*dt;p.life-=dt; });
+  parts=parts.filter(p=>p.life>0);
+  // 그리기
+  if(state==='pick')drawPick();
+  else if(state==='home')drawHome();
+  else if(state==='dress')drawDress();
+  else if(state==='show')drawShow();
+  else if(state==='play')drawPlay();
+  else if(state==='result')drawResult();
+  // 파티클 표시
+  parts.forEach(p=>{ ctx.globalAlpha=Math.max(0,Math.min(1,p.life*1.5));
+    if(p.txt){ ctx.font='16px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(p.txt,p.x,p.y); }
+    else { ctx.fillStyle=p.c;ctx.beginPath();ctx.arc(p.x,p.y,p.s||3,0,7);ctx.fill(); } });
+  ctx.globalAlpha=1;
+  // 토스트 메시지
+  if(msgT>0){ ctx.globalAlpha=Math.min(1,msgT); rrect(W/2-150,H/2-30,300,60,16); ctx.fillStyle='rgba(255,255,255,0.96)';ctx.fill();
+    ctx.lineWidth=3;ctx.strokeStyle='#ff8ec2';ctx.stroke(); ctx.fillStyle='#d0408a';ctx.font='800 20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(msg,W/2,H/2); ctx.globalAlpha=1; }
+  requestAnimationFrame(loop);
+}
+loadSave(); requestAnimationFrame(loop);
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+</script>
+</body>
+</html>

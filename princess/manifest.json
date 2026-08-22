@@ -1,0 +1,16 @@
+{
+  "name": "공주게임",
+  "short_name": "공주게임",
+  "description": "나만의 공주님을 꾸미고 하트를 모으는 귀여운 게임",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffe0ef",
+  "theme_color": "#ff8ec2",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
