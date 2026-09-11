@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111a2d">
+  <meta name="description" content="준우네 3D 체스 클럽. 8단계 AI, 친구와 2인 대전, 체스 퍼즐과 대국 분석을 즐겨요.">
+  <title>3D 체스 클럽 · 준우네 게임천국</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="header"><a href="../" class="home">← 준우네 게임천국</a><div class="brand"><span>♞</span> 3D CHESS CLUB</div><button id="helpBtn" class="quiet">? 체스 배우기</button></header>
+  <main>
+    <div class="title-row"><div><div class="eyebrow">JUNWOO’S 3D CHESS CLUB</div><h1>한 수씩, 더 멋지게.</h1></div><label class="profile-label">플레이어 <select id="profile"><option>준우</option><option>은우</option><option>리우</option><option>아빠</option><option>손님</option></select></label></div>
+    <div class="workspace">
+      <section class="play-area" aria-label="체스 대국">
+        <div class="player-row"><div class="player-info"><div class="avatar opponent">♚</div><div><strong id="topName">컴퓨터</strong><span id="topDetail">AI · 보통</span></div></div><div class="clock" id="topClock">∞</div></div>
+        <div class="view-toolbar"><div class="view-switch" role="group" aria-label="체스판 보기"><button id="view3dBtn" class="active" aria-pressed="true">3D 체스</button><button id="view2dBtn" aria-pressed="false">2D</button></div><span id="viewHint">드래그로 회전 · 두 손가락으로 확대</span><button id="cameraBtn" title="카메라 원래대로" aria-label="카메라 원래대로">↺</button></div><div class="board-shell"><div class="eval-rail" id="evalRail" title="백의 유리함"><div id="evalFill"></div></div><div class="board-wrap"><div id="threeHost" class="three-host" hidden></div><div id="board" class="board" role="group" aria-label="체스판"></div><svg id="arrows" class="arrows" viewBox="0 0 800 800" aria-hidden="true"><defs><marker id="arrowhead" markerWidth="3" markerHeight="3" refX="2.2" refY="1.5" orient="auto"><path d="M0,0 L3,1.5 L0,3 Z" fill="#f9b943"/></marker></defs><line id="hintArrow" marker-end="url(#arrowhead)"/></svg><div id="boardOverlay" class="board-overlay" hidden><strong id="overlayTitle">잠깐 쉬는 중</strong><p id="overlayText">준비되면 대국을 이어가세요.</p><button id="resumeBtn" class="primary">계속 두기</button></div></div></div>
+        <div class="player-row"><div class="player-info"><div class="avatar me">♔</div><div><strong id="bottomName">준우</strong><span id="bottomDetail">백 · 먼저 시작해요</span></div></div><div class="clock" id="bottomClock">∞</div></div>
+        <div class="status-bar"><span id="status" role="status" aria-live="polite">체스판을 준비하고 있어요…</span><span id="evalText" class="eval-label">시작 위치</span></div>
+        <div class="board-tools"><button id="undoBtn" title="한 차례 무르기 (U)">↶ 무르기</button><button id="hintBtn" title="추천 수 보기 (H)">✦ 힌트</button><button id="flipBtn" title="체스판 뒤집기 (F)">⇅ 뒤집기</button><button id="pauseBtn">Ⅱ 일시정지</button><button id="fullscreenBtn" aria-label="전체 화면" title="전체 화면">⛶</button></div>
+        <div class="coach"><span class="coach-icon">✦</span><div><strong id="coachTitle">오늘의 체스 코치</strong><p id="coachText">중앙을 차지하고, 나이트와 비숍을 먼저 꺼내 보세요.</p></div></div>
+      </section>
+      <aside class="sidebar">
+        <section class="panel setup"><div class="panel-title"><h2>새로운 도전</h2><span class="tag">8 LEVELS</span></div>
+          <div class="mode-switch" role="group" aria-label="대전 방식"><button data-mode="ai" class="active" aria-pressed="true">♟ AI 대전</button><button data-mode="local" aria-pressed="false">♙ 둘이 두기</button><button data-mode="puzzle" aria-pressed="false">✦ 퍼즐</button></div>
+          <div id="matchSettings"><label id="difficultyLabel">AI 난이도<select id="difficulty"><option value="0">1 · 첫걸음 — 규칙 익히기</option><option value="1">2 · 쉬움 — 가볍게 연습</option><option value="2">3 · 초급 — 차근차근 생각</option><option value="3" selected>4 · 보통 — 균형 잡힌 상대</option><option value="4">5 · 중급 — 전술에 도전</option><option value="5">6 · 고급 — 깊게 읽는 상대</option><option value="6">7 · 전문가 — 빈틈없이</option><option value="7">8 · 마스터 — 최강 도전</option></select></label>
+          <div class="settings-row"><label>내 기물<select id="side"><option value="w">♔ 백</option><option value="b">♚ 흑</option><option value="random">랜덤</option></select></label><label>대국 시간<select id="time"><option value="0">시간 제한 없음</option><option value="180:2">3분 + 2초</option><option value="300:3">5분 + 3초</option><option value="600:5">10분 + 5초</option><option value="900:10">15분 + 10초</option></select></label></div></div>
+          <div id="puzzleSettings" hidden><label>체크메이트 연습<select id="puzzleSelect"></select></label><p class="small" id="puzzleDescription">한 수로 체크메이트를 찾아보세요.</p></div>
+          <button id="newBtn" class="primary wide">새 대국 시작 <span>→</span></button><p class="small" id="engineState">대국은 이 기기에 자동 저장돼요.</p>
+        </section>
+        <section class="panel record"><div class="panel-title"><h2>대국 기록</h2><span class="tag" id="moveCount">0수</span></div><div id="captured" class="captured">아직 잡힌 기물이 없어요.</div><div class="moves-heading"><span>수</span><span>백</span><span>흑</span></div><div id="moveList" class="move-list"><p class="empty">첫 수를 두어 이야기를 시작하세요.</p></div><div class="replay-tools"><button id="firstBtn" aria-label="처음 위치">|‹</button><button id="prevBtn" aria-label="이전 수">‹</button><span id="reviewLabel">실전</span><button id="nextBtn" aria-label="다음 수">›</button><button id="lastBtn" aria-label="현재 대국">›|</button></div><div class="minor-tools"><button id="exportBtn">PGN 저장</button><button id="importBtn">불러오기</button><button id="fenBtn">FEN 복사</button></div></section>
+        <section class="panel preferences"><div class="panel-title"><h2>나만의 체스판</h2><button id="soundBtn" class="quiet" aria-pressed="true">♪ 소리 켜짐</button></div><div class="themes" role="group" aria-label="체스판 테마"><button data-theme="ocean" class="theme ocean active" aria-label="오션 테마" aria-pressed="true"></button><button data-theme="forest" class="theme forest" aria-label="포레스트 테마" aria-pressed="false"></button><button data-theme="walnut" class="theme walnut" aria-label="월넛 테마" aria-pressed="false"></button><button data-theme="violet" class="theme violet" aria-label="바이올렛 테마" aria-pressed="false"></button><span>보드 테마</span></div><div class="toggles"><label><input id="legalToggle" type="checkbox" checked> 이동 가능한 칸</label><label><input id="coachToggle" type="checkbox" checked> 코치 도움말</label></div><div class="animation-settings"><label><input id="animationToggle" type="checkbox" checked> 말마다 다른 애니메이션</label><button id="animationInfoBtn" class="text-button">동작 도감</button></div><div class="stats" id="stats"></div><div class="minor-tools end-tools"><button id="drawBtn">무승부</button><button id="resignBtn">기권하기</button></div></section>
+      </aside>
+    </div>
+    <footer><span>작은 한 수가 멋진 전략이 되는 곳.</span><span>Stockfish 18 Lite · <button id="creditsBtn" class="text-button">오픈소스 안내</button></span></footer>
+  </main>
+  <dialog id="modal"><div class="modal-head"><h2 id="modalTitle"></h2><button id="closeModal" aria-label="닫기">×</button></div><div id="modalBody"></div></dialog>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <noscript>체스를 실행하려면 브라우저에서 JavaScript를 켜 주세요.</noscript>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
