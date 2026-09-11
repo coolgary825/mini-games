@@ -1,0 +1,16 @@
+{
+  "name": "오목 20단계",
+  "short_name": "오목",
+  "description": "컴퓨터와 1대1로 겨루는 기본에 충실한 오목 · 20단계 도전",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#2b1d10",
+  "theme_color": "#8a5a2b",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
