@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {World} from '../world.js';
+import {World,cameraFit} from '../world.js';
 import {safeProgress,pathPoint,pathLength,supportAt,fashionScore} from '../rules.js';
 import {Game as Roblox} from '../games/roblox.js';
 import {Game as Defense,TOWERS} from '../games/defense.js';
@@ -46,3 +46,5 @@ test('princess dressing, fair judging, runway reward, heart catch and cake recip
 test('progress validation, path interpolation and platform edge cases',()=>{
  const p=safeProgress({coins:-99,collection:[0,99,'x'],color:999,upgrades:{speed:999,bad:'x'}});assert.equal(p.coins,0);assert.deepEqual(p.collection,[0]);assert.equal(p.color,0);assert.equal(p.upgrades.speed,10);const path=[{x:0,z:0},{x:0,z:10},{x:10,z:10}];assert.equal(pathLength(path),20);assert.deepEqual(pathPoint(path,15),{x:5,z:10,angle:Math.PI/2});assert.equal(supportAt([{x:0,z:0,y:2,w:3,d:3}],0,0,3,1).y,2);assert.equal(supportAt([{x:0,z:0,y:2,w:3,d:3}],5,0,3,1),null);assert.equal(safeOutfit({crown:0}).crown,0);
 });
+
+test('portrait tower-defense camera keeps the map width in view',()=>{for(const aspect of [.35,.44,.75,1,1.8]){const fit=cameraFit(aspect,44);assert(fit.fov<=100);assert(Math.abs(2*Math.tan(fit.fov*Math.PI/360)*fit.distance*aspect-44)<.0001);}});

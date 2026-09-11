@@ -2,6 +2,7 @@ import * as THREE from '../chess/vendor/three/three.module.js';
 import {OrbitControls} from '../chess/vendor/three/OrbitControls.js';
 import {clamp,distance} from './rules.js';
 export {THREE};
+export function cameraFit(aspect,width){const fov=Math.min(100,46/Math.min(1,aspect));return {fov,distance:width/(2*Math.tan(fov*Math.PI/360)*aspect)};}
 export class World{
  constructor(host,{headless=false,onPick=()=>{},onError=()=>{}}={}){
   this.headless=headless;this.host=host;this.scene=new THREE.Scene();this.stage=new THREE.Group();this.scene.add(this.stage);this.fx=new THREE.Group();this.scene.add(this.fx);this.effects=[];this.materials=new Map();this.time=0;this.camera=new THREE.PerspectiveCamera(46,1,.1,220);this.camera.position.set(0,16,19);this.target=new THREE.Vector3();this.followTarget=null;
@@ -44,9 +45,9 @@ export class World{
  burst(x,y,z,color=0xffd77e,n=20){for(let i=0;i<n;i++){const m=this.mesh(new THREE.IcosahedronGeometry(.075,0),color,x,y,z,this.fx,{emissive:color,emissiveIntensity:.3});const a=Math.random()*Math.PI*2;this.effects.push({mesh:m,life:.5+Math.random()*.5,total:1,v:new THREE.Vector3(Math.cos(a)*(1+Math.random()*3),2+Math.random()*4,Math.sin(a)*(1+Math.random()*3))});}}
  remove(object){if(!object)return;object.removeFromParent();object.traverse(o=>{o.geometry?.dispose();if(o.isSprite){o.material.map?.dispose();o.material.dispose();}});}
  clear(){this.stage.children.slice().forEach(o=>this.remove(o));this.effects.forEach(e=>this.remove(e.mesh));this.effects=[];}
- follow(point){this.followTarget=point;if(this.controls)this.controls.enabled=false;}
- orbit(x=0,y=0,z=0,distance=20){this.followTarget=null;this.target.set(x,y,z);this.camera.position.set(x+distance*.5,y+distance*.65,z+distance);if(this.controls){this.controls.enabled=true;this.controls.target.copy(this.target);this.controls.update();}else this.camera.lookAt(this.target);}
- resize(){if(this.headless)return;const r=this.host.getBoundingClientRect();if(!r.width||!r.height)return;this.renderer.setSize(r.width,r.height);this.camera.aspect=r.width/r.height;this.camera.updateProjectionMatrix();}
+ follow(point){this.orbitFit=0;this.camera.fov=46;this.camera.updateProjectionMatrix();this.followTarget=point;if(this.controls)this.controls.enabled=false;}
+ orbit(x=0,y=0,z=0,distance=20,fitWidth=0){this.orbitFit=fitWidth;this.followTarget=null;this.target.set(x,y,z);this.camera.position.set(x+distance*.5,y+distance*.65,z+distance);if(this.controls){this.controls.enabled=true;this.controls.target.copy(this.target);this.controls.update();}else this.camera.lookAt(this.target);this.resize();}
+ resize(){if(this.headless)return;const r=this.host.getBoundingClientRect();if(!r.width||!r.height)return;this.renderer.setSize(r.width,r.height);this.camera.aspect=r.width/r.height;if(this.orbitFit){const fit=cameraFit(this.camera.aspect,this.orbitFit);this.camera.fov=fit.fov;const offset=this.camera.position.clone().sub(this.target);if(offset.length()<fit.distance)this.camera.position.copy(this.target).add(offset.normalize().multiplyScalar(fit.distance));if(this.controls)this.controls.maxDistance=Math.max(55,fit.distance*1.3);}else this.camera.fov=46;this.camera.updateProjectionMatrix();}
  update(dt){this.time+=dt;if(this.followTarget){const p=this.followTarget;this.target.lerp(new THREE.Vector3(p.x,p.y+.8,p.z-1),Math.min(1,dt*6));this.camera.position.lerp(new THREE.Vector3(p.x,p.y+13,p.z+16),Math.min(1,dt*6));this.camera.lookAt(this.target);this.sun.position.set(p.x-12,p.y+28,p.z+16);this.sun.target.position.copy(p);this.scene.add(this.sun.target);}else this.controls?.update();
   this.effects=this.effects.filter(e=>{e.life-=dt;if(e.life<=0){this.remove(e.mesh);return false;}if(e.v){e.v.y-=9*dt;e.mesh.position.addScaledVector(e.v,dt);e.mesh.rotation.x+=dt*4;e.mesh.scale.setScalar(Math.max(.02,e.life/e.total));}return true;});
  }
