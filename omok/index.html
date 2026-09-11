@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>오목 20단계</title>
+<meta name="theme-color" content="#8a5a2b" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="오목" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;background:linear-gradient(160deg,#4a3420,#1d1209);color:#ffe6b8;
+    font-family:"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;-webkit-user-select:none;user-select:none;}
+  .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;text-align:center;}
+  .logo{width:120px;height:120px;border-radius:28px;box-shadow:0 12px 30px rgba(0,0,0,.5);}
+  h1{font-size:30px;margin:0;color:#ffd76a;}
+  p{color:#c9ab84;margin:0;font-size:15px;}
+  a.btn{text-decoration:none;color:#fff;font-weight:800;font-size:18px;padding:18px 30px;border-radius:16px;border:3px solid #ffdca8;background:#a8702f;box-shadow:0 6px 16px rgba(0,0,0,.4);transition:.12s;}
+  a.btn:hover{transform:translateY(-2px);}
+  #install{display:none;background:#6552a8;border-color:#cfc3ff;}
+  .tip{font-size:12px;color:#a08a68;max-width:340px;line-height:1.7;}
+</style>
+</head>
+<body>
+<a href="../" style="position:fixed;top:10px;right:10px;z-index:70;font-size:13px;padding:8px 12px;font-family:inherit;font-weight:800;color:#fff;background:#8a5a2b;border:2px solid #ffdca8;border-radius:10px;text-decoration:none">🏠 게임천국</a>
+<div class="wrap">
+  <img class="logo" src="icon-512.png" alt="아이콘" />
+  <div><h1>⚫⚪ 오목 20단계 ⚪⚫</h1><p>컴퓨터와 1대1 · 다섯 개를 먼저 이으면 승리!</p></div>
+  <a class="btn" href="오목.html">▶️ 시작하기</a>
+  <a class="btn" id="install" href="#">📲 홈 화면에 앱 설치</a>
+  <div class="tip">🐣 병아리부터 👑 오목의 신까지 20단계! 이기면 다음 단계가 열려요. 💡 힌트와 ↩︎ 무르기도 있어요. 폰에서 <b>홈 화면에 추가</b>하면 앱이 돼요.</div>
+</div>
+<script>
+  if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{})); }
+  let deferred=null;
+  window.addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferred=e; let b=document.getElementById('install'); b.style.display='inline-block';
+    b.addEventListener('click',async ev=>{ ev.preventDefault(); if(!deferred)return; deferred.prompt(); deferred=null; b.style.display='none'; }); });
+</script>
+</body>
+</html>
