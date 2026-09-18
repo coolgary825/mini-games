@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#c9c5bd">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="라떼 랜드">
+  <title>슈퍼 라떼 랜드 · 준우네 게임천국</title>
+  <meta name="description" content="치와와 라떼가 삼색 고양이 커피에게 잡혀간 모카를 구하러 가는 2D 게임보이 스타일 모험">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <a class="home" href="../">← 게임천국</a>
+  <div class="stage">
+    <main class="console" aria-label="라떼 보이 게임기">
+      <div class="bezel">
+        <div class="bezel-top"><i></i><span>DOT MATRIX · 4 SHADES OF LOVE</span><i></i></div>
+        <div class="bezel-row">
+          <div class="power"><b></b><small>POWER</small></div>
+          <div class="screen-wrap">
+            <canvas id="screen" width="160" height="144" aria-label="게임 화면"></canvas>
+            <div id="hint" class="hint" hidden></div>
+            <div id="card" class="card" hidden><b></b><span></span></div>
+            <div id="menu" class="menu" hidden></div>
+            <div id="dialog" class="dialog" hidden><b></b><p></p><i>▼</i></div>
+          </div>
+        </div>
+      </div>
+      <div class="brand"><em>LATTE BOY</em><span>슈퍼 라떼 랜드</span></div>
+      <div class="controls">
+        <div id="dpad" class="dpad" role="group" aria-label="방향키">
+          <span class="arm h"></span><span class="arm v"></span><span class="hub"></span>
+        </div>
+        <div class="buttons">
+          <div class="ab">
+            <button class="round b" data-btn="b" aria-label="B 달리기·던지기"><span>B</span></button>
+            <button class="round a" data-btn="a" aria-label="A 점프"><span>A</span></button>
+          </div>
+          <button id="bark" class="round bark ready" data-btn="bark" aria-label="멍! 짖기"><span>멍!</span></button>
+        </div>
+        <div class="pills">
+          <button class="pill" data-btn="select" aria-label="셀렉트"><i></i><small>SELECT</small></button>
+          <button class="pill" data-btn="start" aria-label="스타트"><i></i><small>START</small></button>
+        </div>
+        <div class="speaker" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+    </main>
+    <aside class="help">
+      <h1>슈퍼 라떼 랜드</h1>
+      <p>치와와 <b>라떼</b>가 장난꾸러기 삼색 고양이 <b>커피</b>에게 잡혀간 단짝 <b>모카</b>를 구하러 가요!</p>
+      <p><b>아무 버튼이나 누르면 바로 시작해요.</b></p>
+      <dl>
+        <dt>← →</dt><dd>걷기</dd>
+        <dt>Z · Space</dt><dd>A 점프 (길게 누르면 높이)</dd>
+        <dt>X · Shift</dt><dd>B 달리기 · 테니스공 던지기</dd>
+        <dt>C</dt><dd>멍! 짖어서 적 기절시키기</dd>
+        <dt>Enter</dt><dd>START 시작 · 잠깐 멈춤</dd>
+        <dt>Tab</dt><dd>SELECT 설정 메뉴(첫 화면) · 화면 색 바꾸기</dd>
+      </dl>
+      <ul>
+        <li>🦴 뼈다귀 100개 = 목숨 +1</li>
+        <li>🍖 고기 = 커지기 · 🎾 테니스공 = 공 던지기</li>
+        <li>🧯 소화전 = 중간 저장</li>
+        <li>🎮 게임패드도 돼요</li>
+      </ul>
+    </aside>
+  </div>
+</body>
+</html>
