@@ -1,5 +1,5 @@
 // 슈퍼 라떼 랜드 — 화면 그리기, 입력, 메뉴, 이야기, 저장
-import { SPRITES, spriteSize, SCREEN_PALETTES, COLOR_PALETTES, THEME_PALETTES } from './sprites.js';
+import { SPRITES, spriteSize, SCREEN_PALETTES, COLOR_PALETTES, THEME_PALETTES, PIECE_PALETTES, THEME_PIECES, THEME_SKY } from './sprites.js';
 import { LEVELS, WORLD_NAMES, ROWS } from './levels.js';
 import { Run, T, VIEW_W } from './engine.js';
 import { Chip } from './audio.js';
@@ -7,7 +7,8 @@ import { Chip } from './audio.js';
 const $ = id => document.getElementById(id);
 const cv = $('screen'), g = cv.getContext('2d');
 g.imageSmoothingEnabled = false;
-const HUD = 16, W = 160, H = 144;
+const HUD = 16, W = 160, H = 144, SCALE = 2; // 속은 160×144, 실제로는 두 배 해상도로 그려 움직임이 더 부드러워요
+const R = v => Math.round(v * SCALE) / SCALE;
 const chip = new Chip();
 const PLAYERS = ['준우', '은우', '리우', '아빠', '손님'];
 
@@ -15,7 +16,8 @@ const PLAYERS = ['준우', '은우', '리우', '아빠', '손님'];
 const SAVE_KEY = 'latte-land-v1';
 const save = (() => { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) || {}; } catch { return {}; } })();
 save.player = PLAYERS.includes(save.player) ? save.player : '준우';
-save.palette = SCREEN_PALETTES[save.palette] ? save.palette : 'dmg';
+save.palette = SCREEN_PALETTES[save.palette] ? save.palette : 'color';
+if ((save.v || 1) < 2) { save.palette = 'color'; save.v = 2; } // 기본을 컬러로
 save.profiles ??= {};
 const profile = () => (save.profiles[save.player] ??= { unlocked: 0, best: 0, done: false });
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch {} };
@@ -56,13 +58,16 @@ const CATEGORY = [
   [/^hedgehog/, 'hedgehog'], [/^cup/, 'cup'], [/^(bone|meat|star|flag)/, 'item'], [/^(ball|smallBall)/, 'ball'], [/^(heart|hydrant|balloon|yarn)/, 'heart'], [/^house/, 'latte'],
 ];
 let theme = 'park';
+const isColor = () => !SCREEN_PALETTES[save.palette].colors;
 function colorsFor(name) {
   const scr = SCREEN_PALETTES[save.palette].colors;
   if (scr) return scr;
+  const piece = THEME_PIECES[theme]?.[name] || PIECE_PALETTES[name];
+  if (piece) return piece;
   for (const [re, cat] of CATEGORY) if (re.test(name)) return COLOR_PALETTES[cat];
   return THEME_PALETTES[theme];
 }
-const bgColors = () => SCREEN_PALETTES[save.palette].colors || THEME_PALETTES[theme];
+const bgColors = () => { const scr = SCREEN_PALETTES[save.palette].colors; if (scr) return scr; const k = THEME_SKY[theme] || THEME_SKY.park; return [k.sky, k.far, k.mid, k.ink]; };
 const cache = new Map();
 function sprite(name, flip = false, flipY = false, colors = colorsFor(name)) {
   const key = name + colors.join('') + flip + flipY;
@@ -74,11 +79,11 @@ function sprite(name, flip = false, flipY = false, colors = colorsFor(name)) {
   rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch >= '0' && ch <= '3') { x.fillStyle = colors[+ch]; x.fillRect(flip ? w - 1 - i : i, flipY ? h - 1 - j : j, 1, 1); } }));
   cache.set(key, c); return c;
 }
-const draw = (name, x, y, flip, flipY, colors) => g.drawImage(sprite(name, flip, flipY, colors), Math.round(x), Math.round(y));
+const draw = (name, x, y, flip, flipY, colors) => g.drawImage(sprite(name, flip, flipY, colors), R(x), R(y));
 // 히트박스 아래쪽 가운데에 맞춰 그리기
 function drawOn(name, e, flip = false, flipY = false, colors, cam = 0) {
   const s = sprite(name, flip, flipY, colors);
-  g.drawImage(s, Math.round(e.x + e.w / 2 - s.width / 2 - cam), Math.round(e.y + e.h - s.height + HUD));
+  g.drawImage(s, R(e.x + e.w / 2 - s.width / 2 - cam), R(e.y + e.h - s.height + HUD));
 }
 
 // ── 입력 ────────────────────────────────────────────────────
@@ -198,7 +203,7 @@ let mode = 'title', run = null, stageIndex = 0, carry = null, checkpoint = null,
 const newCarry = () => ({ lives: save.easy ? 99 : 3, score: 0, bones: 0, big: false, power: null });
 
 function toTitle() {
-  mode = 'title'; modeT = 0; run = null; closeMenu(); cardEl.hidden = true; theme = 'park';
+  mode = 'title'; modeT = 0; run = null; closeMenu(); cardEl.hidden = true; theme = 'park'; syncUi();
   chip.play('title');
 }
 // 누르자마자 시작: 저장된 스테이지부터 이어서, 처음이면 짧은 이야기부터
@@ -233,13 +238,13 @@ function startGame(index, withStory) {
 }
 function showCard(index) {
   stageIndex = index; checkpoint = null; mode = 'card'; modeT = 0; run = null;
-  const L = LEVELS[index]; theme = L.theme;
+  const L = LEVELS[index]; theme = L.theme; syncUi();
   cardEl.hidden = false; cardEl.querySelector('b').textContent = `WORLD ${L.id}`; cardEl.querySelector('span').textContent = L.name;
   chip.stop(); chip.jingle('course');
 }
 function beginRun() {
   cardEl.hidden = true;
-  const L = LEVELS[stageIndex]; theme = L.theme;
+  const L = LEVELS[stageIndex]; theme = L.theme; syncUi();
   run = new Run(L, carry, hooks, { easy: save.easy, checkpoint });
   mode = 'play'; modeT = 0;
 }
@@ -337,9 +342,10 @@ function tileSprite(c, tx, ty, r) {
   return null;
 }
 function renderRun(r) {
-  const cam = Math.round(r.cam), L = r.L;
+  const cam = R(r.cam), L = r.L;
   const bg = bgColors();
   g.fillStyle = bg[0]; g.fillRect(0, HUD, W, H - HUD);
+  if (isColor()) drawBackdrop(cam);
   // 배경 장식
   for (const d of L.decor) { const s = SPRITES[d.spr]; if (!s) continue; const w = spriteSize(s).w; if (d.x + w < cam || d.x > cam + W) continue; draw(d.spr, d.x - cam, d.y + HUD); }
   // 골: 깃대·개집
@@ -398,7 +404,7 @@ function renderRun(r) {
   // 효과
   const ink = bg[3];
   for (const f of r.fx) {
-    if (f.kind === 'ring') { g.strokeStyle = ink; g.lineWidth = 1; g.beginPath(); g.arc(Math.round(f.x - cam) + .5, Math.round(f.y) + HUD + .5, (22 - f.life) * 2.2 + 4, 0, Math.PI * 2); g.stroke(); if (f.life > 10) { g.beginPath(); g.arc(Math.round(f.x - cam) + .5, Math.round(f.y) + HUD + .5, (22 - f.life) * 1.3 + 2, 0, Math.PI * 2); g.stroke(); } }
+    if (f.kind === 'ring') { g.strokeStyle = ink; g.lineWidth = .75; g.beginPath(); g.arc(R(f.x - cam) + .25, R(f.y) + HUD + .25, (22 - f.life) * 2.2 + 4, 0, Math.PI * 2); g.stroke(); if (f.life > 10) { g.beginPath(); g.arc(R(f.x - cam) + .25, R(f.y) + HUD + .25, (22 - f.life) * 1.3 + 2, 0, Math.PI * 2); g.stroke(); } }
     else if (f.kind === 'brick') draw('brickBit', f.x - cam, f.y + HUD);
     else if (f.kind === 'splash') draw('puff', f.x - cam - 3, f.y + HUD - 2);
     else if (f.kind === 'stars') for (let i = 0; i < 3; i++) { const a = f.life * .2 + i * 2.1; draw('twinkle', f.x - cam + Math.cos(a) * 7 - 2, f.y + HUD + Math.sin(a) * 2 - 2); }
@@ -406,7 +412,7 @@ function renderRun(r) {
   for (const q of r.pops) { const s = String(q.text); textSmall(s, Math.round(q.x - cam), Math.round(q.y) + HUD, ink); }
   // 멍! 말풍선
   const p = r.player;
-  if (p.barkT > 8 && !p.hidden) { g.fillStyle = bg[0]; g.fillRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22), Math.round(p.y) + HUD - 11, 22, 10); g.strokeStyle = ink; g.strokeRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22) + .5, Math.round(p.y) + HUD - 10.5, 21, 9); textSmall('WOOF', Math.round(p.x - cam) + (p.face > 0 ? 12 : -20), Math.round(p.y) + HUD - 9, ink); }
+  if (p.barkT > 8 && !p.hidden) { g.fillStyle = isColor() ? '#ffffff' : bg[0]; g.fillRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22), Math.round(p.y) + HUD - 11, 22, 10); g.strokeStyle = ink; g.strokeRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22) + .5, Math.round(p.y) + HUD - 10.5, 21, 9); textSmall('WOOF', Math.round(p.x - cam) + (p.face > 0 ? 12 : -20), Math.round(p.y) + HUD - 9, ink); }
   renderHud(r);
 }
 function bumpOffset(r, tx, ty) { const v = r.bumps.get(`${tx},${ty}`); return v ? [0, 1, 2, 3, 4, 4, 3, 2, 1][v] || 0 : 0; }
@@ -424,7 +430,7 @@ function drawPlayer(r, cam) {
   let colors;
   if (p.star > 0) { const base = SCREEN_PALETTES[save.palette].colors; colors = (r.frame >> 2) % 2 ? (base ? [...base].reverse() : COLOR_PALETTES.item) : undefined; }
   else if (carry.power === 'ball' && !SCREEN_PALETTES[save.palette].colors) colors = ['#ffffff', '#f5d27a', '#6aa84f', '#1d2a10'];
-  if (r.fly) { draw('balloon', Math.round(p.x - cam) + 3, Math.round(p.y) + HUD - 11); }
+  if (r.fly) { draw('balloon', p.x - cam + 3, p.y + HUD - 11); }
   drawOn(name, p, p.face < 0, r.state === 'dying', colors, cam);
 }
 function textSmall(s, x, y, color) {
@@ -434,28 +440,32 @@ function textSmall(s, x, y, color) {
   for (const ch of s) { const m = D[ch]; if (m) [...m].forEach((bit, i) => { if (bit === '1') g.fillRect(x + (i % 3), y + Math.floor(i / 3), 1, 1); }); x += 4; }
 }
 function renderHud(r) {
-  const c = bgColors(), ink = c[3];
-  g.fillStyle = c[0]; g.fillRect(0, 0, W, HUD);
+  const c = bgColors(), col = isColor(), ink = col ? '#ffffff' : c[3], num = col ? '#ffd76a' : c[3];
+  g.fillStyle = col ? '#1d2140' : c[0]; g.fillRect(0, 0, W, HUD);
+  if (col) { g.fillStyle = '#ffffff22'; g.fillRect(0, HUD - .5, W, .5); }
   const pad2 = n => String(Math.max(0, n)).padStart(2, '0');
-  text('LATTE', 2, 1, ink); text('x' + pad2(carry.lives), 32, 1, ink);
-  text(String(carry.score).padStart(6, '0'), 2, 9, ink);
-  draw('bone', 42, 8); text('x' + pad2(carry.bones), 50, 9, ink);
+  text('LATTE', 2, 1, ink); text('x' + pad2(carry.lives), 32, 1, num);
+  text(String(carry.score).padStart(6, '0'), 2, 9, num);
+  draw('bone', 42, 8); text('x' + pad2(carry.bones), 50, 9, num);
   if (carry.power === 'ball') draw('ball', 58, 0);
   if (r.player.star > 0) draw('star', 68, 0);
   if (r.fly) for (let i = 0; i < 3; i++) if (i < r.player.flyHp) draw('heart', 58 + i * 7, 0);
-  text('WORLD', 82, 1, ink); text(r.L.id, 88, 9, ink);
+  text('WORLD', 82, 1, ink); text(r.L.id, 88, 9, num);
   if (r.boss && !r.boss.dead) { text('BOSS', 130, 1, ink); for (let i = 0; i < r.boss.hp; i++) draw('heart', 152 - i * 8, 8); }
-  else { text('TIME', 130, 1, ink); text(save.easy ? '---' : String(r.time).padStart(3, '0'), 136, 9, ink); }
+  else { text('TIME', 130, 1, ink); text(save.easy ? '---' : String(r.time).padStart(3, '0'), 136, 9, num); }
 }
 function renderTitle() {
   const c = bgColors(), ink = c[3];
   g.fillStyle = c[0]; g.fillRect(0, 0, W, H);
   draw('cloud', 10, 10); draw('cloud', 120, 24);
   // 로고 판
-  g.fillStyle = c[3]; g.fillRect(14, 22, 132, 44); g.fillStyle = c[1]; g.fillRect(16, 24, 128, 40); g.fillStyle = c[0]; g.fillRect(18, 26, 124, 36);
-  text('SUPER', 80 - textW('SUPER') / 2, 29, c[2]);
-  text('LATTE', 80 - textW('LATTE', 2) / 2, 38, ink, 2);
-  text('LAND', 80 - textW('LAND') / 2, 54, c[2]);
+  const col = isColor(), frame = col ? ['#5a2e14', '#ffb347', '#fff6e0'] : [c[3], c[1], c[0]];
+  if (col) drawBackdrop(0);
+  g.fillStyle = frame[0]; g.fillRect(14, 22, 132, 44); g.fillStyle = frame[1]; g.fillRect(16, 24, 128, 40); g.fillStyle = frame[2]; g.fillRect(18, 26, 124, 36);
+  text('SUPER', 80 - textW('SUPER') / 2, 29, col ? '#2f6fd0' : c[2]);
+  if (col) text('LATTE', 80 - textW('LATTE', 2) / 2 + 1, 39, '#f4b08a', 2);
+  text('LATTE', 80 - textW('LATTE', 2) / 2, 38, col ? '#d4502a' : ink, 2);
+  text('LAND', 80 - textW('LAND') / 2, 54, col ? '#2f6fd0' : c[2]);
   for (let x = 0; x < W; x += 8) { draw('t_top', x, 120); draw('t_dirt', x, 128); draw('t_dirt', x, 136); }
   draw('hill', 100, 104); draw('bush', 8, 114);
   const bob = (modeT >> 4) % 2;
@@ -475,8 +485,8 @@ function renderCard() {
   if (save.easy) text('EASY', 80 - textW('EASY') / 2, 100, c[2]);
 }
 function renderStory() {
-  const c = bgColors(); theme = 'park';
-  g.fillStyle = c[0]; g.fillRect(0, 0, W, H);
+  theme = 'park'; const c = bgColors();
+  g.fillStyle = c[0]; g.fillRect(0, 0, W, H); if (isColor()) drawBackdrop(0);
   draw('cloud', 20, 20); draw('cloud', 110, 12); draw('tree', 124, 84); draw('bush', 4, 108);
   for (let x = 0; x < W; x += 8) { draw('t_top', x, 120); draw('t_dirt', x, 128); draw('t_dirt', x, 136); }
   const s = scene; if (!s) return;
@@ -489,8 +499,8 @@ function renderStory() {
   }
 }
 function renderEnding() {
-  const c = bgColors(); theme = 'park';
-  g.fillStyle = c[0]; g.fillRect(0, 0, W, H);
+  theme = 'park'; const c = bgColors();
+  g.fillStyle = c[0]; g.fillRect(0, 0, W, H); if (isColor()) drawBackdrop(0);
   draw('cloud', 16, 14); draw('cloud', 112, 26); draw('hill', 110, 104); draw('tree', 8, 84);
   for (let x = 0; x < W; x += 8) { draw('t_top', x, 120); draw('t_dirt', x, 128); draw('t_dirt', x, 136); }
   const t = modeT, hop = k => (Math.floor((t + k * 20) / 16) % 2) * -2;
@@ -509,7 +519,42 @@ function renderGameOver() {
   draw('latteJump', 72, 76, false, true);
   text('SCORE ' + String(carry?.score ?? 0).padStart(6, '0'), 80 - textW('SCORE 000000') / 2, 100, c[2]);
 }
+// 컬러 모드의 먼 배경(천천히 따라 움직여요)
+const hash = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+function drawBackdrop(cam) {
+  const k = THEME_SKY[theme]; if (!k) return;
+  const ground = (ROWS - 3) * T + HUD;
+  g.save(); g.beginPath(); g.rect(0, HUD, W, H - HUD); g.clip();
+  if (theme === 'park') {
+    const off = cam * .25;
+    for (let i = Math.floor(off / 48) - 1; i < off / 48 + 5; i++) { const r = 22 + hash(i) * 20; g.fillStyle = hash(i + 50) > .5 ? k.far : '#a6df8c'; g.beginPath(); g.ellipse(i * 48 - off + 24, ground, r, r * .75, 0, Math.PI, Math.PI * 2); g.fill(); }
+  } else if (theme === 'sky') {
+    const off = cam * .2; g.fillStyle = k.far;
+    for (let i = Math.floor(off / 40) - 1; i < off / 40 + 6; i++) { const y = HUD + 16 + hash(i) * 80, r = 10 + hash(i + 9) * 12; g.beginPath(); g.ellipse(i * 40 - off, y, r * 1.8, r * .7, 0, 0, Math.PI * 2); g.fill(); }
+  } else if (theme === 'roof') {
+    const off = cam * .35;
+    for (let i = Math.floor(off / 20) - 1; i < off / 20 + 10; i++) {
+      const w = 12 + hash(i) * 8, h = 18 + hash(i + 3) * 40, x = i * 20 - off;
+      g.fillStyle = k.far; g.fillRect(x, ground - h, w, h + 16);
+      g.fillStyle = '#ffe89a';
+      for (let wy = 0; wy < h - 6; wy += 5) for (let wx = 2; wx < w - 2; wx += 4) if (hash(i * 31 + wy * 7 + wx) > .62) g.fillRect(x + wx, ground - h + 3 + wy, 1.5, 1.5);
+    }
+  } else if (theme === 'sewer' || theme === 'castle') {
+    const off = cam * .5; g.fillStyle = k.far;
+    for (let y = HUD; y < H; y += 8) for (let x = -((off + (y / 8 % 2) * 8) % 16) - 16; x < W; x += 16) { g.fillRect(x, y, 15.5, 7.5); }
+    if (theme === 'castle') for (let i = Math.floor(off / 64) - 1; i < off / 64 + 4; i++) { const x = i * 64 - off + 30; g.fillStyle = '#c0304a'; g.fillRect(x, HUD + 20, 10, 26); g.fillStyle = '#ffd76a'; g.fillRect(x + 4, HUD + 26, 2, 2); }
+  } else if (theme === 'factory') {
+    const off = cam * .3;
+    for (let i = Math.floor(off / 36) - 1; i < off / 36 + 6; i++) {
+      const x = i * 36 - off, h = 40 + hash(i) * 40;
+      g.fillStyle = k.far; g.fillRect(x, ground - h, 9, h); g.fillStyle = '#c98a5a'; g.fillRect(x, ground - h + 4, 9, 2);
+      g.fillStyle = '#fff4e4aa'; const t = (modeT * .3 + i * 20) % 30; g.beginPath(); g.ellipse(x + 4.5 + t * .3, ground - h - 4 - t * .5, 3 + t * .12, 2 + t * .08, 0, 0, Math.PI * 2); g.fill();
+    }
+  }
+  g.restore();
+}
 function render() {
+  g.setTransform(SCALE, 0, 0, SCALE, 0, 0); g.imageSmoothingEnabled = false;
   if (mode === 'title') renderTitle();
   else if (mode === 'card') renderCard();
   else if (mode === 'story') renderStory();
@@ -518,7 +563,19 @@ function render() {
   else if (run) renderRun(run);
 }
 
-function syncScreenColor() { document.documentElement.style.setProperty('--lcd', bgColors()[0]); document.documentElement.style.setProperty('--lcd-ink', bgColors()[3]); cache.clear(); }
+function syncScreenColor() { syncUi(); cache.clear(); }
+// 화면 위 글상자 색: 컬러 모드는 크림색 상자, 흑백 모드는 화면 색 그대로
+function syncUi() {
+  const c = bgColors(), st = document.documentElement.style;
+  st.setProperty('--lcd', isColor() ? '#fffaf0' : c[0]); st.setProperty('--lcd-ink', isColor() ? '#2b2233' : c[3]); st.setProperty('--sky', c[0]);
+}
+// 화면 한 칸이 기기 화소에 딱 맞으면 도트가 고르게 보여요(크기가 10% 넘게 줄면 그냥 꽉 채워요)
+function fitScreen() {
+  const r = cv.parentElement.getBoundingClientRect(), dpr = devicePixelRatio || 1, dev = r.width * dpr, k = Math.floor(dev / W);
+  if (k >= 2 && k * W / dev >= .9) { cv.style.width = k * W / dpr + 'px'; cv.style.height = k * H / dpr + 'px'; }
+  else { cv.style.width = ''; cv.style.height = ''; }
+}
+new ResizeObserver(fitScreen).observe(cv.parentElement);
 
 // ── 시작 ────────────────────────────────────────────────────
 let acc = 0, last = performance.now(), paused = false;

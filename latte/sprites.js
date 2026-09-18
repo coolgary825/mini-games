@@ -296,9 +296,9 @@ export function spriteSize(rows) {
 
 // 게임보이 화면 색. 컬러 모드에서는 캐릭터마다 고유 색을 써요.
 export const SCREEN_PALETTES = {
+  color: { name: '컬러', colors: null },
   dmg: { name: '원조 초록', colors: ['#e0f0c0', '#8cbf5f', '#306850', '#0c1c18'] },
   pocket: { name: '포켓 회색', colors: ['#e8e8e0', '#a8a8a0', '#585850', '#181818'] },
-  color: { name: '컬러', colors: null },
 };
 
 export const COLOR_PALETTES = {
@@ -324,4 +324,40 @@ export const THEME_PALETTES = {
   sky: ['#d8f2ff', '#ffffff', '#86b7e0', '#27476b'],
   factory: ['#f4e3cf', '#c9926a', '#7c4a2c', '#241208'],
   castle: ['#e3dbe8', '#a996b3', '#5e4a6a', '#1a1020'],
+};
+
+// 컬러 모드: 게임보이 컬러처럼 조각마다 팔레트를 따로 줘요(타일·장식)
+const earth = ['#fff6dc', '#7ccf4f', '#a0663a', '#3b2414'];
+const brick = ['#fff0dc', '#ec8d52', '#b24f2a', '#4a1c0c'];
+const qBlock = ['#fff9d6', '#ffcf3a', '#d88a14', '#4a2a06'];
+const pipe = ['#eaffdc', '#5cc85a', '#2a8a3c', '#0c3a18'];
+export const PIECE_PALETTES = {
+  t_top: earth, t_dirt: ['#fff6dc', '#c58a52', '#a0663a', '#3b2414'], t_brick: brick,
+  t_q0: qBlock, t_q1: qBlock, t_used: ['#f8e8d0', '#c89a6a', '#8a5e3a', '#3a2412'], t_hard: ['#fff4dc', '#e2b67c', '#a0703e', '#3a2412'],
+  t_pipeTL: pipe, t_pipeTR: pipe, t_pipeBL: pipe, t_pipeBR: pipe,
+  t_spike: ['#ffffff', '#e4eaf2', '#8e9eb0', '#26303c'], t_liquid0: ['#fff0d6', '#e8b070', '#7a4020', '#2a1206'], t_liquid1: ['#fff0d6', '#e8b070', '#7a4020', '#2a1206'],
+  t_plat: ['#fff6e0', '#e8b872', '#9a6232', '#3a2412'], t_cloudPlat: ['#ffffff', '#ffffff', '#cfe6ff', '#5a86b8'],
+  t_pole: ['#ffffff', '#e4eaf2', '#9aa8b8', '#4a5666'], t_poleTop: qBlock, t_castle: ['#efe6f4', '#ad9abf', '#735e8a', '#2a1e3a'],
+  cloud: ['#ffffff', '#ffffff', '#dcefff', '#86acd8'], bush: ['#eaffdc', '#72d65c', '#3a9a44', '#185a24'], hill: ['#eaffdc', '#98e070', '#4fae4a', '#1f6a2c'],
+  tree: ['#eaffdc', '#5cc85a', '#8a5a30', '#1a4a22'], moon: ['#fffbe0', '#fff2a8', '#f0d060', '#a08428'], twinkle: ['#ffffff', '#ffffff', '#ffffff', '#ffec8a'],
+  windowS: ['#ffe89a', '#ffd35a', '#735e8a', '#2a1e3a'], chimney: brick, house: ['#fff6e6', '#f4c878', '#d8482a', '#3a1a10'],
+  cage: ['#ffffff', '#d4dce6', '#8e9aaa', '#2e3642'], puff: ['#ffffff', '#ffffff', '#ffffff', '#ffffff'], brickBit: brick,
+};
+// 월드마다 땅 느낌을 바꿔요
+const stone = ['#eef4fa', '#9fb4c6', '#5f7a92', '#1c2a38'];
+const roofTile = ['#ffe6d6', '#e0705a', '#9a3a44', '#2a1020'];
+const metal = ['#ffffff', '#c9b08e', '#7e6048', '#2a1a10'];
+export const THEME_PIECES = {
+  sewer: { t_top: stone, t_dirt: stone, t_brick: ['#e6f0fa', '#7f9cb8', '#4c6682', '#18263a'], t_liquid0: ['#e6fff4', '#7fd6c0', '#2f8a78', '#0c3a30'], t_liquid1: ['#e6fff4', '#7fd6c0', '#2f8a78', '#0c3a30'] },
+  roof: { t_top: roofTile, t_dirt: ['#ffe6d6', '#b85a5a', '#8a3a44', '#2a1020'], t_plat: ['#ffffff', '#f2f2f2', '#b0b8d0', '#3a3f60'] },
+  factory: { t_top: metal, t_dirt: ['#ffffff', '#b89a7a', '#7e6048', '#2a1a10'] },
+};
+// 하늘색과 글자색
+export const THEME_SKY = {
+  park: { sky: '#8fd3ff', far: '#b8e89c', mid: '#4d7fb8', ink: '#1c2a44' },
+  sewer: { sky: '#1f3444', far: '#28455a', mid: '#8fb0c8', ink: '#e8f4ff' },
+  roof: { sky: '#232857', far: '#323a78', mid: '#a9b0e8', ink: '#fff7d6' },
+  sky: { sky: '#9fdcff', far: '#d8f2ff', mid: '#4d7fb8', ink: '#1c2a44' },
+  factory: { sky: '#f4d4a4', far: '#e2b280', mid: '#9a5a2a', ink: '#3a1a08' },
+  castle: { sky: '#2e2342', far: '#382c50', mid: '#c0aee0', ink: '#fff0f6' },
 };
