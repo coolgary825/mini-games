@@ -110,6 +110,8 @@ export class Chip {
       case 'bossJump': T(120, .2, { slide: 1.8, vol: .08, type: 'triangle' }); break;
       case 'bossDown': [392, 330, 262, 196].forEach((f, i) => T(f, .12, { at: i * .12, vol: .1 })); break;
       case 'select': T(1047, .04, { vol: .06 }); break;
+      case 'gold': [784, 988, 1175, 1568, 1319, 1568, 2093].forEach((f, i) => T(f, .07, { at: i * .055, vol: .07, duty: .25 })); break;
+      case 'meow': T(620, .12, { slide: 1.5, vol: .07, duty: .25 }); T(930, .22, { at: .12, slide: .55, vol: .07, duty: .25 }); break;
       case 'pause': [1319, 988, 1319, 988].forEach((f, i) => T(f, .05, { at: i * .06, vol: .06 })); break;
     }
   }

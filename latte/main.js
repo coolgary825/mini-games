@@ -1,5 +1,5 @@
 // 슈퍼 라떼 랜드 — 화면 그리기, 입력, 메뉴, 이야기, 저장
-import { SPRITES, spriteSize, SCREEN_PALETTES, COLOR_PALETTES, THEME_PALETTES, PIECE_PALETTES, THEME_PIECES, THEME_SKY } from './sprites.js';
+import { SPRITES, spriteSize, SCREEN_PALETTES, COLOR_PALETTES, THEME_PALETTES, PIECE_PALETTES, THEME_PIECES, THEME_SKY, COSTUMES } from './sprites.js';
 import { LEVELS, WORLD_NAMES, ROWS } from './levels.js';
 import { Run, T, VIEW_W } from './engine.js';
 import { Chip } from './audio.js';
@@ -19,7 +19,16 @@ save.player = PLAYERS.includes(save.player) ? save.player : '준우';
 save.palette = SCREEN_PALETTES[save.palette] ? save.palette : 'color';
 if ((save.v || 1) < 2) { save.palette = 'color'; save.v = 2; } // 기본을 컬러로
 save.profiles ??= {};
-const profile = () => (save.profiles[save.player] ??= { unlocked: 0, best: 0, done: false });
+const profile = () => { const p = (save.profiles[save.player] ??= { unlocked: 0, best: 0, done: false }); p.golds ??= {}; p.costume ??= 'none'; return p; };
+// 황금 뼈다귀 수와 꾸미기
+const bitCount = n => { let c = 0; for (; n; n &= n - 1) c++; return c; };
+const goldTotal = () => Object.values(profile().golds).reduce((a, m) => a + bitCount(m), 0);
+const costume = () => { const c = COSTUMES.find(k => k.id === profile().costume); return c && c.spr && goldTotal() >= c.need ? c : null; };
+function drawCostume(x, y, face = 1, big = false, pose = '') {
+  const c = costume(); if (!c) return;
+  const w = spriteSize(SPRITES[c.spr]).w, dy = pose === 'Jump' ? 0 : 0;
+  draw(c.spr, face > 0 ? x + c.x : x + 16 - c.x - w, y + c.y + dy, face < 0);
+}
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch {} };
 chip.setMuted(!!save.muted);
 
@@ -216,6 +225,7 @@ function titleMenu() {
   const p = profile(), next = Math.min(p.unlocked, LEVELS.length - 1);
   openMenu('', [
     { label: p.unlocked > 0 ? `이어하기 ${LEVELS[next].id}` : '모험 시작', small: p.unlocked > 0 ? LEVELS[next].name : '라떼가 모카를 구하러 가요', action: () => startGame(next, p.unlocked === 0) },
+    { label: '라떼 꾸미기', small: `황금 뼈다귀 ${goldTotal()} / 27개 모음`, action: costumeMenu },
     { label: '스테이지 고르기', small: `${Math.min(p.unlocked + 1, LEVELS.length)} / ${LEVELS.length} 스테이지 열림`, action: stageSelect },
     { label: `플레이어: ${save.player}`, small: '플레이어마다 기록을 따로 저장해요', action: () => { save.player = PLAYERS[(PLAYERS.indexOf(save.player) + 1) % PLAYERS.length]; persist(); titleMenu(); } },
     { label: `화면 색: ${SCREEN_PALETTES[save.palette].name}`, small: '원조 초록 · 포켓 회색 · 컬러', action: () => { const ks = Object.keys(SCREEN_PALETTES); save.palette = ks[(ks.indexOf(save.palette) + 1) % ks.length]; persist(); syncScreenColor(); titleMenu(); } },
@@ -224,10 +234,17 @@ function titleMenu() {
   ], () => { closeMenu(); });
   const m = menu; m.index = 0; paintMenu();
 }
+function costumeMenu() {
+  const have = goldTotal(), p = profile();
+  openMenu(`라떼 꾸미기 · 황금 뼈다귀 ${have}개`, [
+    ...COSTUMES.map(c => ({ label: `${p.costume === c.id ? '✓ ' : ''}${c.name}`, small: have >= c.need ? (c.need ? '입어 보기' : '꾸미지 않아요') : `🔒 황금 뼈다귀 ${c.need}개가 필요해요`, disabled: have < c.need, action: () => { p.costume = c.id; persist(); chip.sfx('power'); costumeMenu(); } })),
+    { label: '← 뒤로', action: titleMenu },
+  ], titleMenu);
+}
 function stageSelect() {
   const p = profile();
   openMenu('스테이지 고르기', [
-    ...LEVELS.map((L, i) => ({ label: `${L.id}  ${L.name}`, small: i > p.unlocked ? '🔒 앞 스테이지를 깨면 열려요' : WORLD_NAMES[+L.id[0] - 1], disabled: i > p.unlocked, action: () => startGame(i, false) })),
+    ...LEVELS.map((L, i) => ({ label: `${L.id}  ${L.name}`, small: i > p.unlocked ? '🔒 앞 스테이지를 깨면 열려요' : `${WORLD_NAMES[+L.id[0] - 1]} · 황금 뼈다귀 ${'★'.repeat(bitCount(p.golds[L.id] || 0))}${'☆'.repeat(3 - bitCount(p.golds[L.id] || 0))}`, disabled: i > p.unlocked, action: () => startGame(i, false) })),
     { label: '← 뒤로', action: titleMenu },
   ], titleMenu);
 }
@@ -245,7 +262,7 @@ function showCard(index) {
 function beginRun() {
   cardEl.hidden = true;
   const L = LEVELS[stageIndex]; theme = L.theme; syncUi();
-  run = new Run(L, carry, hooks, { easy: save.easy, checkpoint });
+  run = new Run(L, carry, hooks, { easy: save.easy, checkpoint, goldHave: profile().golds[L.id] || 0 });
   mode = 'play'; modeT = 0;
 }
 const hooks = {
@@ -266,11 +283,59 @@ const hooks = {
     p.unlocked = Math.max(p.unlocked, stageIndex + 1); p.best = Math.max(p.best, carry.score); persist();
     const next = stageIndex + 1;
     if (next >= LEVELS.length) return startEnding();
+    if (!LEVELS[stageIndex].boss) { setTimeout(() => startBonus(next), 300); mode = 'wait'; return; }
     setTimeout(() => showCard(next), 400);
     mode = 'wait';
   },
+  gold: i => {
+    const p = profile(), id = LEVELS[stageIndex].id, before = goldTotal(), first = !p.golds[id] && before === 0;
+    p.golds[id] = (p.golds[id] || 0) | (1 << i); persist();
+    const now = goldTotal(), opened = COSTUMES.find(c => c.need > before && c.need <= now);
+    if (opened) hint(`새 꾸미기가 열렸어요: ${opened.name}! 첫 화면에서 SELECT → 라떼 꾸미기`);
+    else if (first) hint('황금 뼈다귀! 스테이지마다 3개씩 숨어 있어요. 모으면 라떼를 꾸밀 수 있어요.');
+  },
   ending: () => { const p = profile(); p.unlocked = LEVELS.length - 1; p.done = true; p.best = Math.max(p.best, carry.score); persist(); startEnding(); },
 };
+// ── 보너스 룰렛(스테이지를 깨면) ───────────────────────────
+const PRIZES = [{ spr: 'heart', name: '목숨 하나 더!' }, { spr: 'meat', name: '고기! 커다란 라떼로 출발' }, { spr: 'ball', name: '테니스공 파워!' }, { spr: 'bone', name: '뼈다귀 10개!' }];
+let bonus = null;
+function startBonus(next) {
+  mode = 'bonus'; modeT = 0; run = null; theme = 'park'; syncUi();
+  bonus = { next, idx: 0, speed: 3, t: 0, stopping: false, done: false, doneT: 0 };
+  chip.play('star'); hintEl.hidden = true;
+}
+function updateBonus() {
+  const b = bonus; b.t++;
+  if (!b.done) {
+    if (!b.stopping && (pressed('a') || pressed('b') || pressed('start') || b.t > 60 * 6)) { b.stopping = true; b.t = 0; }
+    if (b.t % b.speed === 0) { b.idx = (b.idx + 1) % PRIZES.length; chip.sfx('tick'); if (b.stopping) b.speed += 2; }
+    if (b.stopping && b.speed > 17) {
+      b.done = true; b.doneT = 0; chip.stop(); chip.sfx('oneup');
+      const k = PRIZES[b.idx];
+      if (k.spr === 'heart') carry.lives = Math.min(99, carry.lives + 1);
+      else if (k.spr === 'meat') carry.big = true;
+      else if (k.spr === 'ball') { carry.big = true; carry.power = 'ball'; }
+      else { carry.bones += 10; while (carry.bones >= 100) { carry.bones -= 100; carry.lives = Math.min(99, carry.lives + 1); } }
+      hint(k.name);
+    }
+  } else if (++b.doneT > 110 || (b.doneT > 30 && (pressed('a') || pressed('start')))) { bonus = null; showCard(b.next); }
+}
+function renderBonus() {
+  const c = bgColors(), b = bonus; if (!b) return;
+  g.fillStyle = c[0]; g.fillRect(0, 0, W, H); if (isColor()) drawBackdrop(modeT * .5);
+  for (let x = 0; x < W; x += 8) { draw('t_top', x, 120); draw('t_dirt', x, 128); draw('t_dirt', x, 136); }
+  text('BONUS GAME', 80 - textW('BONUS GAME') / 2, 26, c[3]);
+  if (!b.done && (modeT >> 4) % 2) text('PRESS A!', 80 - textW('PRESS A!') / 2, 80, c[3]);
+  PRIZES.forEach((k, i) => {
+    const x = 14 + i * 34, y = 44, on = i === b.idx, flash = b.done && on && (b.doneT >> 3) % 2;
+    g.fillStyle = on ? (isColor() ? '#ffcf3a' : c[2]) : c[3]; g.fillRect(x - 2, y - 2, 30, 30);
+    g.fillStyle = flash ? c[1] : (isColor() ? '#fff8ea' : c[0]); g.fillRect(x, y, 26, 26);
+    const s = spriteSize(SPRITES[k.spr]); draw(k.spr, x + 13 - s.w / 2, y + 13 - s.h / 2 - (k.spr === 'bone' ? 3 : 0));
+    if (k.spr === 'bone') text('10', x + 7, y + 16, isColor() ? '#2b2233' : c[3]);
+  });
+  const lx = 14 + b.idx * 34 + 5;
+  draw(b.done ? 'latteBark' : (modeT >> 3) % 2 ? 'latteWalk1' : 'latteStand', lx, 104); drawCostume(lx, 104);
+}
 function gameOver() {
   mode = 'gameover'; modeT = 0; run = null; chip.stop(); chip.jingle('gameover');
   const p = profile(); p.best = Math.max(p.best, carry.score); persist();
@@ -321,6 +386,7 @@ function step() {
   }
   else if (mode === 'story') { if (scene) updateStory(); }
   else if (mode === 'ending') { if (scene) scene.t++; if (scene?.phase === 1 && modeT > 120 && (pressed('a') || pressed('start'))) toTitle(); }
+  else if (mode === 'bonus') { if (bonus) updateBonus(); }
   else if (mode === 'gameover') { if (modeT > 90 && (pressed('a') || pressed('start'))) toTitle(); }
   endStep();
   const barkBtn = $('bark');
@@ -342,6 +408,8 @@ function tileSprite(c, tx, ty, r) {
   return null;
 }
 function renderRun(r) {
+  const shake = r.shake > 0 ? ((r.shake % 2) * 2 - 1) * Math.min(2, r.shake * .25) : 0;
+  g.translate(0, shake);
   const cam = R(r.cam), L = r.L;
   const bg = bgColors();
   g.fillStyle = bg[0]; g.fillRect(0, HUD, W, H - HUD);
@@ -371,6 +439,7 @@ function renderRun(r) {
   for (let ty = 0; ty < ROWS; ty++) for (let tx = tx0; tx <= tx1; tx++) {
     const c = r.tile(tx, ty), x = tx * T - cam, y = ty * T + HUD - (bumpOffset(r, tx, ty));
     if (c === 'o') { draw('bone', x, y + 1 + (((r.frame >> 3) + tx) % 4 === 0 ? -1 : 0)); continue; }
+    if (c === 'G') { const i = L.golds.findIndex(q => q.tx === tx && q.ty === ty), old = r.goldHave & (1 << i); if (old) g.globalAlpha = .4; draw('goldBone', x - 1, y + 1 + Math.round(Math.sin((r.frame + tx * 9) / 10))); g.globalAlpha = 1; if (!old && (r.frame + tx * 13) % 50 < 8) draw('twinkle', x + 5, y - 2); continue; }
     if (c === 'h') { if (r.reveal > 0 && (r.frame >> 2) % 2) { g.globalAlpha = .45; draw('t_q0', x, y); g.globalAlpha = 1; } continue; }
     if (tx < 0 || tx >= L.w) continue;
     const name = tileSprite(c, tx, ty, r); if (name) draw(name, x, y);
@@ -406,6 +475,8 @@ function renderRun(r) {
   for (const f of r.fx) {
     if (f.kind === 'ring') { g.strokeStyle = ink; g.lineWidth = .75; g.beginPath(); g.arc(R(f.x - cam) + .25, R(f.y) + HUD + .25, (22 - f.life) * 2.2 + 4, 0, Math.PI * 2); g.stroke(); if (f.life > 10) { g.beginPath(); g.arc(R(f.x - cam) + .25, R(f.y) + HUD + .25, (22 - f.life) * 1.3 + 2, 0, Math.PI * 2); g.stroke(); } }
     else if (f.kind === 'brick') draw('brickBit', f.x - cam, f.y + HUD);
+    else if (f.kind === 'dust') { g.fillStyle = isColor() ? '#ffffffcc' : bg[1]; const r2 = 1 + (12 - f.life) * .18; g.beginPath(); g.arc(R(f.x - cam), R(f.y) + HUD - r2 * .6, r2, 0, Math.PI * 2); g.fill(); }
+    else if (f.kind === 'sparkle') { const k = (f.big ? 30 : 14) - f.life, d = k * (f.big ? .8 : .6); for (let i = 0; i < (f.big ? 6 : 4); i++) { const a = i * Math.PI * 2 / (f.big ? 6 : 4) + k * .1; g.fillStyle = isColor() ? (i % 2 ? '#fff6a0' : '#ffffff') : ink; g.fillRect(R(f.x - cam + Math.cos(a) * d) - .5, R(f.y + Math.sin(a) * d) + HUD - .5, 1, 1); } }
     else if (f.kind === 'splash') draw('puff', f.x - cam - 3, f.y + HUD - 2);
     else if (f.kind === 'stars') for (let i = 0; i < 3; i++) { const a = f.life * .2 + i * 2.1; draw('twinkle', f.x - cam + Math.cos(a) * 7 - 2, f.y + HUD + Math.sin(a) * 2 - 2); }
   }
@@ -413,6 +484,7 @@ function renderRun(r) {
   // 멍! 말풍선
   const p = r.player;
   if (p.barkT > 8 && !p.hidden) { g.fillStyle = isColor() ? '#ffffff' : bg[0]; g.fillRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22), Math.round(p.y) + HUD - 11, 22, 10); g.strokeStyle = ink; g.strokeRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22) + .5, Math.round(p.y) + HUD - 10.5, 21, 9); textSmall('WOOF', Math.round(p.x - cam) + (p.face > 0 ? 12 : -20), Math.round(p.y) + HUD - 9, ink); }
+  g.translate(0, -shake);
   renderHud(r);
 }
 function bumpOffset(r, tx, ty) { const v = r.bumps.get(`${tx},${ty}`); return v ? [0, 1, 2, 3, 4, 4, 3, 2, 1][v] || 0 : 0; }
@@ -432,6 +504,7 @@ function drawPlayer(r, cam) {
   else if (carry.power === 'ball' && !SCREEN_PALETTES[save.palette].colors) colors = ['#ffffff', '#f5d27a', '#6aa84f', '#1d2a10'];
   if (r.fly) { draw('balloon', p.x - cam + 3, p.y + HUD - 11); }
   drawOn(name, p, p.face < 0, r.state === 'dying', colors, cam);
+  if (r.state !== 'dying') { const s = sprite(name, p.face < 0, false, colors); drawCostume(R(p.x + p.w / 2 - s.width / 2 - cam), R(p.y + p.h - s.height + HUD), p.face < 0 ? -1 : 1); }
 }
 function textSmall(s, x, y, color) {
   // 3×5 작은 숫자 글꼴(점수 팝업)
@@ -450,6 +523,7 @@ function renderHud(r) {
   if (carry.power === 'ball') draw('ball', 58, 0);
   if (r.player.star > 0) draw('star', 68, 0);
   if (r.fly) for (let i = 0; i < 3; i++) if (i < r.player.flyHp) draw('heart', 58 + i * 7, 0);
+  if (r.L.golds?.length) for (let i = 0; i < 3; i++) { const got = r.gold & (1 << i), old = r.goldHave & (1 << i), x = 68 + i * 4; g.fillStyle = got ? (col ? '#ffd23a' : ink) : old ? (col ? '#8a6a20' : c[2]) : (col ? '#ffffff44' : c[1]); g.fillRect(x, 10, 3, 5); }
   text('WORLD', 82, 1, ink); text(r.L.id, 88, 9, num);
   if (r.boss && !r.boss.dead) { text('BOSS', 130, 1, ink); for (let i = 0; i < r.boss.hp; i++) draw('heart', 152 - i * 8, 8); }
   else { text('TIME', 130, 1, ink); text(save.easy ? '---' : String(r.time).padStart(3, '0'), 136, 9, num); }
@@ -469,7 +543,7 @@ function renderTitle() {
   for (let x = 0; x < W; x += 8) { draw('t_top', x, 120); draw('t_dirt', x, 128); draw('t_dirt', x, 136); }
   draw('hill', 100, 104); draw('bush', 8, 114);
   const bob = (modeT >> 4) % 2;
-  draw(bob ? 'latteWalk1' : 'latteStand', 44, 104);
+  draw(bob ? 'latteWalk1' : 'latteStand', 44, 104); drawCostume(44, 104);
   draw('mochaSit', 64, 104);
   draw('coffeeA', 124, 101 + (modeT % 120 < 60 ? 0 : 2), true);
   if ((modeT >> 5) % 2 === 0 && !menu) text('PRESS ANY BUTTON', 80 - textW('PRESS ANY BUTTON') / 2, 71, ink);
@@ -480,7 +554,7 @@ function renderCard() {
   const c = bgColors(), ink = c[3], L = LEVELS[stageIndex];
   g.fillStyle = c[0]; g.fillRect(0, 0, W, H);
   text('WORLD ' + L.id, 80 - textW('WORLD ' + L.id) / 2, 40, ink);
-  draw(carry.big ? 'bigStand' : 'latteStand', 56, 70 - (carry.big ? 4 : 0));
+  draw(carry.big ? 'bigStand' : 'latteStand', 56, 70 - (carry.big ? 4 : 0)); drawCostume(56, 70 - (carry.big ? 4 : 0));
   text('x ' + String(carry.lives).padStart(2, '0'), 78, 76, ink);
   if (save.easy) text('EASY', 80 - textW('EASY') / 2, 100, c[2]);
 }
@@ -504,7 +578,7 @@ function renderEnding() {
   draw('cloud', 16, 14); draw('cloud', 112, 26); draw('hill', 110, 104); draw('tree', 8, 84);
   for (let x = 0; x < W; x += 8) { draw('t_top', x, 120); draw('t_dirt', x, 128); draw('t_dirt', x, 136); }
   const t = modeT, hop = k => (Math.floor((t + k * 20) / 16) % 2) * -2;
-  draw('latteStand', 40, 104 + hop(0)); draw('mochaWave', 62, 104 + hop(1)); draw('coffeeA', 86, 101 + hop(2));
+  draw('latteStand', 40, 104 + hop(0)); drawCostume(40, 104 + hop(0)); draw('mochaWave', 62, 104 + hop(1)); draw('coffeeA', 86, 101 + hop(2));
   for (let i = 0; i < 5; i++) { const y = 96 - ((t * .4 + i * 23) % 70); draw('heart', 30 + i * 22 + Math.sin((t + i * 30) / 15) * 3, y); }
   if (scene?.phase === 1) {
     text('THE END', 80 - textW('THE END', 2) / 2, 20, c[3], 2);
@@ -560,6 +634,7 @@ function render() {
   else if (mode === 'story') renderStory();
   else if (mode === 'ending') renderEnding();
   else if (mode === 'gameover') renderGameOver();
+  else if (mode === 'bonus') renderBonus();
   else if (run) renderRun(run);
 }
 

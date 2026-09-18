@@ -2,7 +2,7 @@
 <script type="module">
 import {SPRITES,COLOR_PALETTES} from '../sprites.js';
 const pal=['#e0f0c0','#8cbf5f','#306850','#0c1c18'];
-const S=5,names=Object.keys(SPRITES).filter(n=>!location.hash||n.startsWith(location.hash.slice(1)));const c=document.getElementById('c');c.width=1200;c.height=1400;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
+const S=7,names=Object.keys(SPRITES).filter(n=>!location.hash||n.startsWith(location.hash.slice(1)));const c=document.getElementById('c');c.width=1200;c.height=1400;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);
 let px=4,py=4,rowH=0;x.font='11px sans-serif';
 for(const n of names){const rows=SPRITES[n];const w=Math.max(...rows.map(r=>r.length)),h=rows.length;if(px+w*S>c.width){px=4;py+=rowH+18;rowH=0;}
  x.fillStyle='#cfe0f0';x.fillRect(px,py,w*S,h*S);

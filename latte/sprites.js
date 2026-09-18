@@ -266,6 +266,12 @@ const balloon = ['..3333', '.300113', '30011113', '30111113', '31111113', '.3111
 const puff = ['..3.3', '3.....3', '', '3.....3', '..3.3'];
 const brickBit = ['.33', '3113', '3123', '.33'];
 const ring = [];
+// 황금 뼈다귀와 라떼 꾸미기(오른쪽을 볼 때 기준)
+const goldBone = ['.33....33.', '3013333103', '3001111003', '3011111113', '3123333213', '.33....33.'];
+const cap = ['..33333', '.3111113', '311111113', '3333333333'];
+const shades = ['33333333', '.322.322'];
+const bow = ['33...33', '3113113', '3112113', '3113113', '33...33'];
+const crown = ['3.3.3', '31313', '31013', '33333'];
 
 export const SPRITES = {
   latteStand: latte(latteMouth, 'stand'),
@@ -284,6 +290,7 @@ export const SPRITES = {
   coffeeHurt: [...coffeeHurtHead, ...coffeeBody.a],
   bean, beanStep, beanFlat, can, canStep, canShell, pigeon, pigeonUp, hedgehog, hedgehogStep, cup,
   bone, meat, ball, star, heart, smallBall, drop, yarn,
+  goldBone, cap, shades, bow, crown,
   cloud, bush, tree, hill, moon, twinkle, chimney, windowS, hydrant, hydrantOn, flag, house, cage, balloon, puff, brickBit,
   ...Object.fromEntries(Object.entries(T).map(([k, v]) => ['t_' + k, v])),
 };
@@ -331,6 +338,14 @@ const earth = ['#fff6dc', '#7ccf4f', '#a0663a', '#3b2414'];
 const brick = ['#fff0dc', '#ec8d52', '#b24f2a', '#4a1c0c'];
 const qBlock = ['#fff9d6', '#ffcf3a', '#d88a14', '#4a2a06'];
 const pipe = ['#eaffdc', '#5cc85a', '#2a8a3c', '#0c3a18'];
+// 꾸미기: 이름, 모양, 라떼 머리 위 자리(x, y), 열리는 황금 뼈다귀 수
+export const COSTUMES = [
+  { id: 'none', name: '그대로', need: 0 },
+  { id: 'cap', name: '빨간 모자', spr: 'cap', x: 6, y: 1, need: 3 },
+  { id: 'shades', name: '멋쟁이 선글라스', spr: 'shades', x: 9, y: 5, need: 6 },
+  { id: 'bow', name: '분홍 리본', spr: 'bow', x: 4, y: -1, need: 10 },
+  { id: 'crown', name: '황금 왕관', spr: 'crown', x: 9, y: -3, need: 15 },
+];
 export const PIECE_PALETTES = {
   t_top: earth, t_dirt: ['#fff6dc', '#c58a52', '#a0663a', '#3b2414'], t_brick: brick,
   t_q0: qBlock, t_q1: qBlock, t_used: ['#f8e8d0', '#c89a6a', '#8a5e3a', '#3a2412'], t_hard: ['#fff4dc', '#e2b67c', '#a0703e', '#3a2412'],
@@ -341,7 +356,8 @@ export const PIECE_PALETTES = {
   cloud: ['#ffffff', '#ffffff', '#dcefff', '#86acd8'], bush: ['#eaffdc', '#72d65c', '#3a9a44', '#185a24'], hill: ['#eaffdc', '#98e070', '#4fae4a', '#1f6a2c'],
   tree: ['#eaffdc', '#5cc85a', '#8a5a30', '#1a4a22'], moon: ['#fffbe0', '#fff2a8', '#f0d060', '#a08428'], twinkle: ['#ffffff', '#ffffff', '#ffffff', '#ffec8a'],
   windowS: ['#ffe89a', '#ffd35a', '#735e8a', '#2a1e3a'], chimney: brick, house: ['#fff6e6', '#f4c878', '#d8482a', '#3a1a10'],
-  cage: ['#ffffff', '#d4dce6', '#8e9aaa', '#2e3642'], puff: ['#ffffff', '#ffffff', '#ffffff', '#ffffff'], brickBit: brick,
+  cage: ['#ffffff', '#d4dce6', '#8e9aaa', '#2e3642'], goldBone: ['#fffbe0', '#ffd23a', '#d08a14', '#5a3206'],
+  cap: ['#ffffff', '#ee4a3a', '#a82a20', '#3a0a08'], shades: ['#ffffff', '#9a9ab0', '#2a2a36', '#0a0a12'], bow: ['#ffffff', '#ff8fb8', '#e0457e', '#5a1030'], crown: ['#fffbe0', '#ffd23a', '#e0402a', '#5a3206'], puff: ['#ffffff', '#ffffff', '#ffffff', '#ffffff'], brickBit: brick,
 };
 // 월드마다 땅 느낌을 바꿔요
 const stone = ['#eef4fa', '#9fb4c6', '#5f7a92', '#1c2a38'];

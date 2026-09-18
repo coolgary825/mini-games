@@ -1,6 +1,6 @@
 // 슈퍼 라떼 랜드 스테이지. 한 칸은 8픽셀, 높이는 16칸(화면 한 줄)이에요.
 // 타일: '#' 땅 · 'B' 벽돌 · '?' 물음표 블록 · 'U' 빈 블록 · 'H' 단단한 블록 · '[' ']' '{' '}' 토관
-//       'h' 숨은 블록 · '=' 발판(위에서만 밟혀요) · 'c' 구름 발판 · 'o' 뼈다귀 · '^' 가시 · '~' 뜨거운 커피 · 'C' 성벽
+//       'h' 숨은 블록 · '=' 발판(위에서만 밟혀요) · 'c' 구름 발판 · 'o' 뼈다귀 · 'G' 황금 뼈다귀 · '^' 가시 · '~' 뜨거운 커피 · 'C' 성벽
 export const ROWS = 16;
 export const GROUND = 13;
 
@@ -9,7 +9,7 @@ class Builder {
     Object.assign(this, { id, name, w: width, theme: 'park', time: 400, mode: 'run', music: 'park' }, opt);
     this.g = Array.from({ length: ROWS }, () => Array(width).fill('.'));
     this.items = {}; this.enemies = []; this.decor = []; this.movers = []; this.checks = []; this.hints = [];
-    this.goal = null; this.boss = null; this.start = { tx: 2, ty: GROUND };
+    this.goal = null; this.boss = null; this.start = { tx: 2, ty: GROUND }; this.golds = [];
   }
   set(x, y, c) { if (x >= 0 && x < this.w && y >= 0 && y < ROWS) this.g[y][x] = c; return this; }
   fill(x0, x1, y0, y1, c) { for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) this.set(x, y, c); return this; }
@@ -24,6 +24,11 @@ class Builder {
       if ((c === '?' || c === 'h' || c === 'b') && kinds.length) this.items[`${x + i},${y}`] = kinds.shift();
     });
     return this;
+  }
+  // 황금 뼈다귀: 스테이지마다 3개, 빈칸에만 놓아요
+  gold(x, y) {
+    if (this.g[y][x] !== '.') throw Error(`${this.id} 황금 뼈다귀 자리 (${x},${y})가 비어 있지 않아요: ${this.g[y][x]}`);
+    this.golds.push({ tx: x, ty: y }); return this.set(x, y, 'G');
   }
   q(x, y, kind = 'bone') { return this.row(x, y, '?', kind); }
   hidden(x, y, kind = 'heart') { return this.row(x, y, 'h', kind); }
@@ -56,8 +61,8 @@ class Builder {
     return this;
   }
   build() {
-    const { id, name, w, theme, time, mode, music, items, enemies, decor, movers, checks, hints, goal, boss, start } = this;
-    return { id, name, w, theme, time, mode, music, rows: this.g.map(r => r.join('')), items, enemies, decor, movers, checks, hints, goal, boss, start };
+    const { id, name, w, theme, time, mode, music, items, enemies, decor, movers, checks, hints, goal, boss, start, golds } = this;
+    return { id, name, w, theme, time, mode, music, rows: this.g.map(r => r.join('')), items, enemies, decor, movers, checks, hints, goal, boss, start, golds };
   }
 }
 
@@ -95,6 +100,7 @@ function w1s1() {
   b.e('bean', 148).e('bean', 150);
   b.stairs(152, 8).fill(160, 160, GROUND - 8, GROUND - 1, 'H');
   b.finish(170);
+  b.gold(18, 4); b.gold(98, 6); b.gold(162, 2);
   return b.build();
 }
 
@@ -117,6 +123,7 @@ function w1s2() {
   b.row(156, 9, 'bBB', 'bones').e('can', 160);
   b.stairs(164, 5).fill(169, 170, GROUND - 5, GROUND - 1, 'H');
   b.finish(178);
+  b.gold(51, 6); b.gold(117, 5); b.gold(123, 6);
   return b.build();
 }
 
@@ -135,6 +142,7 @@ function w1s3() {
   b.row(110, 9, '??', 'heart', 'bone');
   b.hint(116, '커피는 밟거나 테니스공으로 맞혀요. 멍! 하면 잠깐 어지러워해요.');
   b.bossArena(120, 3);
+  b.gold(19, 7); b.gold(51, 5); b.gold(82, 7);
   return b.build();
 }
 
@@ -156,6 +164,7 @@ function w2s1() {
   b.plat(161, 10, 3).row(168, 8, 'B??B', 'bone', 'power').e('can', 174);
   b.stairs(186, 6).fill(192, 193, GROUND - 6, GROUND - 1, 'H');
   b.finish(201);
+  b.gold(95, 4); b.gold(126, 7); b.gold(152, 6);
   return b.build();
 }
 
@@ -177,6 +186,7 @@ function w2s2() {
   b.fly('pigeon', 164, 4).fly('pigeon', 168, 8).fly('pigeon', 172, 12).fly('pigeon', 176, 6).fly('pigeon', 180, 10);
   b.fill(188, 190, 0, 5, 'H').fill(188, 190, 11, 15, 'H').fill(200, 202, 7, 15, 'H');
   b.bones(206, 4, 6).fly('pigeon', 214, 5).fly('pigeon', 220, 9);
+  b.gold(35, 9); b.gold(97, 4); b.gold(189, 8);
   return b.build();
 }
 
@@ -193,6 +203,7 @@ function w2s3() {
   b.row(118, 9, '??', 'power', 'bone').e('hedgehog', 124);
   b.hint(126, '커피가 더 빨라졌어요! 털실 공을 조심해요.');
   b.bossArena(132, 4);
+  b.gold(34, 3); b.gold(80, 5); b.gold(111, 6);
   return b.build();
 }
 
@@ -210,6 +221,7 @@ function w3s1() {
   b.mover(151, 11, 4, 'x', 4);
   b.e('cup', 166).stairs(172, 6).fill(178, 179, GROUND - 6, GROUND - 1, 'H').e('bean', 183);
   b.finish(196);
+  b.gold(88, 4); b.gold(62, 6); b.gold(178, 2);
   return b.build();
 }
 
@@ -227,6 +239,7 @@ function w3s2() {
   b.row(146, 5, 'h', 'heart').plat(150, 11, 4, 'c').mover(156, 10, 4, 'x', 6).plat(167, 9, 5, 'c').e('hedgehog', 169, 9);
   b.plat(174, 11, 4, 'c').fly('pigeon', 178, 6).plat(180, 9, 4, 'c').plat(185, 11, 4, 'c');
   b.finish(198);
+  b.gold(37, 4); b.gold(120, 3); b.gold(148, 5);
   return b.build();
 }
 
@@ -245,6 +258,7 @@ function w3s3() {
   b.e('bean', 122).e('hedgehog', 126);
   b.hint(134, '마지막 대결! 커피를 이기면 모카를 구할 수 있어요.');
   b.bossArena(138, 5, true);
+  b.gold(36, 5); b.gold(54, 5); b.gold(118, 4);
   return b.build();
 }
 

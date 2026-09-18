@@ -2,18 +2,18 @@
 import { LEVELS } from '../levels.js';
 import { Run, T } from '../engine.js';
 
-const MACROS = [
+export const MACROS = [
   { right: 1 }, { right: 1, b: 1 }, {}, { left: 1 },
   { right: 1, b: 1, jump: 30 }, { right: 1, jump: 30 }, { right: 1, jump: 10 }, { jump: 30 }, { left: 1, jump: 20 },
 ];
-const FLY = [{ right: 1 }, { up: 1 }, { down: 1 }, { right: 1, up: 1 }, { right: 1, down: 1 }, {}, { left: 1 }, { left: 1, up: 1 }, { left: 1, down: 1 }];
+export const FLY = [{ right: 1 }, { up: 1 }, { down: 1 }, { right: 1, up: 1 }, { right: 1, down: 1 }, {}, { left: 1 }, { left: 1, up: 1 }, { left: 1, down: 1 }];
 
-function clone(r) {
+export function clone(r) {
   const { hooks, L } = r; r.hooks = null; r.L = null;
   const c = structuredClone(r); r.hooks = hooks; r.L = L;
   Object.setPrototypeOf(c, Run.prototype); c.hooks = hooks; c.L = L; return c;
 }
-function play(r, m, frames, from = 0) {
+export function play(r, m, frames, from = 0) {
   for (let i = 0; i < frames; i++) {
     const k = from + i;
     r.update({ right: !!m.right, left: !!m.left, up: !!m.up, down: !!m.down, b: !!m.b, a: !!m.jump && k < m.jump, aPressed: !!m.jump && k === 0 });

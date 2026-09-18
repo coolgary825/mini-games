@@ -15,7 +15,8 @@ export class Run {
   // carry: 목숨·점수·뼈다귀·변신 상태처럼 스테이지를 넘어 이어지는 값. hooks: 소리·대사·클리어 알림.
   constructor(level, carry, hooks = {}, opts = {}) {
     this.L = level; this.carry = carry; this.easy = !!opts.easy;
-    this.hooks = { sound() {}, music() {}, hint() {}, say(lines, done) { done?.(); }, clear() {}, dead() {}, ending() {}, ...hooks };
+    this.hooks = { sound() {}, music() {}, hint() {}, say(lines, done) { done?.(); }, clear() {}, dead() {}, ending() {}, gold() {}, ...hooks };
+    this.goldHave = opts.goldHave || 0; // 전에 모은 황금 뼈다귀(흐리게 보여요)
     this.checkpoint = opts.checkpoint ?? null;
     this.reset();
   }
@@ -31,6 +32,7 @@ export class Run {
     this.checks = L.checks.map(tx => ({ tx, on: this.checkpoint !== null && tx <= this.checkpoint }));
     this.hintsShown = new Set();
     this.frame = 0; this.time = L.time; this.timeTick = 0; this.state = 'play'; this.stateT = 0;
+    this.gold = 0; this.shake = 0;
     this.chain = 0; this.reveal = 0; this.flag = null; this.boss = null; this.bossStarted = false; this.clearT = 0;
     this.fly = L.mode === 'fly';
     const sx = this.checkpoint !== null ? this.checkpoint * T : L.start.tx * T;
@@ -150,11 +152,14 @@ export class Run {
       this.shots.push({ kind: 'ball', x: p.x + (p.face > 0 ? p.w : -4), y: p.y + 3, w: 4, h: 4, vx: p.face * 2.3, vy: 2.3, life: 240 });
       this.hooks.sound('throw');
     }
+    if (p.ground && dir && p.vx && Math.sign(p.vx) !== dir && Math.abs(p.vx) > .8 && this.frame % 4 === 0) this.fx.push({ kind: 'dust', x: p.x + p.w / 2, y: p.y + p.h, life: 10, dir: -dir });
+    p.wasGround = p.ground;
     const hitX = this.moveX(p, p.vx);
     if (hitX) { if (hitX === '^') this.hurt(); p.vx = 0; }
     const hits = this.moveY(p, p.vy);
     p.ground = false;
     if (p.vy > 0 && hits.length) {
+      if (!p.wasGround && p.vy > 2.6) { this.fx.push({ kind: 'dust', x: p.x + 1, y: p.y + p.h, life: 12, dir: -1 }, { kind: 'dust', x: p.x + p.w - 1, y: p.y + p.h, life: 12, dir: 1 }); }
       p.ground = true; p.vy = 0; p.onMover = null; this.chain = 0;
       if (hits.some(h => h[2] === '^')) this.hurt();
     } else if (p.vy < 0 && hits.length) {
@@ -224,7 +229,17 @@ export class Run {
 
   collectTiles(e) {
     const x0 = Math.floor(e.x / T), x1 = Math.floor((e.x + e.w - 1) / T), y0 = Math.floor(e.y / T), y1 = Math.floor((e.y + e.h - 1) / T);
-    for (let tx = x0; tx <= x1; tx++) for (let ty = y0; ty <= y1; ty++) if (this.tile(tx, ty) === 'o') { this.setTile(tx, ty, '.'); this.addBone(); }
+    for (let tx = x0; tx <= x1; tx++) for (let ty = y0; ty <= y1; ty++) {
+      const c = this.tile(tx, ty);
+      if (c === 'o') { this.setTile(tx, ty, '.'); this.addBone(); this.fx.push({ kind: 'sparkle', x: tx * T + 4, y: ty * T + 3, life: 14 }); }
+      else if (c === 'G') {
+        this.setTile(tx, ty, '.');
+        const i = this.L.golds.findIndex(g => g.tx === tx && g.ty === ty);
+        this.gold |= 1 << i; this.carry.score += 2000; this.pop(tx * T - 4, ty * T - 6, 2000);
+        this.fx.push({ kind: 'sparkle', x: tx * T + 4, y: ty * T + 3, life: 30, big: true });
+        this.hooks.sound('gold'); this.hooks.gold?.(i);
+      }
+    }
   }
   addBone(n = 1) {
     this.carry.bones += n; this.carry.score += 10 * n; this.hooks.sound('bone');
@@ -248,7 +263,7 @@ export class Run {
       this.bumps.set(key, 8); this.hooks.sound('bump');
     } else if (c === 'B') {
       if (this.carry.big && !this.fly) {
-        this.setTile(tx, ty, '.'); this.carry.score += 50; this.hooks.sound('break');
+        this.setTile(tx, ty, '.'); this.carry.score += 50; this.hooks.sound('break'); this.shake = Math.max(this.shake, 4);
         for (const [vx, vy] of [[-1, -3], [1, -3], [-.7, -2], [.7, -2]]) this.fx.push({ kind: 'brick', x: tx * T + 2, y: ty * T + 2, vx, vy, life: 70 });
       } else { this.bumps.set(key, 8); this.hooks.sound('bump'); }
     } else { this.hooks.sound('bump'); return; }
@@ -379,7 +394,8 @@ export class Run {
   }
 
   updateFx() {
-    for (const f of this.fx) { f.life--; if (f.kind === 'brick') { f.x += f.vx; f.y += f.vy; f.vy += .2; } }
+    if (this.shake > 0) this.shake--;
+    for (const f of this.fx) { f.life--; if (f.kind === 'dust') { f.x += f.dir * .35; f.y -= .15; } if (f.kind === 'brick') { f.x += f.vx; f.y += f.vy; f.vy += .2; } }
     this.fx = this.fx.filter(f => f.life > 0);
     for (const q of this.pops) { q.life--; q.y -= .4; }
     this.pops = this.pops.filter(q => q.life > 0);
@@ -505,7 +521,7 @@ export class Run {
     for (let ty = 0; ty < ROWS - 3; ty++) this.setTile(B.arena, ty, 'H');
     const [w, h] = SIZES.boss;
     this.boss = { x: B.tx * T, y: (ROWS - 3) * T - h, w, h, vx: 0, vy: 0, dir: -1, hp: B.hp, maxHp: B.hp, hurt: 0, stun: 0, chip: 0, jumpT: 120, throwT: 80, t: 0, dead: false, final: B.final, ground: false };
-    this.hooks.music(null);
+    this.hooks.music(null); this.hooks.sound('meow');
     this.state = 'bossTalk';
     const lines = B.final
       ? ['커피: 냐하하! 여기까지 오다니 대단하다냥!', '커피: 하지만 모카는 절대 못 데려간다냥! 덤벼라, 라떼!']
@@ -541,7 +557,7 @@ export class Run {
     b.x = clamp(b.x, arena + T, arena + 18 * T - b.w);
   }
   hitBoss(b, inv) {
-    b.hp--; b.hurt = inv; b.stun = 0; this.hooks.sound('bossHit'); this.carry.score += 1000; this.pop(b.x, b.y - 8, 1000);
+    b.hp--; b.hurt = inv; b.stun = 0; this.hooks.sound('bossHit'); this.hooks.sound('meow'); this.shake = 10; this.carry.score += 1000; this.pop(b.x, b.y - 8, 1000);
     if (b.hp <= 0) {
       b.dead = true; this.foes = []; this.state = 'bossTalk'; this.hooks.music(null); this.hooks.sound('bossDown');
       const lines = b.final

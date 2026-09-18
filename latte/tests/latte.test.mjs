@@ -5,6 +5,7 @@ import { LEVELS, ROWS } from '../levels.js';
 import { Run, T } from '../engine.js';
 import { SPRITES } from '../sprites.js';
 import { searchRun } from './search.mjs';
+import { goldRun } from './goldsearch.mjs';
 
 const carry = () => ({ lives: 3, score: 0, bones: 0, big: false, power: null });
 const idle = { left: false, right: false, a: false, b: false, aPressed: false, bPressed: false, barkPressed: false };
@@ -124,4 +125,20 @@ test('보스 커피는 밟을 때마다 체력이 줄고 마지막에 도망가�
   while (r.boss.hp > 0) r.hitBoss(r.boss, 1);
   for (let i = 0; i < 400 && !cleared; i++) r.update(idle);
   assert.ok(cleared);
+});
+
+test('황금 뼈다귀는 스테이지마다 3개이고 모두 모을 수 있어요', () => {
+  for (const L of LEVELS) {
+    assert.equal(L.golds.length, 3, L.id);
+    L.golds.forEach((g, i) => { const r = goldRun(L, i); assert.ok(r.ok, `${L.id} #${i} ${JSON.stringify(g)} ${JSON.stringify(r)}`); });
+  }
+});
+
+test('황금 뼈다귀를 먹으면 표시가 켜지고 알림이 가요', () => {
+  const L = LEVELS[0], c = carry(); let got = null;
+  const r = new Run(L, c, { gold: i => { got = i; } }, { easy: true });
+  const g = L.golds[0];
+  r.player.x = g.tx * T - 1; r.player.y = g.ty * T - 2; r.player.vy = 0;
+  r.collectTiles(r.player);
+  assert.equal(got, 0); assert.equal(r.gold & 1, 1); assert.equal(r.tile(g.tx, g.ty), '.');
 });
