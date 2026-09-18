@@ -1,5 +1,5 @@
 // 공주게임 서비스워커 — HTML은 항상 최신(네트워크 우선), 오프라인 대비 캐시
-const CACHE = 'princess-v3d-2';
+const CACHE = 'princess-v3d-3';
 const CORE = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './3d.html', '../arcade3d/app.js', '../arcade3d/world.js', '../arcade3d/rules.js', '../arcade3d/style.css', '../arcade3d/games/princess.js', '../chess/vendor/three/three.module.js', '../chess/vendor/three/three.core.js', '../chess/vendor/three/OrbitControls.js'];
 
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting())); });
