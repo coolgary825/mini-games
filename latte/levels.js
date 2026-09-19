@@ -103,6 +103,7 @@ function w1s1() {
   b.stairs(152, 8).fill(160, 160, GROUND - 8, GROUND - 1, 'H');
   b.finish(170);
   b.gold(18, 4); b.gold(98, 6); b.gold(162, 2);
+  b.check(130);
   return b.build();
 }
 
@@ -126,6 +127,7 @@ function w1s2() {
   b.stairs(164, 5).fill(169, 170, GROUND - 5, GROUND - 1, 'H');
   b.finish(178);
   b.gold(51, 6); b.gold(117, 5); b.gold(123, 6);
+  b.check(140);
   return b.build();
 }
 
@@ -143,8 +145,9 @@ function w1s3() {
   b.fly('pigeon', 92, 8).e('can', 96).fly('pigeon', 101, 6).row(104, 9, 'B?B', 'power');
   b.row(110, 9, '??', 'heart', 'shield');
   b.hint(116, '커피는 밟거나 테니스공으로 맞혀요. 멍! 하면 잠깐 어지러워해요.');
-  b.bossArena(120, 3);
+  b.bossArena(120, 2);
   b.gold(19, 7); b.gold(51, 5); b.gold(82, 7);
+  b.check(100);
   return b.build();
 }
 
@@ -167,6 +170,7 @@ function w2s1() {
   b.stairs(186, 6).fill(192, 193, GROUND - 6, GROUND - 1, 'H');
   b.finish(201);
   b.gold(95, 4); b.gold(126, 7); b.gold(152, 6);
+  b.check(170);
   return b.build();
 }
 
@@ -204,8 +208,9 @@ function w2s3() {
   b.row(100, 9, '?', 'heart').plat(107, 10, 5).bones(107, 8, 5);
   b.row(118, 9, '??', 'power', 'shield').e('hedgehog', 124);
   b.hint(126, '커피가 더 빨라졌어요! 털실 공을 조심해요.');
-  b.bossArena(132, 4);
+  b.bossArena(132, 3);
   b.gold(34, 3); b.gold(80, 5); b.gold(111, 6);
+  b.check(118);
   return b.build();
 }
 
@@ -224,6 +229,7 @@ function w3s1() {
   b.e('cup', 166).stairs(172, 6).fill(178, 179, GROUND - 6, GROUND - 1, 'H').e('bean', 183);
   b.finish(196);
   b.gold(88, 4); b.gold(62, 6); b.gold(178, 2);
+  b.check(135);
   return b.build();
 }
 
@@ -259,8 +265,9 @@ function w3s3() {
   b.row(100, 9, 'hC', 'heart').e('hedgehog', 104).e('bean', 108).e('can', 112).row(116, 8, '??', 'power', 'star');
   b.e('bean', 122).e('hedgehog', 126);
   b.hint(134, '마지막 대결! 커피를 이기면 모카를 구할 수 있어요.');
-  b.bossArena(138, 5, true);
+  b.bossArena(138, 4, true);
   b.gold(36, 5); b.gold(54, 5); b.gold(118, 4);
+  b.check(110);
   return b.build();
 }
 
@@ -285,6 +292,7 @@ function w4s1() {
   b.stairs(180, 6).fill(186, 187, GROUND - 6, GROUND - 1, 'H').e('dino', 193);
   b.finish(202);
   b.gold(37, 7); b.gold(100, 7); b.gold(165, 6);
+  b.check(140);
   return b.build();
 }
 
@@ -303,6 +311,7 @@ function w4s2() {
   b.e('dino', 148).fly('bat', 152, 6).e('cup', 156).stairs(165, 5).fill(170, 171, GROUND - 5, GROUND - 1, 'H');
   b.finish(182);
   b.gold(42, 8); b.gold(96, 8); b.gold(172, 3);
+  b.check(115);
   return b.build();
 }
 
@@ -318,8 +327,9 @@ function w4s3() {
   b.crumble(102, 11, 4).ember(104, 5);
   b.row(114, 9, '??', 'heart', 'power').e('can', 120);
   b.hint(126, '용은 날아다니며 불을 뿜어요. 땅에 내려와 쉴 때 머리를 밟아요!');
-  b.bossArena(136, 5, false, 'dragon');
+  b.bossArena(136, 4, false, 'dragon');
   b.gold(34, 7); b.gold(77, 5); b.gold(118, 5);
+  b.check(112);
   return b.build();
 }
 
@@ -340,6 +350,7 @@ function w5s1() {
   b.ground(178, 219).stairs(184, 6).fill(190, 191, GROUND - 6, GROUND - 1, 'H');
   b.finish(202);
   b.gold(29, 6); b.gold(99, 6); b.gold(121, 4);
+  b.check(142);
   return b.build();
 }
 
@@ -375,8 +386,9 @@ function w5s3() {
   b.crumble(126, 11, 4).ember(128, 5);
   b.row(136, 9, '??', 'heart', 'power');
   b.hint(142, '마지막 대결! 용 에스프레소를 이기고 모카를 구해요!');
-  b.bossArena(150, 8, true, 'dragon');
+  b.bossArena(150, 6, true, 'dragon');
   b.gold(35, 7); b.gold(66, 5); b.gold(111, 4);
+  b.check(100);
   return b.build();
 }
 

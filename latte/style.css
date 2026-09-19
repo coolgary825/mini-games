@@ -114,10 +114,10 @@ button { font: inherit; color: inherit; }
 .bark::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; background: conic-gradient(#0000 calc((1 - var(--cd, 0)) * 360deg), #5b5c6e99 0); pointer-events: none; }
 .bark.ready::after { background: none; box-shadow: 0 0 0 3px #f7c35c88; animation: glow 1.4s ease-in-out infinite; }
 .bark.down { transform: translateY(3px); box-shadow: 0 1px 0 #8b5409; }
-.bark.cat { background: #e0663a; box-shadow: 0 4px 0 #8a2e14, 0 1px 0 #ffb08a inset; }
-.bark.cat span { text-shadow: 0 1px 0 #8a2e14; }
-.bark.mocha { background: #f07aa8; box-shadow: 0 4px 0 #9a2e5a, 0 1px 0 #ffc4dc inset; }
-.bark.mocha span { text-shadow: 0 1px 0 #9a2e5a; font-size: 12px; }
+.bark.c-coffee { background: #e0663a; box-shadow: 0 4px 0 #8a2e14, 0 1px 0 #ffb08a inset; }
+.bark.c-turtle { background: #58b84a; box-shadow: 0 4px 0 #2a6a22, 0 1px 0 #b8f0a0 inset; }
+.bark.c-lizard { background: #d9a040; box-shadow: 0 4px 0 #7a5018, 0 1px 0 #ffe0a0 inset; }
+.bark[class*="c-"] span { text-shadow: 0 1px 0 #0006; font-size: 12px; }
 .bark span { white-space: nowrap; }
 @keyframes glow { 50% { box-shadow: 0 0 0 5px #f7c35c33; } }
 .pills { grid-area: pills; display: flex; justify-content: center; gap: 22px; padding-right: 30px; }

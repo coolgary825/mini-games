@@ -125,6 +125,8 @@ export class Chip {
       case 'fire': this.noise(t, .25, .08, this.master, 800); T(300, .2, { slide: .5, vol: .05, duty: .5 }); break;
       case 'roar': T(110, .5, { slide: .6, vol: .14, duty: .5 }); this.noise(t, .5, .12, this.master, 200); T(160, .4, { at: .05, slide: .5, vol: .1, duty: .25 }); break;
       case 'heart': T(1175, .06, { vol: .06, duty: .25 }); T(1568, .1, { at: .05, slide: 1.3, vol: .06, duty: .25 }); break;
+      case 'pop': [0, .06, .12].forEach((d, i) => { this.noise(t + d, .05, .08, this.master, 2500); T(700 + i * 200, .05, { at: d, vol: .05, duty: .25 }); }); break;
+      case 'boing': T(260, .25, { slide: 3, vol: .08, type: 'triangle' }); T(520, .12, { at: .08, slide: .6, vol: .05, duty: .25 }); break;
       case 'meow': T(620, .12, { slide: 1.5, vol: .07, duty: .25 }); T(930, .22, { at: .12, slide: .55, vol: .07, duty: .25 }); break;
       case 'pause': [1319, 988, 1319, 988].forEach((f, i) => T(f, .05, { at: i * .06, vol: .06 })); break;
     }

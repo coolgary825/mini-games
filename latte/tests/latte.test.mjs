@@ -188,7 +188,7 @@ test('무너지는 블록은 밟으면 잠시 뒤 사라지고, 한참 뒤 다�
   r.player.x = tx * T; r.player.y = ty * T - r.player.h - 1; r.player.vy = 1;
   r.update(idle);
   assert.ok(r.crumbles.has(`${tx},${ty}`));
-  for (let i = 0; i < 30; i++) r.update(idle);
+  for (let i = 0; i < 50; i++) r.update(idle);
   assert.equal(r.tile(tx, ty), '.');
   r.player.x = 2 * T; r.player.y = r.groundBelow(2 * T, 0) - r.player.h;
   for (let i = 0; i < 340; i++) { r.player.x = 2 * T; r.player.y = r.groundBelow(2 * T, 0) - r.player.h; r.update(idle); }
@@ -210,20 +210,53 @@ test('용 에스프레소: 쉬려고 내려오고, 밟으면 체력이 줄고, �
   assert.ok(ended);
 });
 
-test('모카의 하트 날리기는 적을 물리치고, 모카는 A를 누르면 천천히 내려와요', () => {
-  const c = { ...carry(), char: 'mocha' }, r = new Run(LEVELS[0], c, {}, { easy: true });
+test('팝콘공: 팝!은 팝콘 세 알이 튀어 적을 물리치고, 등껍질이 한 번 막아 줘요', () => {
+  const c = { ...carry(), char: 'turtle' }, r = new Run(LEVELS[0], c, {}, { easy: true });
+  assert.equal(c.shield, true, '등껍질 방패로 시작해요');
   stand(r, 3 * T);
-  const e = enemy(r, 'bean', 8 * T);
+  const e = enemy(r, 'bean', 6 * T);
   r.update({ ...idle, barkPressed: true });
-  assert.ok(r.shots.some(s => s.kind === 'heart'));
-  for (let i = 0; i < 30; i++) r.update(idle);
+  assert.equal(r.shots.filter(s => s.kind === 'pop').length, 3);
+  for (let i = 0; i < 40; i++) r.update(idle);
   assert.ok(e.dead);
-  r.player.y = 2 * T; r.player.vy = 3; r.player.ground = false;
-  r.update({ ...idle, a: true });
-  assert.ok(r.player.vy <= 1.5 + 1e-9);
-  assert.equal(r.friend, '라떼', '모카로 하면 라떼를 구하러 가요');
+  r.hurt(); assert.equal(r.state, 'play');
 });
 
-test('모카로도 15스테이지를 모두 끝까지 갈 수 있어요', () => {
-  for (const L of LEVELS) { const r = searchRun(L, { char: 'mocha' }); assert.ok(['clear', 'ending'].includes(r.result), `${L.id}: ${JSON.stringify(r)}`); }
+test('드래곤: 불!은 앞의 적을 태우고, 벽에 붙어 미끄러지다 A로 벽 점프해요', () => {
+  const c = { ...carry(), char: 'lizard' }, r = new Run(LEVELS[0], c, {}, { easy: true });
+  stand(r, 3 * T);
+  const e = enemy(r, 'hedgehog', 5 * T);
+  r.update({ ...idle, barkPressed: true });
+  assert.ok(r.shots.some(s => s.kind === 'flame'));
+  for (let i = 0; i < 20; i++) r.update(idle);
+  assert.ok(e.dead, '가시 고슴도치도 불로 물리쳐요');
+  // 1-2의 벽돌 벽(48열) 옆에서 공중에 떠 벽 쪽을 누르면 천천히 미끄러져요
+  const w = new Run(LEVELS[1], { ...carry(), char: 'lizard' }, {}, { easy: true });
+  w.spawnDefs = [];
+  w.player.x = 48 * T - w.player.w - .5; w.player.y = 9 * T; w.player.vx = 1; w.player.vy = 1; w.player.ground = false;
+  for (let i = 0; i < 3; i++) w.update({ ...idle, right: true });
+  assert.ok(w.player.wallT > 0 && w.player.vy <= .8 + 1e-9, '벽에 붙어요');
+  w.update({ ...idle, right: true, a: true, aPressed: true });
+  assert.ok(w.player.vy < -3 && w.player.vx < 0, '벽을 차고 반대로 뛰어요');
+});
+
+test('쉬워진 규칙: 커져 있으면 구덩이에 빠져도 작아지기만 하고 다시 올라와요', () => {
+  const c = { ...carry(), big: true }, r = new Run(LEVELS[0], c, {}, { easy: true });
+  r.spawnDefs = [];
+  stand(r, 43 * T);
+  for (let i = 0; i < 5; i++) r.update(idle);
+  assert.ok(r.player.safe, '마지막으로 선 땅을 기억해요');
+  r.player.x = 47 * T; r.player.y = 12 * T; r.player.vy = 3;
+  for (let i = 0; i < 80 && c.big; i++) r.update(idle);
+  assert.equal(r.state, 'play'); assert.equal(c.big, false);
+  assert.ok(r.player.y < 13 * T && r.player.x < 46 * T, '땅 위로 돌아와요');
+  const s = new Run(LEVELS[0], carry(), {}, { easy: true });
+  s.spawnDefs = [];
+  stand(s, 43 * T); s.player.x = 47 * T; s.player.y = 12 * T; s.player.vy = 3;
+  for (let i = 0; i < 80 && s.state === 'play'; i++) s.update(idle);
+  assert.equal(s.state, 'dying', '작을 때 빠지면 쓰러져요');
+});
+
+test('팝콘공·드래곤으로도 15스테이지를 모두 끝까지 갈 수 있어요', () => {
+  for (const char of ['turtle', 'lizard']) for (const L of LEVELS) { const r = searchRun(L, { char }); assert.ok(['clear', 'ending'].includes(r.result), `${char} ${L.id}: ${JSON.stringify(r)}`); }
 });
