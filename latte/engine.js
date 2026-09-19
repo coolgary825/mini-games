@@ -35,7 +35,9 @@ export class Run {
     this.hintsShown = new Set();
     this.frame = 0; this.time = L.time; this.timeTick = 0; this.state = 'play'; this.stateT = 0;
     this.gold = 0; this.shake = 0; this.crumbles = new Map(); this.respawns = new Map();
-    this.char = this.carry.char === 'coffee' ? 'coffee' : 'latte';
+    this.char = ['coffee', 'mocha'].includes(this.carry.char) ? this.carry.char : 'latte';
+    // 모카로 하면 구해야 할 친구가 라떼로 바뀌어요
+    this.hero = { latte: '라떼', coffee: '커피', mocha: '모카' }[this.char]; this.friend = this.char === 'mocha' ? '라떼' : '모카';
     this.chain = 0; this.reveal = 0; this.flag = null; this.boss = null; this.bossStarted = false; this.clearT = 0;
     this.fly = L.mode === 'fly';
     const sx = this.checkpoint !== null ? this.checkpoint * T : L.start.tx * T;
@@ -171,7 +173,7 @@ export class Run {
     p.coyote = p.ground ? 6 : Math.max(0, p.coyote - 1);
     if (p.ground) p.airJumps = (this.char === 'coffee' ? 1 : 0) + (this.carry.power === 'wing' ? 1 : 0);
     if (p.jumpBuf && p.coyote) {
-      p.vy = -(Math.abs(p.vx) > 1.6 ? P.runJump : P.jump); p.coyote = 0; p.jumpBuf = 0; p.ground = false; p.onMover = null;
+      p.vy = -(Math.abs(p.vx) > 1.6 ? P.runJump : P.jump) * (this.char === 'mocha' ? 1.06 : 1); p.coyote = 0; p.jumpBuf = 0; p.ground = false; p.onMover = null;
       this.hooks.sound(this.carry.big ? 'jumpBig' : 'jump');
     } else if (input.aPressed && !p.ground && !p.coyote && p.airJumps > 0 && p.dashT === 0) {
       p.airJumps--; p.vy = -3.1; p.jumpBuf = 0; this.hooks.sound('jump2');
@@ -179,6 +181,7 @@ export class Run {
     }
     if (p.dashT === 0) p.vy = Math.min(P.maxFall, p.vy + (p.vy < 0 && input.a ? P.gHold : P.g));
     if (this.carry.power === 'wing' && !p.ground && input.a && p.vy > .7) p.vy = .7; // 날개로 사뿐히
+    else if (this.char === 'mocha' && !p.ground && input.a && p.vy > 1.5) p.vy = 1.5; // 모카는 가벼워요
     if (input.barkPressed) this.special();
     if (input.bPressed && this.carry.power === 'ball' && this.shots.filter(s => s.kind === 'ball').length < 2) {
       this.shots.push({ kind: 'ball', x: p.x + (p.face > 0 ? p.w : -4), y: p.y + 3, w: 4, h: 4, vx: p.face * 2.3, vy: 2.3, life: 240 });
@@ -249,7 +252,14 @@ export class Run {
     if (this.cam >= end) { this.clearT++; if (this.clearT > 60) { p.x += 1.5; if (p.x > this.cam + VIEW_W + 8) this.win(); } }
   }
 
-  special() { if (this.char === 'coffee' && !this.fly) this.dash(); else this.bark(); }
+  special() { if (this.char === 'coffee' && !this.fly) this.dash(); else if (this.char === 'mocha') this.heartShot(); else this.bark(); }
+  heartShot() { // 모카의 하트 날리기: 곧게 날아가 적을 물리쳐요
+    const p = this.player;
+    if (p.barkCd > 0 || this.shots.filter(s => s.kind === 'heart').length >= 2) return;
+    p.barkCd = 45; p.barkT = 10;
+    this.shots.push({ kind: 'heart', x: p.x + (p.face > 0 ? p.w : -6), y: p.y + 3, w: 6, h: 5, vx: (this.fly ? 1 : p.face) * 2.8, vy: 0, life: 75 });
+    this.hooks.sound('heart');
+  }
   dash() {
     const p = this.player;
     if (p.barkCd > 0) return;
@@ -431,7 +441,7 @@ export class Run {
   updateShots() {
     for (const s of this.shots) {
       if (--s.life <= 0 || s.x < this.cam - 16 || s.x > this.cam + VIEW_W + 16) { s.gone = true; continue; }
-      if (s.kind === 'shot') { if (this.moveX(s, s.vx)) s.gone = true; }
+      if (s.kind === 'shot' || s.kind === 'heart') { if (this.moveX(s, s.vx)) s.gone = true; }
       else {
         if (this.moveX(s, s.vx)) s.vx = -s.vx;
         const hits = this.moveY(s, s.vy);
@@ -604,12 +614,12 @@ export class Run {
     if (dragon) { this.boss.y = 3 * T; this.hooks.sound('roar'); }
     const lines = dragon
       ? (B.final
-        ? ['에스프레소: 크아아앙! 여기까지 오다니!', '에스프레소: 모카는 내 보물이다! 절대 못 돌려준다!', this.char === 'coffee' ? '커피: 친구를 괴롭히면 가만 안 둔다냥!' : '라떼: 멍멍! 모카를 돌려줘!']
+        ? ['에스프레소: 크아아앙! 여기까지 오다니!', `에스프레소: ${this.friend}는 내 보물이다! 절대 못 돌려준다!`, this.char === 'coffee' ? '커피: 친구를 괴롭히면 가만 안 둔다냥!' : this.char === 'mocha' ? '모카: 야옹! 라떼를 돌려줘!' : '라떼: 멍멍! 모카를 돌려줘!']
         : ['에스프레소: 크르릉... 조그만 녀석들이 감히!', '에스프레소: 내 불꽃 맛을 보여 주마!'])
       : B.final
-      ? ['커피: 냐하하! 여기까지 오다니 대단하다냥!', '커피: 하지만 모카는 절대 못 데려간다냥! 덤벼라, 라떼!']
+      ? ['커피: 냐하하! 여기까지 오다니 대단하다냥!', `커피: 하지만 ${this.friend}는 절대 못 데려간다냥! 덤벼라, ${this.hero}!`]
       : this.L.id === '1-3'
-        ? ['커피: 냐옹~ 네가 라떼냥? 모카는 내가 데려갔다냥!', '커피: 모카를 찾고 싶으면 나를 이겨 봐라냥!']
+        ? [`커피: 냐옹~ 네가 ${this.hero}냥? ${this.friend}는 내가 데려갔다냥!`, `커피: ${this.friend}를 찾고 싶으면 나를 이겨 봐라냥!`]
         : ['커피: 또 왔냥? 이번엔 더 빠르다냥!', '커피: 털실 공 맛 좀 봐라냥!'];
     this.hooks.say(lines, () => { this.state = 'play'; this.hooks.music(dragon ? 'dragonBoss' : 'boss'); });
   }
@@ -676,10 +686,10 @@ export class Run {
       const lines = b.kind === 'dragon'
         ? (b.final
           ? ['에스프레소: 크릉... 졌다...', '에스프레소: 사실은... 혼자 사는 게 너무 심심했어.', '모카: 그럼 너도 우리랑 친구 하자!']
-          : ['에스프레소: 크윽! 제법이군!', '에스프레소: 하지만 모카는 내 성에 있다! 쫓아올 테면 와 봐라!'])
+          : ['에스프레소: 크윽! 제법이군!', `에스프레소: 하지만 ${this.friend}는 내 성에 있다! 쫓아올 테면 와 봐라!`])
         : b.final
-        ? ['커피: 으앙... 졌다냥.', '커피: 사실은... 나도 같이 놀 친구가 갖고 싶었어.', '라떼: 멍멍! 그럼 우리랑 친구 하자!']
-        : ['커피: 으앗! 제법이다냥!', '커피: 하지만 모카는 여기 없지롱~ 다음 곳에서 보자냥!'];
+        ? ['커피: 으앙... 졌다냥.', '커피: 사실은... 나도 같이 놀 친구가 갖고 싶었어.', this.char === 'mocha' ? '모카: 야옹! 그럼 우리랑 친구 하자!' : '라떼: 멍멍! 그럼 우리랑 친구 하자!']
+        : ['커피: 으앗! 제법이다냥!', `커피: 하지만 ${this.friend}는 여기 없지롱~ 다음 곳에서 보자냥!`];
       this.hooks.say(lines, () => { this.state = 'bossEnd'; this.stateT = 0; });
     }
   }

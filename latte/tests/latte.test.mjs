@@ -209,3 +209,21 @@ test('용 에스프레소: 쉬려고 내려오고, 밟으면 체력이 줄고, �
   for (let i = 0; i < 200 && !ended; i++) r.update(idle);
   assert.ok(ended);
 });
+
+test('모카의 하트 날리기는 적을 물리치고, 모카는 A를 누르면 천천히 내려와요', () => {
+  const c = { ...carry(), char: 'mocha' }, r = new Run(LEVELS[0], c, {}, { easy: true });
+  stand(r, 3 * T);
+  const e = enemy(r, 'bean', 8 * T);
+  r.update({ ...idle, barkPressed: true });
+  assert.ok(r.shots.some(s => s.kind === 'heart'));
+  for (let i = 0; i < 30; i++) r.update(idle);
+  assert.ok(e.dead);
+  r.player.y = 2 * T; r.player.vy = 3; r.player.ground = false;
+  r.update({ ...idle, a: true });
+  assert.ok(r.player.vy <= 1.5 + 1e-9);
+  assert.equal(r.friend, '라떼', '모카로 하면 라떼를 구하러 가요');
+});
+
+test('모카로도 15스테이지를 모두 끝까지 갈 수 있어요', () => {
+  for (const L of LEVELS) { const r = searchRun(L, { char: 'mocha' }); assert.ok(['clear', 'ending'].includes(r.result), `${L.id}: ${JSON.stringify(r)}`); }
+});

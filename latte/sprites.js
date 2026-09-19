@@ -290,6 +290,7 @@ const catLegs = {
 };
 const cat = leg => [...catHead, ...catBody, ...catLegs[leg]];
 const bigCat = leg => [...catHead, '.3133333330000 3'.replace(' ', ''), '..311122222223', '..311122000003', '..311122000003', '..300000000003', '..300000000003', '..330000000033', catLegs[leg][0], ...catLegs[leg]];
+const toMocha = row => row.replace(/2/g, '1');
 const catDash = ['', '', '..........3...3.', '.........323.313', '.........3223113', '33.......3000013', '.3333333330003033', '..31112200000033', '..3111220000003.', '..3300000000033', '.313........3133', '33..........33'];
 
 const dragonA = [
@@ -362,6 +363,10 @@ export const SPRITES = {
   coffeeStand: cat('stand'), coffeeWalk1: cat('walk1'), coffeeWalk2: cat('walk2'), coffeeJump: cat('jump'), coffeeDash: catDash,
   bigCoffeeStand: bigCat('stand'), bigCoffeeWalk1: bigCat('walk1'), bigCoffeeWalk2: bigCat('walk2'), bigCoffeeJump: bigCat('jump'), bigCoffeeDash: catDash,
   smallYarn: ['.33', '3213', '3123', '.33'],
+  // 모카(플레이어): 커피와 같은 고양이 몸에 삼색 대신 노랑 무늬
+  mochaPStand: cat('stand').map(toMocha), mochaPWalk1: cat('walk1').map(toMocha), mochaPWalk2: cat('walk2').map(toMocha), mochaPJump: cat('jump').map(toMocha),
+  bigMochaPStand: bigCat('stand').map(toMocha), bigMochaPWalk1: bigCat('walk1').map(toMocha), bigMochaPWalk2: bigCat('walk2').map(toMocha), bigMochaPJump: bigCat('jump').map(toMocha),
+  heartShot: ['33.33', '31313', '31113', '.313', '..3'],
   dragonA, dragonB, dragonHurt, bat, batUp, ember, emberB, dino, dinoStep, fire, fish, wing, shield, magnet, clock, bigBone, crumble, volcano, t_crumble: crumble,
   cloud, bush, tree, hill, moon, twinkle, chimney, windowS, hydrant, hydrantOn, flag, house, cage, balloon, puff, brickBit,
   ...Object.fromEntries(Object.entries(T).map(([k, v]) => ['t_' + k, v])),

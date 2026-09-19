@@ -25,7 +25,14 @@ const profile = () => {
   return p;
 };
 const coffeeOpen = () => profile().unlocked > STORY1_END;
-const charFor = index => index > STORY1_END && coffeeOpen() ? profile().char : 'latte';
+// 캐릭터: 라떼·모카는 어디서나, 커피는 3-3을 깬 뒤 월드 4·5에서
+const CHARS = {
+  latte: { name: '라떼', hud: 'LATTE', stand: 'latteStand', walk: 'latteWalk1', btn: '멍!', cd: 150, sfx: 'bark' },
+  mocha: { name: '모카', hud: 'MOCHA', stand: 'mochaPStand', walk: 'mochaPWalk1', btn: '하트', cd: 45, sfx: 'heart' },
+  coffee: { name: '커피', hud: 'COFFEE', stand: 'coffeeStand', walk: 'coffeeWalk1', btn: '냥!', cd: 110, sfx: 'meow' },
+};
+const charsFor = index => index > STORY1_END && coffeeOpen() ? ['latte', 'coffee', 'mocha'] : ['latte', 'mocha'];
+const charFor = index => { const c = profile().char; return charsFor(index).includes(c) ? c : 'latte'; };
 // 황금 뼈다귀 수와 꾸미기
 const bitCount = n => { let c = 0; for (; n; n &= n - 1) c++; return c; };
 const goldTotal = () => Object.values(profile().golds).reduce((a, m) => a + bitCount(m), 0);
@@ -33,7 +40,7 @@ const GOLD_MAX = LEVELS.length * 3;
 const costume = () => { const c = COSTUMES.find(k => k.id === profile().costume); return c && c.spr && goldTotal() >= c.need ? c : null; };
 function drawCostume(x, y, face = 1, big = false, pose = '') {
   const c = costume(); if (!c) return;
-  const w = spriteSize(SPRITES[c.spr]).w, cat = pose === 'coffee', ox = c.x + (cat ? 1 : 0), oy = c.y + (cat ? 0 : 0);
+  const w = spriteSize(SPRITES[c.spr]).w, cat = pose === 'coffee' || pose === 'cat', ox = c.x + (cat ? 1 : 0), oy = c.y + (cat ? 0 : 0);
   draw(c.spr, face > 0 ? x + ox : x + 16 - ox - w, y + oy, face < 0);
 }
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch {} };
@@ -235,8 +242,8 @@ function titleMenu() {
   const p = profile(), next = Math.min(p.unlocked, LEVELS.length - 1);
   openMenu('', [
     { label: p.unlocked > 0 ? `이어하기 ${LEVELS[next].id}` : '모험 시작', small: p.unlocked > 0 ? LEVELS[next].name : '라떼가 모카를 구하러 가요', action: quickStart },
-    { label: '라떼 꾸미기', small: `황금 뼈다귀 ${goldTotal()} / ${GOLD_MAX}개 모음`, action: costumeMenu },
-    { label: `캐릭터: ${coffeeOpen() && p.char === 'coffee' ? '커피' : '라떼'}`, small: coffeeOpen() ? '월드 4·5에서 라떼나 커피로 모험해요' : '🔒 3-3을 깨면 커피와 친구가 돼요', disabled: !coffeeOpen(), action: () => { p.char = p.char === 'coffee' ? 'latte' : 'coffee'; persist(); chip.sfx(p.char === 'coffee' ? 'meow' : 'bark'); titleMenu(); } },
+    { label: '꾸미기', small: `황금 뼈다귀 ${goldTotal()} / ${GOLD_MAX}개 모음`, action: costumeMenu },
+    { label: `캐릭터: ${CHARS[p.char]?.name || '라떼'}`, small: coffeeOpen() ? '라떼·모카는 어디서나, 커피는 월드 4·5에서' : '라떼·모카 (3-3을 깨면 커피도 함께해요)', action: () => { const list = coffeeOpen() ? ['latte', 'mocha', 'coffee'] : ['latte', 'mocha']; p.char = list[(list.indexOf(p.char) + 1) % list.length]; persist(); chip.sfx(CHARS[p.char].sfx); titleMenu(); } },
     { label: '스테이지 고르기', small: `${Math.min(p.unlocked + 1, LEVELS.length)} / ${LEVELS.length} 스테이지 열림`, action: stageSelect },
     { label: `플레이어: ${save.player}`, small: '플레이어마다 기록을 따로 저장해요', action: () => { save.player = PLAYERS[(PLAYERS.indexOf(save.player) + 1) % PLAYERS.length]; persist(); titleMenu(); } },
     { label: `화면 색: ${SCREEN_PALETTES[save.palette].name}`, small: '원조 초록 · 포켓 회색 · 컬러', action: () => { const ks = Object.keys(SCREEN_PALETTES); save.palette = ks[(ks.indexOf(save.palette) + 1) % ks.length]; persist(); syncScreenColor(); titleMenu(); } },
@@ -248,7 +255,7 @@ function titleMenu() {
 
 function costumeMenu() {
   const have = goldTotal(), p = profile();
-  openMenu(`라떼 꾸미기 · 황금 뼈다귀 ${have}개`, [
+  openMenu(`꾸미기 · 황금 뼈다귀 ${have}개`, [
     ...COSTUMES.map(c => ({ label: `${p.costume === c.id ? '✓ ' : ''}${c.name}`, small: have >= c.need ? (c.need ? '입어 보기' : '꾸미지 않아요') : `🔒 황금 뼈다귀 ${c.need}개가 필요해요`, disabled: have < c.need, action: () => { p.costume = c.id; persist(); chip.sfx('power'); costumeMenu(); } })),
     { label: '← 뒤로', action: titleMenu },
   ], titleMenu);
@@ -266,7 +273,7 @@ function startGame(index, withStory) {
   showCard(index);
 }
 function showCard(index) {
-  stageIndex = index; checkpoint = null; mode = 'card'; modeT = 0; run = null; carry.char = charFor(index);
+  stageIndex = index; checkpoint = null; mode = 'card'; modeT = 0; run = null; carry.char = charFor(index); hintEl.hidden = true; hintTimer = 0;
   const L = LEVELS[index]; theme = L.theme; syncUi();
   cardEl.hidden = false; cardEl.querySelector('b').textContent = `WORLD ${L.id}`; cardEl.querySelector('span').textContent = L.name;
   chip.stop(); chip.jingle('course');
@@ -281,7 +288,7 @@ function beginRun() {
 const hooks = {
   sound: n => { if (n === 'die') chip.jingle('die'); else if (n === 'clear') chip.jingle('clear'); else chip.sfx(n); },
   music: n => { if (n) chip.play(n); else chip.stop(); },
-  hint,
+  hint: t => hint(run && run.char !== 'latte' ? t.replace('멍!(C)으로 기절시킨 뒤 밟아요.', run.char === 'coffee' ? '냥! 대시(C)로 물리쳐요.' : '하트(C)를 날려 물리쳐요.').replace('멍! 하면 잠깐 어지러워해요.', run.char === 'coffee' ? '냥! 대시(C)로 부딪쳐도 돼요.' : '하트(C)로도 맞힐 수 있어요.').replace('테니스공으로', '털실 공으로').replace(/모카/g, run.char === 'mocha' ? '라떼' : '모카') : t),
   say,
   dead: ({ checkpoint: cp }) => {
     checkpoint = cp;
@@ -349,11 +356,11 @@ function renderBonus() {
     const x = 7 + i * 25, y = 46, on = i === b.idx, flash = b.done && on && (b.doneT >> 3) % 2;
     g.fillStyle = on ? (isColor() ? '#ffcf3a' : c[2]) : c[3]; g.fillRect(x - 2, y - 2, 24, 24);
     g.fillStyle = flash ? c[1] : (isColor() ? '#fff8ea' : c[0]); g.fillRect(x, y, 20, 20);
-    const spr = k.spr === 'meat' && carry.char === 'coffee' ? 'fish' : k.spr === 'ball' && carry.char === 'coffee' ? 'yarn' : k.spr;
+    const spr = k.spr === 'meat' && carry.char !== 'latte' ? 'fish' : k.spr === 'ball' && carry.char !== 'latte' ? 'yarn' : k.spr;
     const s = spriteSize(SPRITES[spr]); draw(spr, x + 10 - s.w / 2, y + 10 - s.h / 2);
   });
   const lx = 7 + b.idx * 25 + 2;
-  if (carry.char === 'coffee') draw((modeT >> 3) % 2 && !b.done ? 'coffeeWalk1' : 'coffeeStand', lx, 106);
+  if (carry.char !== 'latte') draw((modeT >> 3) % 2 && !b.done ? CHARS[carry.char].walk : CHARS[carry.char].stand, lx, 106);
   else { draw(b.done ? 'latteBark' : (modeT >> 3) % 2 ? 'latteWalk1' : 'latteStand', lx, 104); drawCostume(lx, 104); }
 }
 function gameOver() {
@@ -386,18 +393,22 @@ function updateStory() {
 // 엔딩: 1부(3-3 뒤)는 용이 모카를 데려가며 월드 4로 이어지고, 2부(5-3 뒤)가 진짜 끝이에요
 function startEnding(part = 1, teaserOnly = false) {
   mode = 'ending'; modeT = 0; theme = 'park'; syncUi(); chip.play('ending');
-  const s = scene = { t: 0, phase: 0, part, mochaTaken: false, dragonX: 210, dragonY: -30 };
+  const m = (carry?.char || profile().char) === 'mocha';
+  const s = scene = { t: 0, phase: 0, part, mochaTaken: false, taken: m ? 'latte' : 'mocha', mochaHero: m, dragonX: 210, dragonY: -30 };
   const dragonCome = () => { s.phase = 2; s.t = 0; chip.stop(); chip.sfx('roar'); };
-  if (part === 1) setTimeout(() => teaserOnly ? dragonCome() : say(['모카: 라떼, 구하러 와 줘서 정말 고마워!', '커피: 미안해... 이제 나도 친구 해도 돼냥?', '라떼: 멍멍! 우리 셋이 매일매일 같이 놀자!'], dragonCome), 600);
-  else setTimeout(() => say(['모카: 라떼, 커피! 또 구하러 와 줘서 고마워!', '에스프레소: 크릉... 미안해. 혼자라서 너무 심심했어.', '커피: 그럼 너도 우리 친구 해라냥!', '라떼: 멍멍! 이제 넷이서 같이 놀자!'], () => { s.phase = 1; }), 600);
+  const end1 = m ? ['라떼: 모카, 구하러 와 줘서 정말 고마워!', '커피: 미안해... 이제 나도 친구 해도 돼냥?', '모카: 야옹! 우리 셋이 매일매일 같이 놀자!'] : ['모카: 라떼, 구하러 와 줘서 정말 고마워!', '커피: 미안해... 이제 나도 친구 해도 돼냥?', '라떼: 멍멍! 우리 셋이 매일매일 같이 놀자!'];
+  const end2 = m ? ['라떼: 모카, 커피! 구하러 와 줘서 고마워!', '에스프레소: 크릉... 미안해. 혼자라서 너무 심심했어.', '커피: 그럼 너도 우리 친구 해라냥!', '모카: 야옹! 이제 넷이서 같이 놀자!'] : ['모카: 라떼, 커피! 또 구하러 와 줘서 고마워!', '에스프레소: 크릉... 미안해. 혼자라서 너무 심심했어.', '커피: 그럼 너도 우리 친구 해라냥!', '라떼: 멍멍! 이제 넷이서 같이 놀자!'];
+  if (part === 1) setTimeout(() => teaserOnly ? dragonCome() : say(end1, dragonCome), 600);
+  else setTimeout(() => say(end2, () => { s.phase = 1; }), 600);
 }
 function updateEnding() {
   const s = scene; s.t++;
   if (s.part !== 1 || s.phase !== 2) return;
-  if (!s.mochaTaken) { s.dragonX += (56 - s.dragonX) * .035; s.dragonY += (76 - s.dragonY) * .05; if (Math.abs(s.dragonX - 56) < 3) { s.mochaTaken = true; chip.sfx('roar'); } }
+  const tx = s.taken === 'latte' ? 34 : 56;
+  if (!s.mochaTaken) { s.dragonX += (tx - s.dragonX) * .035; s.dragonY += (76 - s.dragonY) * .05; if (Math.abs(s.dragonX - tx) < 3) { s.mochaTaken = true; chip.sfx('roar'); } }
   else {
     s.dragonX += 1.7; s.dragonY -= 1.2;
-    if (s.dragonY < -40 && !s.talked) { s.talked = true; say(['모카: 꺄악! 도와줘~!', '커피: 저건... 전설의 용 에스프레소다냥!', '라떼: 멍! 커피, 같이 모카를 구하러 가자!', '커피: 좋아! 이제 나도 같이 싸울게냥!'], () => { s.phase = 3; s.t = 0; chip.play('volcano'); }); }
+    if (s.dragonY < -40 && !s.talked) { s.talked = true; say(s.mochaHero ? ['라떼: 멍멍! 도와줘~!', '커피: 저건... 전설의 용 에스프레소다냥!', '모카: 커피, 같이 라떼를 구하러 가자!', '커피: 좋아! 이제 나도 같이 싸울게냥!'] : ['모카: 꺄악! 도와줘~!', '커피: 저건... 전설의 용 에스프레소다냥!', '라떼: 멍! 커피, 같이 모카를 구하러 가자!', '커피: 좋아! 이제 나도 같이 싸울게냥!'], () => { s.phase = 3; s.t = 0; chip.play('volcano'); }); }
   }
 }
 
@@ -410,9 +421,9 @@ function step() {
   if (menuInput()) return endStep();
   if (mode === 'title') { if (modeT > 10) { if (pressed('select')) titleMenu(); else if (['a', 'b', 'start', 'bark', 'left', 'right', 'up', 'down'].some(pressed)) quickStart(); } }
   else if (mode === 'card') {
-    const choose = stageIndex > STORY1_END && coffeeOpen();
-    if (choose && (pressed('left') || pressed('right'))) { const p = profile(); p.char = p.char === 'coffee' ? 'latte' : 'coffee'; persist(); carry.char = p.char; chip.sfx(p.char === 'coffee' ? 'meow' : 'bark'); modeT = Math.min(modeT, 20); }
-    if (modeT > (choose ? 400 : 100) || (modeT > 8 && (pressed('a') || pressed('start')))) beginRun();
+    const list = charsFor(stageIndex), d = pressed('right') ? 1 : pressed('left') ? -1 : 0;
+    if (d) { const p = profile(); p.char = list[(list.indexOf(carry.char) + d + list.length) % list.length]; persist(); carry.char = p.char; chip.sfx(CHARS[p.char].sfx); modeT = Math.min(modeT, 20); }
+    if (modeT > 240 || (modeT > 8 && (pressed('a') || pressed('start')))) beginRun();
   }
   else if (mode === 'play') {
     if (pressed('start')) pauseMenu();
@@ -430,9 +441,9 @@ function step() {
   else if (mode === 'bonus') { if (bonus) updateBonus(); }
   else if (mode === 'gameover') { if (modeT > 90 && (pressed('a') || pressed('start'))) toTitle(); }
   endStep();
-  const barkBtn = $('bark'), catBtn = (run?.char || carry?.char) === 'coffee' && mode === 'play';
-  if (barkBtn.classList.contains('cat') !== catBtn) { barkBtn.classList.toggle('cat', catBtn); barkBtn.querySelector('span').textContent = catBtn ? '냥!' : '멍!'; }
-  if (run && mode === 'play') { const cd = run.player.barkCd; barkBtn.classList.toggle('ready', cd === 0); barkBtn.style.setProperty('--cd', (cd / (run.char === 'coffee' ? 110 : 150)).toFixed(2)); }
+  const barkBtn = $('bark'), bch = mode === 'play' && run ? run.char : 'latte';
+  if (barkBtn.dataset.ch !== bch) { barkBtn.dataset.ch = bch; barkBtn.classList.toggle('cat', bch === 'coffee'); barkBtn.classList.toggle('mocha', bch === 'mocha'); barkBtn.querySelector('span').textContent = CHARS[bch].btn; }
+  if (run && mode === 'play') { const cd = run.player.barkCd; barkBtn.classList.toggle('ready', cd === 0); barkBtn.style.setProperty('--cd', (cd / CHARS[run.char].cd).toFixed(2)); }
   else { barkBtn.classList.add('ready'); barkBtn.style.setProperty('--cd', 0); }
 }
 
@@ -474,8 +485,9 @@ function renderRun(r) {
   // 보스 방의 우리(마지막 성)
   if (L.boss?.final) {
     const x = (L.boss.arena + 15) * T - cam, y = (ROWS - 3) * T - 19 + HUD, freed = r.state === 'bossEnd' || r.state === 'done';
-    if (!freed) { draw('mochaSit', x + 3, y + 2); draw('cage', x - 1, y); }
-    else draw('mochaWave', x + 3 - Math.min(40, r.stateT * .5), y + 3, true);
+    const lat = r.char === 'mocha';
+    if (!freed) { draw(lat ? 'latteStand' : 'mochaSit', x + 2, y + (lat ? 1 : 2)); draw('cage', x - 1, y); }
+    else draw(lat ? 'latteWalk1' : 'mochaWave', x + 3 - Math.min(40, r.stateT * .5), y + 3, true);
   }
   // 타일
   const tx0 = Math.floor(cam / T), tx1 = tx0 + W / T + 1;
@@ -490,7 +502,7 @@ function renderRun(r) {
   for (const m of r.movers) for (let i = 0; i < m.w; i += T) draw(theme === 'sky' ? 't_cloudPlat' : 't_plat', m.x + i - cam, m.y + HUD);
   // 아이템
   for (const it of r.things) {
-    const name = it.kind === 'bonePop' ? 'bone' : it.kind === 'meat' && r.char === 'coffee' ? 'fish' : it.kind;
+    const name = it.kind === 'bonePop' ? 'bone' : it.kind === 'meat' && r.char !== 'latte' ? 'fish' : it.kind;
     if (it.rise > 0) { g.save(); g.beginPath(); g.rect(0, HUD, W, Math.round(it.y + it.rise * .5 + 8) - 8 + HUD); g.clip(); drawOn(name, it, false, false, undefined, cam); g.restore(); }
     else drawOn(name, it, false, false, undefined, cam);
   }
@@ -514,7 +526,7 @@ function renderRun(r) {
     drawOn(name, b, b.dir > 0, b.stun > 0 && false, undefined, cam);
   }
   for (const f of r.foes) drawOn(f.kind === 'drop' ? 'drop' : f.kind === 'fire' ? 'fire' : 'yarn', f, false, false, undefined, cam);
-  for (const s of r.shots) drawOn(r.char === 'coffee' ? 'smallYarn' : 'smallBall', s, false, false, undefined, cam);
+  for (const s of r.shots) drawOn(s.kind === 'heart' ? 'heartShot' : r.char !== 'latte' ? 'smallYarn' : 'smallBall', s, s.vx < 0, false, undefined, cam);
   drawPlayer(r, cam);
   // 효과
   const ink = bg[3];
@@ -531,7 +543,7 @@ function renderRun(r) {
   for (const q of r.pops) { const s = String(q.text); textSmall(s, Math.round(q.x - cam), Math.round(q.y) + HUD, ink); }
   // 멍! 말풍선
   const p = r.player;
-  if (p.barkT > 8 && !p.hidden && r.char !== 'coffee') { g.fillStyle = isColor() ? '#ffffff' : bg[0]; g.fillRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22), Math.round(p.y) + HUD - 11, 22, 10); g.strokeStyle = ink; g.strokeRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22) + .5, Math.round(p.y) + HUD - 10.5, 21, 9); textSmall(r.char === 'coffee' ? 'OK!' : 'WOOF', Math.round(p.x - cam) + (p.face > 0 ? 12 : -20), Math.round(p.y) + HUD - 9, ink); }
+  if (p.barkT > 8 && !p.hidden && r.char === 'latte') { g.fillStyle = isColor() ? '#ffffff' : bg[0]; g.fillRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22), Math.round(p.y) + HUD - 11, 22, 10); g.strokeStyle = ink; g.strokeRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22) + .5, Math.round(p.y) + HUD - 10.5, 21, 9); textSmall(r.char === 'coffee' ? 'OK!' : 'WOOF', Math.round(p.x - cam) + (p.face > 0 ? 12 : -20), Math.round(p.y) + HUD - 9, ink); }
   g.translate(0, -shake);
   renderHud(r);
 }
@@ -546,9 +558,10 @@ function drawPlayer(r, cam) {
   else if (r.fly || !p.ground && r.state === 'play' || r.state === 'pole') pose = 'Jump';
   else if (p.barkT > 0) pose = 'Bark';
   else if (Math.abs(p.vx) > .1) pose = Math.floor(p.anim) % 2 ? 'Walk1' : 'Walk2';
-  const cat = r.char === 'coffee';
-  if (cat && (p.dashT > 0 || pose === 'Bark')) pose = p.dashT > 0 ? 'Dash' : 'Stand';
-  const name = cat ? (big ? 'bigCoffee' : 'coffee') + pose : (big ? 'big' : 'latte') + pose;
+  const ch = r.char, cat = ch !== 'latte';
+  if (ch === 'coffee' && (p.dashT > 0 || pose === 'Bark')) pose = p.dashT > 0 ? 'Dash' : 'Stand';
+  if (ch === 'mocha' && pose === 'Bark') pose = 'Stand';
+  const name = ch === 'coffee' ? (big ? 'bigCoffee' : 'coffee') + pose : ch === 'mocha' ? (big ? 'bigMochaP' : 'mochaP') + pose : (big ? 'big' : 'latte') + pose;
   if (carry.power === 'wing' && r.state !== 'dying' && !r.fly) { const flap = !p.ground && (r.frame >> 2) % 2; draw('wing', R(p.x + p.w / 2 - cam) + (p.face > 0 ? -9 : 1), R(p.y + HUD) + (big ? 4 : 1) - (flap ? 2 : 0), p.face > 0); }
   let colors;
   if (p.star > 0) { const base = SCREEN_PALETTES[save.palette].colors; colors = (r.frame >> 2) % 2 ? (base ? [...base].reverse() : COLOR_PALETTES.item) : undefined; }
@@ -569,8 +582,8 @@ function renderHud(r) {
   g.fillStyle = col ? '#1d2140' : c[0]; g.fillRect(0, 0, W, HUD);
   if (col) { g.fillStyle = '#ffffff22'; g.fillRect(0, HUD - .5, W, .5); }
   const pad2 = n => String(Math.max(0, n)).padStart(2, '0');
-  const cat = r.char === 'coffee';
-  text(cat ? 'COFFEE' : 'LATTE', 2, 1, ink); text('x' + pad2(carry.lives), cat ? 38 : 32, 1, num);
+  const cat = r.char !== 'latte', hud = CHARS[r.char].hud;
+  text(hud, 2, 1, ink); text('x' + pad2(carry.lives), 2 + hud.length * 6, 1, num);
   text(String(carry.score).padStart(6, '0'), 2, 9, num);
   draw('bone', 42, 8); text('x' + pad2(carry.bones), 50, 9, num);
   if (carry.power === 'ball') draw(cat ? 'yarn' : 'ball', 58, 0);
@@ -609,20 +622,18 @@ function renderCard() {
   const c = bgColors(), ink = c[3], L = LEVELS[stageIndex];
   g.fillStyle = c[0]; g.fillRect(0, 0, W, H);
   text('WORLD ' + L.id, 80 - textW('WORLD ' + L.id) / 2, 40, ink);
-  if (stageIndex > STORY1_END && coffeeOpen()) {
-    const cf = carry.char === 'coffee', bob = (modeT >> 3) % 2;
-    [['latteStand', 44, !cf], ['coffeeStand', 100, cf]].forEach(([n, x, on]) => {
-      if (on) { g.fillStyle = isColor() ? '#ffcf3a' : c[2]; g.fillRect(x - 4, 90, 24, 2); }
-      draw(n, x, 72 - (on && bob ? 2 : 0)); if (n === 'latteStand') drawCostume(x, 72 - (on && bob ? 2 : 0));
-    });
-    text('<', 30, 76, ink); text('>', 126, 76, ink);
-    text(cf ? 'COFFEE' : 'LATTE', 80 - textW(cf ? 'COFFEE' : 'LATTE') / 2, 98, ink);
-    text('x ' + String(carry.lives).padStart(2, '0'), 80 - textW('x 00') / 2, 108, c[2]);
-  } else {
-    draw(carry.big ? 'bigStand' : 'latteStand', 56, 70 - (carry.big ? 4 : 0)); drawCostume(56, 70 - (carry.big ? 4 : 0));
-    text('x ' + String(carry.lives).padStart(2, '0'), 78, 76, ink);
-  }
-  if (save.easy) text('EASY', 80 - textW('EASY') / 2, stageIndex > STORY1_END && coffeeOpen() ? 122 : 100, c[2]);
+  const list = charsFor(stageIndex), bob = (modeT >> 3) % 2, xs = list.length === 3 ? [34, 72, 110] : [50, 94];
+  list.forEach((ch, i) => {
+    const on = ch === carry.char, x = xs[i], y = 72 - (on && bob ? 2 : 0) + (ch === 'latte' ? 0 : 2);
+    if (on) { g.fillStyle = isColor() ? '#ffcf3a' : c[2]; g.fillRect(x - 4, 90, 24, 2); }
+    else g.globalAlpha = .55;
+    draw(CHARS[ch].stand, x, y); drawCostume(x, y, 1, false, ch === 'latte' ? '' : 'cat');
+    g.globalAlpha = 1;
+  });
+  text('<', 20, 76, ink); text('>', 136, 76, ink);
+  text(CHARS[carry.char].hud, 80 - textW(CHARS[carry.char].hud) / 2, 98, ink);
+  text('x ' + String(carry.lives).padStart(2, '0'), 80 - textW('x 00') / 2, 108, c[2]);
+  if (save.easy) text('EASY', 80 - textW('EASY') / 2, 122, c[2]);
 }
 function renderStory() {
   theme = 'park'; const c = bgColors();
@@ -645,15 +656,16 @@ function renderEnding() {
   for (let x = 0; x < W; x += 8) { draw('t_top', x, 120); draw('t_dirt', x, 128); draw('t_dirt', x, 136); }
   const t = modeT, s = scene, calm = !s || s.phase < 2, hop = k => calm ? (Math.floor((t + k * 20) / 16) % 2) * -2 : 0;
   const part2 = s?.part === 2;
-  draw('latteStand', part2 ? 20 : 40, 104 + hop(0)); drawCostume(part2 ? 20 : 40, 104 + hop(0));
-  if (!s?.mochaTaken) draw('mochaWave', part2 ? 42 : 62, 104 + hop(1));
+  const gone = who => s?.mochaTaken && s.taken === who;
+  if (!gone('latte')) { draw('latteStand', part2 ? 20 : 40, 104 + hop(0)); drawCostume(part2 ? 20 : 40, 104 + hop(0)); }
+  if (!gone('mocha')) draw('mochaWave', part2 ? 42 : 62, 104 + hop(1));
   draw(part2 ? 'coffeeStand' : 'coffeeA', part2 ? 64 : 86, (part2 ? 106 : 101) + hop(2), part2);
   if (part2) draw('dragonA', 96, 98 + hop(3));
   if (calm) for (let i = 0; i < 5; i++) { const y = 96 - ((t * .4 + i * 23) % 70); draw('heart', 30 + i * 22 + Math.sin((t + i * 30) / 15) * 3, y); }
   if (s?.part === 1 && s.phase >= 2 && s.phase < 3) {
     const flying = (s.t >> 3) % 2 ? 'dragonB' : 'dragonA';
     draw(flying, s.dragonX - 8, s.dragonY, s.mochaTaken);
-    if (s.mochaTaken) draw('mochaWave', s.dragonX + 4, s.dragonY + 20, true);
+    if (s.mochaTaken) draw(s.taken === 'latte' ? 'latteJump' : 'mochaWave', s.dragonX + 4, s.dragonY + 20, s.taken !== 'latte');
   }
   if (s?.part === 1 && s.phase === 3) {
     text('TO BE', 80 - textW('TO BE', 2) / 2, 16, c[3], 2);
