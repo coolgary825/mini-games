@@ -2,11 +2,13 @@
 import { ROWS } from './levels.js';
 
 export const T = 8, VIEW_W = 160, VIEW_H = 128;
-const SOLID = '#BU?H[]{}C^';
+const SOLID = '#BU?H[]{}C^F';
 const PHYS = { walk: 1.25, run: 2.05, acc: .07, airAcc: .055, friction: .09, skid: .16, jump: 3.45, runJump: 3.8, gHold: .16, g: .34, maxFall: 4.5 };
 const SIZES = {
   bean: [10, 11], can: [10, 12], hedgehog: [13, 9], pigeon: [12, 8], cup: [12, 10], boss: [18, 18],
+  bat: [11, 7], ember: [5, 7], dino: [10, 12], dragon: [26, 18],
 };
+const STILL = ['ball', 'wing', 'magnet', 'clock', 'bigBone', 'shield'];
 const STOMP_SCORES = [100, 200, 400, 800, 1000, 2000, 4000, 8000];
 
 export const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -32,11 +34,12 @@ export class Run {
     this.checks = L.checks.map(tx => ({ tx, on: this.checkpoint !== null && tx <= this.checkpoint }));
     this.hintsShown = new Set();
     this.frame = 0; this.time = L.time; this.timeTick = 0; this.state = 'play'; this.stateT = 0;
-    this.gold = 0; this.shake = 0;
+    this.gold = 0; this.shake = 0; this.crumbles = new Map(); this.respawns = new Map();
+    this.char = this.carry.char === 'coffee' ? 'coffee' : 'latte';
     this.chain = 0; this.reveal = 0; this.flag = null; this.boss = null; this.bossStarted = false; this.clearT = 0;
     this.fly = L.mode === 'fly';
     const sx = this.checkpoint !== null ? this.checkpoint * T : L.start.tx * T;
-    const p = this.player = { x: sx, y: 0, w: 10, h: 13, vx: 0, vy: 0, face: 1, ground: false, coyote: 0, jumpBuf: 0, inv: 0, star: 0, barkCd: 0, barkT: 0, shotCd: 0, anim: 0, onMover: null, isPlayer: true, flyHp: 3 };
+    const p = this.player = { x: sx, y: 0, w: 10, h: 13, vx: 0, vy: 0, face: 1, ground: false, coyote: 0, jumpBuf: 0, inv: 0, star: 0, barkCd: 0, barkT: 0, shotCd: 0, anim: 0, onMover: null, isPlayer: true, flyHp: 3, airJumps: 0, dashT: 0, dashDir: 1, magnet: 0 };
     if (!this.fly && this.carry.big) { p.h = 20; }
     p.y = (this.fly ? L.start.ty * T : this.groundBelow(sx + 5, 0) ) - (this.fly ? 0 : p.h);
     this.cam = this.fly ? 0 : clamp(p.x - 64, 0, L.w * T - VIEW_W);
@@ -113,8 +116,27 @@ export class Run {
     this.updateTimer();
     this.checkHints();
     for (const [k, v] of this.bumps) if (v > 1) this.bumps.set(k, v - 1); else this.bumps.delete(k);
+    this.updateCrumbles();
     if (this.reveal > 0) this.reveal--;
   }
+
+  // 무너지는 블록: 밟고 잠깐 뒤 떨어지고, 한참 뒤 다시 생겨요
+  updateCrumbles() {
+    for (const [k, t] of this.crumbles) {
+      if (t > 1) { this.crumbles.set(k, t - 1); continue; }
+      this.crumbles.delete(k);
+      const [tx, ty] = k.split(',').map(Number);
+      this.setTile(tx, ty, '.'); this.respawns.set(k, 320); this.hooks.sound('crumble');
+      this.fx.push({ kind: 'fallblock', x: tx * T, y: ty * T, vy: 0, life: 50 });
+    }
+    for (const [k, t] of this.respawns) {
+      if (t > 1) { this.respawns.set(k, t - 1); continue; }
+      const [tx, ty] = k.split(',').map(Number), p = this.player;
+      if (p.x + p.w > tx * T && p.x < tx * T + T && p.y + p.h > ty * T && p.y < ty * T + T) continue;
+      this.respawns.delete(k); this.setTile(tx, ty, 'F');
+    }
+  }
+  touchCrumble(hits) { for (const [tx, ty, c] of hits) if (c === 'F' && !this.crumbles.has(`${tx},${ty}`)) this.crumbles.set(`${tx},${ty}`, 26); }
 
   updateMovers() {
     for (const m of this.movers) {
@@ -131,8 +153,13 @@ export class Run {
     if (p.star > 0) { p.star--; if (p.star === 0) this.hooks.music(this.L.music); }
     // 움직이는 발판에 탄 채로 함께 이동
     if (p.onMover) { const m = p.onMover; this.moveX(p, m.dx); if (m.dy < 0) p.y += m.dy; }
+    if (p.magnet > 0) { p.magnet--; this.pullBones(p); }
     const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0), max = input.b ? P.run : P.walk;
-    if (dir) {
+    if (p.dashT > 0) { // 커피의 냥냥 대시: 곧게 쌩 날아가요
+      p.dashT--; p.vx = p.dashDir * 3.6; p.vy = 0;
+      if (this.frame % 2 === 0) this.fx.push({ kind: 'dust', x: p.x + p.w / 2, y: p.y + p.h / 2, life: 10, dir: -p.dashDir });
+      if (p.dashT === 0) p.vx = p.dashDir * 1.6;
+    } else if (dir) {
       if (p.ground && p.vx && Math.sign(p.vx) !== dir) p.vx += dir * P.skid;
       else p.vx += dir * (p.ground ? P.acc : P.airAcc);
       if (Math.abs(p.vx) > max) p.vx = Math.sign(p.vx) * Math.max(max, Math.abs(p.vx) - .06);
@@ -142,12 +169,17 @@ export class Run {
     }
     p.jumpBuf = input.aPressed ? 7 : Math.max(0, p.jumpBuf - 1);
     p.coyote = p.ground ? 6 : Math.max(0, p.coyote - 1);
+    if (p.ground) p.airJumps = (this.char === 'coffee' ? 1 : 0) + (this.carry.power === 'wing' ? 1 : 0);
     if (p.jumpBuf && p.coyote) {
       p.vy = -(Math.abs(p.vx) > 1.6 ? P.runJump : P.jump); p.coyote = 0; p.jumpBuf = 0; p.ground = false; p.onMover = null;
       this.hooks.sound(this.carry.big ? 'jumpBig' : 'jump');
+    } else if (input.aPressed && !p.ground && !p.coyote && p.airJumps > 0 && p.dashT === 0) {
+      p.airJumps--; p.vy = -3.1; p.jumpBuf = 0; this.hooks.sound('jump2');
+      this.fx.push({ kind: 'dust', x: p.x + 1, y: p.y + p.h, life: 12, dir: -1 }, { kind: 'dust', x: p.x + p.w - 1, y: p.y + p.h, life: 12, dir: 1 });
     }
-    p.vy = Math.min(P.maxFall, p.vy + (p.vy < 0 && input.a ? P.gHold : P.g));
-    if (input.barkPressed) this.bark();
+    if (p.dashT === 0) p.vy = Math.min(P.maxFall, p.vy + (p.vy < 0 && input.a ? P.gHold : P.g));
+    if (this.carry.power === 'wing' && !p.ground && input.a && p.vy > .7) p.vy = .7; // 날개로 사뿐히
+    if (input.barkPressed) this.special();
     if (input.bPressed && this.carry.power === 'ball' && this.shots.filter(s => s.kind === 'ball').length < 2) {
       this.shots.push({ kind: 'ball', x: p.x + (p.face > 0 ? p.w : -4), y: p.y + 3, w: 4, h: 4, vx: p.face * 2.3, vy: 2.3, life: 240 });
       this.hooks.sound('throw');
@@ -155,9 +187,10 @@ export class Run {
     if (p.ground && dir && p.vx && Math.sign(p.vx) !== dir && Math.abs(p.vx) > .8 && this.frame % 4 === 0) this.fx.push({ kind: 'dust', x: p.x + p.w / 2, y: p.y + p.h, life: 10, dir: -dir });
     p.wasGround = p.ground;
     const hitX = this.moveX(p, p.vx);
-    if (hitX) { if (hitX === '^') this.hurt(); p.vx = 0; }
+    if (hitX) { if (hitX === '^') this.hurt(); p.vx = 0; if (p.dashT > 0) { p.dashT = 0; this.shake = Math.max(this.shake, 3); } }
     const hits = this.moveY(p, p.vy);
     p.ground = false;
+    if (p.vy >= 0 && hits.length) this.touchCrumble(hits);
     if (p.vy > 0 && hits.length) {
       if (!p.wasGround && p.vy > 2.6) { this.fx.push({ kind: 'dust', x: p.x + 1, y: p.y + p.h, life: 12, dir: -1 }, { kind: 'dust', x: p.x + p.w - 1, y: p.y + p.h, life: 12, dir: 1 }); }
       p.ground = true; p.vy = 0; p.onMover = null; this.chain = 0;
@@ -210,11 +243,25 @@ export class Run {
     if ((input.aPressed || input.bPressed) && p.shotCd === 0 && this.shots.length < 3) {
       this.shots.push({ kind: 'shot', x: p.x + p.w, y: p.y + 5, w: 4, h: 4, vx: 3.2, vy: 0, life: 70 }); p.shotCd = 12; this.hooks.sound('throw');
     }
-    if (input.barkPressed) this.bark();
+    if (input.barkPressed) this.special();
+    if (p.magnet > 0) { p.magnet--; this.pullBones(p); }
     this.collectTiles(p);
     if (this.cam >= end) { this.clearT++; if (this.clearT > 60) { p.x += 1.5; if (p.x > this.cam + VIEW_W + 8) this.win(); } }
   }
 
+  special() { if (this.char === 'coffee' && !this.fly) this.dash(); else this.bark(); }
+  dash() {
+    const p = this.player;
+    if (p.barkCd > 0) return;
+    p.barkCd = 110; p.barkT = 16; p.dashT = 16; p.dashDir = p.face; p.vy = 0;
+    this.hooks.sound('dash');
+  }
+  pullBones(p) { // 자석: 가까운 뼈다귀가 날아와요
+    const cx = Math.floor((p.x + p.w / 2) / T), cy = Math.floor((p.y + p.h / 2) / T);
+    for (let tx = cx - 5; tx <= cx + 5; tx++) for (let ty = cy - 5; ty <= cy + 5; ty++) if (this.tile(tx, ty) === 'o') {
+      this.setTile(tx, ty, '.'); this.addBone(); this.fx.push({ kind: 'fly', x: tx * T + 4, y: ty * T + 3, tx: p.x + p.w / 2, ty: p.y + p.h / 2, life: 12 });
+    }
+  }
   bark() {
     const p = this.player;
     if (p.barkCd > 0) return;
@@ -289,6 +336,9 @@ export class Run {
       const [w, h] = SIZES[d.type];
       const e = { type: d.type, x: d.tx * T + (8 - w) / 2, y: d.air ? d.ty * T : d.ty * T - h, w, h, vx: 0, vy: 0, dir: -1, t: 0, stun: 0, state: 'walk', baseY: d.ty * T, dead: false, gone: false };
       if (d.type === 'cup') e.cool = 60 + (d.tx % 5) * 12;
+      if (d.type === 'ember') { e.y = ROWS * T + 8; e.cool = 20 + (d.tx % 4) * 20; e.state = 'lava'; }
+      if (d.type === 'dino') e.cool = 90 + (d.tx % 5) * 10;
+      if (d.type === 'bat') { e.state = 'hang'; e.y = d.ty * T; }
       this.enemies.push(e);
     }
   }
@@ -304,6 +354,18 @@ export class Run {
     if (e.type === 'pigeon') {
       e.x += (this.fly ? -1 : -.55); e.y = e.baseY + Math.sin(e.t * .06) * 10; return;
     }
+    if (e.type === 'ember') { // 용암에서 튀어 오르는 불꽃(밟을 수 없어요)
+      if (e.state === 'lava') { if (--e.cool <= 0) { e.state = 'up'; e.vy = -Math.sqrt(2 * .16 * (ROWS * T + 8 - e.baseY)); this.hooks.sound('spit'); } return; }
+      e.vy += .16; e.y += e.vy;
+      if (e.vy > 0 && e.y > ROWS * T + 8) { e.state = 'lava'; e.cool = 70; e.y = ROWS * T + 8; }
+      return;
+    }
+    if (e.type === 'bat') { // 천장에 매달렸다가 가까이 오면 휙
+      const p = this.player, dx = p.x - e.x;
+      if (e.state === 'hang') { if (Math.abs(dx) < 60 || this.fly) { e.state = 'swoop'; e.dir = Math.sign(dx) || -1; e.t = 0; } return; }
+      e.x += e.dir * (this.fly ? 1.3 : 1); e.y = e.baseY + Math.abs(Math.sin(e.t * .045)) * 26;
+      return;
+    }
     if (e.type === 'cup') {
       e.vy = Math.min(4, e.vy + .3); if (this.moveY(e, e.vy).length) e.vy = 0;
       const p = this.player, dx = p.x - e.x;
@@ -318,7 +380,12 @@ export class Run {
     if (e.state === 'shell') {
       if (e.vx === 0 && ++e.idle > 420) { e.state = 'walk'; e.h = 12; e.y -= 4; }
     } else {
-      e.vx = e.dir * (e.type === 'hedgehog' ? .35 : e.type === 'can' ? .4 : .45);
+      e.vx = e.dir * (e.type === 'hedgehog' ? .35 : e.type === 'can' ? .4 : e.type === 'dino' ? .38 : .45);
+      if (e.type === 'dino') { // 꼬마 용: 가끔 멈춰 불꽃을 뿜어요
+        const p = this.player;
+        if (--e.cool <= 0 && Math.abs(p.x - e.x) < 120) { e.cool = 150; e.dir = Math.sign(p.x - e.x) || e.dir; e.breath = 24; }
+        if (e.breath > 0) { e.vx = 0; if (--e.breath === 10) { this.foes.push({ kind: 'fire', x: e.x + (e.dir > 0 ? e.w : -4), y: e.y + 3, w: 4, h: 4, vx: e.dir * 1.7, vy: 0, g: 0, life: 150 }); this.hooks.sound('fire'); } }
+      }
     }
     e.vy = Math.min(4, e.vy + .3);
     if (this.moveX(e, e.vx)) { e.dir *= -1; if (e.state === 'shell') { e.vx = -e.vx; this.hooks.sound('bump'); } }
@@ -327,7 +394,7 @@ export class Run {
     const tx0 = Math.floor(e.x / T), ty = Math.floor((e.y + e.h - 2) / T);
     if (this.tile(tx0, ty) === '~') e.gone = true;
     if (e.state === 'shell' && e.vx) for (const o of this.enemies) if (o !== e && !o.dead && overlap(e, o)) { this.knock(o); this.score(200, o.x, o.y); }
-    if (e.state === 'walk') for (const o of this.enemies) if (o !== e && !o.dead && o.state === 'walk' && o.type !== 'pigeon' && o.type !== 'cup' && overlap(e, o)) { e.dir = e.x < o.x ? -1 : 1; o.dir = -e.dir; }
+    if (e.state === 'walk') for (const o of this.enemies) if (o !== e && !o.dead && o.state === 'walk' && !['pigeon', 'cup', 'ember', 'bat'].includes(o.type) && overlap(e, o)) { e.dir = e.x < o.x ? -1 : 1; o.dir = -e.dir; }
   }
 
   knock(e) { e.dead = true; e.state = 'fall'; e.vy = -2.5; e.vx = e.x < this.player.x ? -.6 : .6; e.t = 0; this.hooks.sound('kick'); }
@@ -350,8 +417,9 @@ export class Run {
   updateThings() {
     for (const it of this.things) {
       if (it.kind === 'bonePop') { it.y += it.vy; it.vy += .25; if (--it.life <= 0) it.gone = true; continue; }
-      if (it.rise > 0) { it.rise--; it.y -= .5; if (it.rise === 0) { it.vx = it.kind === 'ball' ? 0 : it.kind === 'star' ? 1 : .7; } continue; }
-      if (it.kind === 'ball') continue;
+      if (it.rise > 0) { it.rise--; it.y -= .5; if (it.rise === 0) { it.baseY = it.y; it.vx = STILL.includes(it.kind) ? 0 : it.kind === 'star' ? 1 : .7; } continue; }
+      if (it.kind === 'wing') { it.t = (it.t || 0) + 1; it.y = it.baseY + Math.sin(it.t / 12) * 3; continue; }
+      if (STILL.includes(it.kind)) continue;
       it.vy = Math.min(4, it.vy + (it.kind === 'star' ? .2 : .3));
       if (this.moveX(it, it.vx)) it.vx = -it.vx;
       if (this.moveY(it, it.vy).length && it.vy >= 0) it.vy = it.kind === 'star' ? -3.2 : 0;
@@ -371,7 +439,7 @@ export class Run {
         if (s.y > ROWS * T) s.gone = true;
       }
       this.collectTiles(s);
-      for (const e of this.enemies) if (!e.dead && overlap(s, e)) { this.knock(e); this.score(100, e.x, e.y - 6); s.gone = true; break; }
+      for (const e of this.enemies) if (!e.dead && e.type !== 'ember' && overlap(s, e)) { this.knock(e); this.score(100, e.x, e.y - 6); s.gone = true; break; }
       for (const f of this.foes) if (overlap(s, f)) { f.gone = true; s.gone = true; }
       const b = this.boss;
       if (b && !b.dead && !s.gone && overlap(s, b)) { s.gone = true; if (b.hurt === 0) { b.chip += 1; this.hooks.sound('bump'); if (b.chip >= 3) { b.chip = 0; this.hitBoss(b, 40); } } }
@@ -382,7 +450,8 @@ export class Run {
   updateFoes() {
     for (const f of this.foes) {
       if (--f.life <= 0) { f.gone = true; continue; }
-      if (f.kind === 'drop') { f.vy += f.g; f.x += f.vx; f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 2) / T), Math.floor((f.y + 3) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
+      if (f.kind === 'fire') { f.x += f.vx; f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 2) / T), Math.floor((f.y + 2) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
+      else if (f.kind === 'drop') { f.vy += f.g; f.x += f.vx; f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 2) / T), Math.floor((f.y + 3) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
       else if (f.kind === 'yarn') {
         f.vy = Math.min(4, f.vy + .15);
         if (this.moveX(f, f.vx)) f.vx = -f.vx;
@@ -395,7 +464,7 @@ export class Run {
 
   updateFx() {
     if (this.shake > 0) this.shake--;
-    for (const f of this.fx) { f.life--; if (f.kind === 'dust') { f.x += f.dir * .35; f.y -= .15; } if (f.kind === 'brick') { f.x += f.vx; f.y += f.vy; f.vy += .2; } }
+    for (const f of this.fx) { f.life--; if (f.kind === 'dust') { f.x += f.dir * .35; f.y -= .15; } if (f.kind === 'brick') { f.x += f.vx; f.y += f.vy; f.vy += .2; } if (f.kind === 'fallblock') { f.vy += .2; f.y += f.vy; } if (f.kind === 'fly') { f.x += (f.tx - f.x) * .3; f.y += (f.ty - f.y) * .3; } }
     this.fx = this.fx.filter(f => f.life > 0);
     for (const q of this.pops) { q.life--; q.y -= .4; }
     this.pops = this.pops.filter(q => q.life > 0);
@@ -410,11 +479,17 @@ export class Run {
       else if (it.kind === 'ball') { if (!this.carry.big) this.grow(); this.carry.power = 'ball'; this.hooks.sound('power'); this.hooks.hint('테니스공 파워! B(X)를 눌러 공을 던져요. 공은 뼈다귀도 모아 와요.'); }
       else if (it.kind === 'star') { p.star = 600; this.hooks.music('star'); this.hooks.sound('power'); }
       else if (it.kind === 'heart') this.oneUp();
+      else if (it.kind === 'wing') { if (!this.carry.big) this.grow(); this.carry.power = 'wing'; this.hooks.sound('power'); this.hooks.hint('날개 파워! 공중에서 A를 한 번 더 눌러 뛰고, 꾹 누르면 사뿐히 내려와요.'); }
+      else if (it.kind === 'shield') { this.carry.shield = true; this.hooks.sound('power'); this.hooks.hint('방울 방패! 한 번은 부딪혀도 괜찮아요.'); }
+      else if (it.kind === 'magnet') { p.magnet = 900; this.hooks.sound('power'); this.hooks.hint('뼈다귀 자석! 잠깐 동안 주변 뼈다귀가 날아와요.'); }
+      else if (it.kind === 'clock') { if (this.easy) this.score(500, it.x, it.y); else { this.time += 100; this.pop(it.x, it.y - 6, '+100'); } this.hooks.sound('item'); }
+      else if (it.kind === 'bigBone') { this.addBone(10); this.pop(it.x, it.y - 6, '+10'); }
     }
     for (const e of this.enemies) {
       if (e.dead || !overlap(p, e)) continue;
-      if (p.star > 0) { this.knock(e); this.score(200, e.x, e.y - 6); continue; }
-      const stompable = !(e.type === 'hedgehog' && e.stun === 0);
+      if (p.star > 0 || p.dashT > 0) { this.knock(e); this.score(200, e.x, e.y - 6); continue; }
+      if (e.type === 'ember' && e.state === 'lava') continue;
+      const stompable = !(e.type === 'hedgehog' && e.stun === 0) && e.type !== 'ember';
       const fromAbove = p.vy > 0 && p.prevBottom <= e.y + 5;
       if (fromAbove && stompable && !this.fly) { this.stomp(e); p.y = e.y - p.h; continue; }
       if (fromAbove && this.fly && stompable) { this.knock(e); this.score(100, e.x, e.y); continue; }
@@ -426,11 +501,12 @@ export class Run {
     for (const f of this.foes) {
       if (!overlap(p, f)) continue;
       if (f.kind === 'yarn' && p.vy > 0 && p.prevBottom <= f.y + 4) { f.gone = true; p.vy = -3; this.hooks.sound('stomp'); continue; }
-      if (p.star > 0) { f.gone = true; continue; }
+      if (p.star > 0 || p.dashT > 0) { f.gone = true; continue; }
       this.hurt();
     }
     const b = this.boss;
-    if (b && !b.dead && overlap(p, b)) {
+    if (b && !b.dead && overlap(p, b) && p.dashT > 0 && b.hurt === 0) { this.hitBoss(b, 60); p.dashT = 0; p.vx = -p.dashDir * 2; p.vy = -3; }
+    else if (b && !b.dead && overlap(p, b)) {
       const fromAbove = p.vy > 0 && p.prevBottom <= b.y + 7;
       if (fromAbove && b.hurt === 0) { this.hitBoss(b, 70); p.vy = -4.4; p.y = b.y - p.h; }
       else if (fromAbove) p.vy = -3.5;
@@ -443,6 +519,8 @@ export class Run {
     const p = this.player;
     if (p.inv > 0 || p.star > 0 || this.state !== 'play' || this.god) return;
     if (this.fly) { p.flyHp--; p.inv = 90; this.hooks.sound('hurt'); if (p.flyHp <= 0) this.die(); return; }
+    if (p.dashT > 0) return;
+    if (this.carry.shield) { this.carry.shield = false; p.inv = 100; this.hooks.sound('hurt'); this.fx.push({ kind: 'ring', x: p.x + p.w / 2, y: p.y + p.h / 2, life: 14 }); return; }
     if (this.carry.power) { this.carry.power = null; p.inv = 100; this.hooks.sound('hurt'); return; }
     if (this.carry.big) { this.carry.big = false; p.h = 13; p.y += 7; p.inv = 100; this.hooks.sound('hurt'); return; }
     this.die();
@@ -450,7 +528,7 @@ export class Run {
   die() {
     if (this.state !== 'play') return;
     this.state = 'dying'; this.stateT = 0; const p = this.player; p.vx = 0; p.vy = 0;
-    this.carry.big = false; this.carry.power = null;
+    this.carry.big = false; this.carry.power = null; this.carry.shield = false;
     this.hooks.music(null); this.hooks.sound('die');
   }
   updateDying() {
@@ -519,21 +597,27 @@ export class Run {
     const B = this.L.boss;
     this.bossStarted = true; this.cam = B.arena * T;
     for (let ty = 0; ty < ROWS - 3; ty++) this.setTile(B.arena, ty, 'H');
-    const [w, h] = SIZES.boss;
-    this.boss = { x: B.tx * T, y: (ROWS - 3) * T - h, w, h, vx: 0, vy: 0, dir: -1, hp: B.hp, maxHp: B.hp, hurt: 0, stun: 0, chip: 0, jumpT: 120, throwT: 80, t: 0, dead: false, final: B.final, ground: false };
+    const dragon = B.kind === 'dragon', [w, h] = dragon ? SIZES.dragon : SIZES.boss;
+    this.boss = { kind: dragon ? 'dragon' : 'coffee', state: 'fly', fireT: 90, diveT: 200, restT: 0, x: B.tx * T, y: (ROWS - 3) * T - h, w, h, vx: 0, vy: 0, dir: -1, hp: B.hp, maxHp: B.hp, hurt: 0, stun: 0, chip: 0, jumpT: 120, throwT: 80, t: 0, dead: false, final: B.final, ground: false };
     this.hooks.music(null); this.hooks.sound('meow');
     this.state = 'bossTalk';
-    const lines = B.final
+    if (dragon) { this.boss.y = 3 * T; this.hooks.sound('roar'); }
+    const lines = dragon
+      ? (B.final
+        ? ['에스프레소: 크아아앙! 여기까지 오다니!', '에스프레소: 모카는 내 보물이다! 절대 못 돌려준다!', this.char === 'coffee' ? '커피: 친구를 괴롭히면 가만 안 둔다냥!' : '라떼: 멍멍! 모카를 돌려줘!']
+        : ['에스프레소: 크르릉... 조그만 녀석들이 감히!', '에스프레소: 내 불꽃 맛을 보여 주마!'])
+      : B.final
       ? ['커피: 냐하하! 여기까지 오다니 대단하다냥!', '커피: 하지만 모카는 절대 못 데려간다냥! 덤벼라, 라떼!']
       : this.L.id === '1-3'
         ? ['커피: 냐옹~ 네가 라떼냥? 모카는 내가 데려갔다냥!', '커피: 모카를 찾고 싶으면 나를 이겨 봐라냥!']
         : ['커피: 또 왔냥? 이번엔 더 빠르다냥!', '커피: 털실 공 맛 좀 봐라냥!'];
-    this.hooks.say(lines, () => { this.state = 'play'; this.hooks.music('boss'); });
+    this.hooks.say(lines, () => { this.state = 'play'; this.hooks.music(dragon ? 'dragonBoss' : 'boss'); });
   }
   updateBoss(b) {
     b.t++;
     if (b.dead) return;
     if (b.hurt > 0) b.hurt--;
+    if (b.kind === 'dragon') return this.updateDragon(b);
     const p = this.player, arena = this.L.boss.arena * T;
     const speed = .55 + (b.maxHp - b.hp) * .15;
     if (b.stun > 0) { b.stun--; b.vx = 0; }
@@ -556,11 +640,44 @@ export class Run {
     if (this.moveY(b, b.vy).length && b.vy >= 0) { if (!b.ground && b.vy > 2) this.fx.push({ kind: 'ring', x: b.x + 9, y: b.y + b.h, life: 10 }); b.ground = true; b.vy = 0; }
     b.x = clamp(b.x, arena + T, arena + 18 * T - b.w);
   }
+  // 용: 하늘을 날며 불꽃을 뿜다가, 내려와 쉴 때 밟을 수 있어요
+  updateDragon(b) {
+    const p = this.player, arena = this.L.boss.arena * T, groundY = (ROWS - 3) * T - b.h, rage = (b.maxHp - b.hp) / b.maxHp, fin = b.final;
+    if (b.stun > 0 && b.state !== 'rest') { b.state = 'rest'; b.restT = b.stun; b.vy = 1; }
+    if (b.state === 'fly') {
+      const targetX = arena + T * (3 + (Math.sin(b.t / (fin ? 70 : 90)) + 1) * 6.5);
+      b.x += (targetX - b.x) * .03; b.y += ((2.5 * T + Math.sin(b.t / 16) * 6) - b.y) * .08;
+      b.dir = p.x < b.x ? -1 : 1;
+      if (--b.fireT <= 0) {
+        b.fireT = Math.max(45, (fin ? 85 : 110) - rage * 50);
+        const n = fin ? 3 + Math.round(rage * 2) : 3, cx = b.x + (b.dir < 0 ? 2 : b.w - 2), cy = b.y + 12, a0 = Math.atan2(p.y + p.h / 2 - cy, p.x + p.w / 2 - cx);
+        for (let i = 0; i < n; i++) { const a = a0 + (i - (n - 1) / 2) * .28; this.foes.push({ kind: 'fire', x: cx, y: cy, w: 5, h: 5, vx: Math.cos(a) * 1.6, vy: Math.sin(a) * 1.6, g: 0, life: 200 }); }
+        this.hooks.sound('fire');
+      }
+      if (--b.diveT <= 0) { b.state = 'dive'; b.diveX = clamp(p.x - b.w / 2, arena + T, arena + 18 * T - b.w); this.hooks.sound('roar'); }
+    } else if (b.state === 'dive') {
+      b.x += clamp(b.diveX - b.x, -2.5, 2.5); b.y += 2.6 + rage;
+      if (b.y >= groundY) { b.y = groundY; b.state = 'rest'; b.restT = fin ? 70 - rage * 20 : 90; this.shake = 8; this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + b.h, life: 14 }); }
+    } else if (b.state === 'rest') {
+      if (b.y < groundY) { b.y = Math.min(groundY, b.y + 2.5); }
+      if (b.stun > 0) b.stun--;
+      if (--b.restT <= 0 && b.stun <= 0) { b.state = 'rise'; }
+    } else if (b.state === 'rise') {
+      b.y -= 1.8; if (b.y <= 2.5 * T) { b.state = 'fly'; b.diveT = Math.max(110, (fin ? 170 : 220) - rage * 70); }
+    }
+    b.ground = b.state === 'rest';
+    b.x = clamp(b.x, arena + T, arena + 19 * T - b.w);
+  }
   hitBoss(b, inv) {
-    b.hp--; b.hurt = inv; b.stun = 0; this.hooks.sound('bossHit'); this.hooks.sound('meow'); this.shake = 10; this.carry.score += 1000; this.pop(b.x, b.y - 8, 1000);
+    b.hp--; b.hurt = inv; b.stun = 0; this.hooks.sound('bossHit'); this.hooks.sound(b.kind === 'dragon' ? 'roar' : 'meow');
+    if (b.kind === 'dragon' && b.state === 'rest') { b.state = 'rise'; } this.shake = 10; this.carry.score += 1000; this.pop(b.x, b.y - 8, 1000);
     if (b.hp <= 0) {
       b.dead = true; this.foes = []; this.state = 'bossTalk'; this.hooks.music(null); this.hooks.sound('bossDown');
-      const lines = b.final
+      const lines = b.kind === 'dragon'
+        ? (b.final
+          ? ['에스프레소: 크릉... 졌다...', '에스프레소: 사실은... 혼자 사는 게 너무 심심했어.', '모카: 그럼 너도 우리랑 친구 하자!']
+          : ['에스프레소: 크윽! 제법이군!', '에스프레소: 하지만 모카는 내 성에 있다! 쫓아올 테면 와 봐라!'])
+        : b.final
         ? ['커피: 으앙... 졌다냥.', '커피: 사실은... 나도 같이 놀 친구가 갖고 싶었어.', '라떼: 멍멍! 그럼 우리랑 친구 하자!']
         : ['커피: 으앗! 제법이다냥!', '커피: 하지만 모카는 여기 없지롱~ 다음 곳에서 보자냥!'];
       this.hooks.say(lines, () => { this.state = 'bossEnd'; this.stateT = 0; });
@@ -572,6 +689,12 @@ export class Run {
     if (b.final) {
       if (this.stateT === 1) this.hooks.music('clear');
       if (this.stateT === 90) { this.state = 'done'; this.hooks.ending(); }
+      return;
+    }
+    if (b.kind === 'dragon') { // 용은 하늘 높이 날아가요
+      b.dir = 1; b.x += 1.6; b.y -= 1.4;
+      if (this.stateT === 120) this.hooks.sound('clear');
+      if (this.stateT > 180) this.win();
       return;
     }
     // 커피가 오른쪽으로 도망쳐요

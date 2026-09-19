@@ -30,6 +30,14 @@ const TRACKS = {
     bass: 'E2:2 E3:2 E2:2 E3:2 E2:2 E3:2 E2:2 E3:2 A2:2 A3:2 A2:2 A3:2 A2:2 A3:2 A2:2 A3:2 D2:2 D3:2 D2:2 D3:2 D2:2 D3:2 D2:2 D3:2 B1:2 B2:2 B1:2 B2:2 B1:2 B2:2 E2:4', drums: 'k:2 h:2 s:2 h:2' },
   star: { bpm: 190, lead: 'C5:2 C5:2 C5:2 R:1 D5:1 C5:2 C5:2 C5:2 R:2 D5:2 D5:2 D5:2 R:1 E5:1 D5:2 D5:2 D5:2 R:2',
     bass: 'C3:2 G3:2 C3:2 G3:2 C3:2 G3:2 C3:2 G3:2 D3:2 A3:2 D3:2 A3:2 D3:2 A3:2 D3:2 A3:2', drums: 'k:2 h:2 s:2 h:2' },
+  volcano: { bpm: 150, lead: 'A4:2 A4:2 C5:2 A4:2 D5:2 C5:2 A4:2 G4:2 A4:2 A4:2 C5:2 E5:2 D5:4 C5:4 F5:2 F5:2 E5:2 D5:2 E5:2 D5:2 C5:2 B4:2 C5:2 B4:2 A4:2 G#4:2 A4:8',
+    bass: 'A2:2 A2:2 E3:2 A2:2 A2:2 A2:2 E3:2 A2:2 A2:2 A2:2 E3:2 A2:2 D3:4 C3:4 F2:2 F2:2 C3:2 F2:2 G2:2 G2:2 D3:2 G2:2 E2:2 E2:2 B2:2 E2:2 A2:8', drums: 'k:2 h:2 s:2 h:2' },
+  volcano2: { bpm: 132, lead: 'E5:4 D#5:2 E5:2 B4:4 R:4 C5:4 B4:2 C5:2 G4:4 R:4 A4:2 C5:2 E5:2 A5:2 G#5:4 E5:4 F5:2 E5:2 D#5:2 E5:2 B4:8',
+    bass: 'E2:4 E3:4 E2:4 E3:4 C2:4 C3:4 C2:4 C3:4 A1:4 A2:4 E2:4 E3:4 D2:4 D3:4 E2:8', drums: 'k:4 h:4 k:2 k:2 s:4' },
+  dragon: { bpm: 144, lead: 'D5:2 F#5:2 A5:4 G5:2 F#5:2 E5:4 D5:2 E5:2 F#5:2 G5:2 A5:8 B5:2 A5:2 G5:4 F#5:2 E5:2 D5:4 E5:2 F#5:2 G5:2 E5:2 D5:8',
+    bass: 'D3:4 A2:4 D3:4 A2:4 G2:4 D3:4 A2:4 A2:4 G2:4 D3:4 D3:4 A2:4 E2:4 A2:4 D3:8', drums: 'k:4 h:2 h:2 s:4 h:4' },
+  dragonBoss: { bpm: 184, lead: 'D5:2 D5:2 F5:2 D5:2 G#5:2 G5:2 F5:2 D5:2 C#5:2 C#5:2 E5:2 C#5:2 A5:2 G#5:2 G5:2 E5:2 D5:2 F5:2 A5:2 D6:2 C#6:2 A5:2 F5:2 E5:2 D5:4 A4:4 D5:8',
+    bass: 'D2:2 D3:2 D2:2 D3:2 D2:2 D3:2 D2:2 D3:2 A1:2 A2:2 A1:2 A2:2 A1:2 A2:2 A1:2 A2:2 A#1:2 A#2:2 A#1:2 A#2:2 A1:2 A2:2 A1:2 A2:2 D2:4 A1:4 D2:8', drums: 'k:2 h:2 s:2 k:2' },
   ending: { bpm: 112, lead: 'G4:4 C5:4 E5:4 G5:6 E5:2 F5:4 A5:4 G5:8 E5:4 C5:4 D5:4 E5:6 D5:2 C5:12 R:4 A4:4 C5:4 F5:4 A5:6 G5:2 F5:4 E5:4 D5:8 E5:4 G5:4 C6:4 B5:4 C6:12 R:4',
     bass: 'C3:8 E3:8 F3:8 C3:8 A2:8 G2:8 C3:8 G2:8 F2:8 A2:8 D3:8 G2:8 C3:8 G2:8 C3:16', drums: 'h:4 h:4 h:4 h:4' },
 };
@@ -111,6 +119,11 @@ export class Chip {
       case 'bossDown': [392, 330, 262, 196].forEach((f, i) => T(f, .12, { at: i * .12, vol: .1 })); break;
       case 'select': T(1047, .04, { vol: .06 }); break;
       case 'gold': [784, 988, 1175, 1568, 1319, 1568, 2093].forEach((f, i) => T(f, .07, { at: i * .055, vol: .07, duty: .25 })); break;
+      case 'jump2': T(420, .12, { slide: 2.2, vol: .07, duty: .125 }); break;
+      case 'dash': T(900, .18, { slide: .3, vol: .08, duty: .25 }); this.noise(t, .15, .06, this.master, 3000); T(700, .1, { at: .02, slide: 1.4, vol: .06, duty: .25 }); break;
+      case 'crumble': this.noise(t, .3, .1, this.master, 300); T(90, .2, { slide: .5, vol: .08, type: 'triangle' }); break;
+      case 'fire': this.noise(t, .25, .08, this.master, 800); T(300, .2, { slide: .5, vol: .05, duty: .5 }); break;
+      case 'roar': T(110, .5, { slide: .6, vol: .14, duty: .5 }); this.noise(t, .5, .12, this.master, 200); T(160, .4, { at: .05, slide: .5, vol: .1, duty: .25 }); break;
       case 'meow': T(620, .12, { slide: 1.5, vol: .07, duty: .25 }); T(930, .22, { at: .12, slide: .55, vol: .07, duty: .25 }); break;
       case 'pause': [1319, 988, 1319, 988].forEach((f, i) => T(f, .05, { at: i * .06, vol: .06 })); break;
     }

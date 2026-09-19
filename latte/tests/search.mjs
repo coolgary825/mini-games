@@ -22,11 +22,11 @@ export function play(r, m, frames, from = 0) {
 }
 const dead = r => r.state === 'dying' || r.dead;
 
-export function searchRun(L, { step = 8, look = 40, maxFrames = 60 * 400 } = {}) {
+export function searchRun(L, { step = 8, look = 40, maxFrames = 60 * 400, char = 'latte' } = {}) {
   let outcome = null;
   const noop = () => {}, base = { sound: noop, music: noop, hint: noop };
   const hooks = { ...base, say: (l, d) => d(), clear: () => outcome ??= 'clear', ending: () => outcome ??= 'ending', dead: () => outcome ??= 'dead' };
-  const r = new Run(L, { lives: 3, score: 0, bones: 0, big: false, power: null }, hooks, { easy: true });
+  const r = new Run(L, { lives: 3, score: 0, bones: 0, big: false, power: null, char }, hooks, { easy: true });
   r.god = true;
   const macros = r.fly ? FLY : MACROS;
   let f = 0;

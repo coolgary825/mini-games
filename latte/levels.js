@@ -1,6 +1,6 @@
 // 슈퍼 라떼 랜드 스테이지. 한 칸은 8픽셀, 높이는 16칸(화면 한 줄)이에요.
 // 타일: '#' 땅 · 'B' 벽돌 · '?' 물음표 블록 · 'U' 빈 블록 · 'H' 단단한 블록 · '[' ']' '{' '}' 토관
-//       'h' 숨은 블록 · '=' 발판(위에서만 밟혀요) · 'c' 구름 발판 · 'o' 뼈다귀 · 'G' 황금 뼈다귀 · '^' 가시 · '~' 뜨거운 커피 · 'C' 성벽
+//       'h' 숨은 블록 · '=' 발판(위에서만 밟혀요) · 'c' 구름 발판 · 'o' 뼈다귀 · 'G' 황금 뼈다귀 · '^' 가시 · '~' 뜨거운 커피(용암) · 'C' 성벽 · 'F' 무너지는 블록
 export const ROWS = 16;
 export const GROUND = 13;
 
@@ -45,9 +45,11 @@ class Builder {
   plat(x, y, w, c = '=') { for (let i = 0; i < w; i++) this.set(x + i, y, c); return this; }
   // 적 위치: 서 있는 땅 줄(ty)을 비우면 그 칸 아래 첫 땅을 찾아요.
   e(type, x, ty) {
-    if (ty === undefined) { ty = 2; while (ty < ROWS && !(/[#BU?H\[\]{}=cC^]/.test(this.g[ty][x]) && !/[#BU?H\[\]{}=cC^]/.test(this.g[ty - 1][x]))) ty++; }
+    if (ty === undefined) { ty = 2; while (ty < ROWS && !(/[#BU?H\[\]{}=cC^F]/.test(this.g[ty][x]) && !/[#BU?H\[\]{}=cC^F]/.test(this.g[ty - 1][x]))) ty++; }
     this.enemies.push({ type, tx: x, ty }); return this;
   }
+  crumble(x, y, w) { for (let i = 0; i < w; i++) this.set(x + i, y, 'F'); return this; }
+  ember(x, peak) { this.enemies.push({ type: 'ember', tx: x, ty: peak, air: true }); return this; }
   fly(type, x, y) { this.enemies.push({ type, tx: x, ty: y, air: true }); return this; }
   mover(x, y, w, axis, range, speed = 1) { this.movers.push({ tx: x, ty: y, w, axis, range, speed }); return this; }
   check(x) { this.checks.push(x); return this; }
@@ -55,8 +57,8 @@ class Builder {
   stairsBase(x) { this.set(x, GROUND - 1, 'H'); }
   deco(spr, x, y) { this.decor.push({ spr, x: x * 8, y: y * 8 }); return this; }
   hint(x, text) { this.hints.push({ tx: x, text }); return this; }
-  bossArena(x0, hp, final = false) {
-    this.boss = { arena: x0, hp, final, tx: x0 + 15 };
+  bossArena(x0, hp, final = false, kind = 'coffee') {
+    this.boss = { arena: x0, hp, final, kind, tx: x0 + (kind === 'dragon' ? 12 : 15) };
     this.fill(x0 + 19, x0 + 19, 0, GROUND - 1, 'H');
     return this;
   }
@@ -88,7 +90,7 @@ function w1s1() {
   b.e('bean', 21).hint(17, '커피콩은 위에서 밟으면 납작해져요!');
   b.pipe(25, 11).e('bean', 30).pipe(34, 10).bones(38, 9, 5).e('bean', 41).e('bean', 43);
   b.bones(46, 9, 3);
-  b.row(53, 9, '?B?', 'bone', 'bone').hidden(58, 8, 'heart').e('can', 61).hint(59, '깡통을 밟으면 멈춰요. 한 번 더 건드리면 쭈욱 미끄러져요!');
+  b.row(53, 9, '?B?', 'clock', 'bone').hidden(58, 8, 'heart').e('can', 61).hint(59, '깡통을 밟으면 멈춰요. 한 번 더 건드리면 쭈욱 미끄러져요!');
   b.stairs(66, 4).fill(70, 72, GROUND - 4, GROUND - 1, 'H').stairs(73, 4, -1);
   b.check(79).hint(78, '소화전에 닿으면 여기서 다시 시작할 수 있어요.');
   b.row(82, 9, 'BBbB', 'star').row(83, 5, '??', 'bone', 'power').e('bean', 87).e('bean', 89).e('can', 93);
@@ -112,7 +114,7 @@ function w1s2() {
   b.row(12, 9, 'BB?BB', 'power').e('bean', 20).e('bean', 23);
   b.mover(31, 11, 3, 'x', 3);
   b.pipe(40, 10).e('hedgehog', 45).fill(48, 50, 10, 12, 'B');
-  b.row(53, 8, '????', 'bone', 'bone', 'power', 'bone').e('can', 57).e('can', 61);
+  b.row(53, 8, '????', 'bone', 'shield', 'power', 'bigBone').e('can', 57).e('can', 61);
   b.check(65);
   b.mover(71, 10, 4, 'x', 3);
   b.fill(84, 96, 8, 8, 'B').bones(85, 11, 10).e('bean', 88).e('bean', 91).e('bean', 94);
@@ -139,7 +141,7 @@ function w1s3() {
   b.check(69);
   b.plat(81, 10, 4);
   b.fly('pigeon', 92, 8).e('can', 96).fly('pigeon', 101, 6).row(104, 9, 'B?B', 'power');
-  b.row(110, 9, '??', 'heart', 'bone');
+  b.row(110, 9, '??', 'heart', 'shield');
   b.hint(116, '커피는 밟거나 테니스공으로 맞혀요. 멍! 하면 잠깐 어지러워해요.');
   b.bossArena(120, 3);
   b.gold(19, 7); b.gold(51, 5); b.gold(82, 7);
@@ -161,7 +163,7 @@ function w2s1() {
   b.check(104).fly('pigeon', 110, 6).e('can', 114).e('bean', 118).pipe(121, 10);
   b.plat(125, 10, 3).row(132, 9, 'hB?', 'heart', 'bone').e('hedgehog', 136);
   b.fly('pigeon', 142, 8).e('bean', 150).e('bean', 153).pipe(157, 9);
-  b.plat(161, 10, 3).row(168, 8, 'B??B', 'bone', 'power').e('can', 174);
+  b.plat(161, 10, 3).row(168, 8, 'B??B', 'wing', 'power').e('can', 174);
   b.stairs(186, 6).fill(192, 193, GROUND - 6, GROUND - 1, 'H');
   b.finish(201);
   b.gold(95, 4); b.gold(126, 7); b.gold(152, 6);
@@ -200,7 +202,7 @@ function w2s3() {
   b.row(64, 9, 'B?B', 'power').e('can', 69).check(66);
   b.plat(74, 11, 3).plat(79, 9, 3).plat(84, 11, 3).fly('pigeon', 86, 6).plat(89, 9, 3).e('bean', 90, 9).plat(94, 11, 3);
   b.row(100, 9, '?', 'heart').plat(107, 10, 5).bones(107, 8, 5);
-  b.row(118, 9, '??', 'power', 'bone').e('hedgehog', 124);
+  b.row(118, 9, '??', 'power', 'shield').e('hedgehog', 124);
   b.hint(126, '커피가 더 빨라졌어요! 털실 공을 조심해요.');
   b.bossArena(132, 4);
   b.gold(34, 3); b.gold(80, 5); b.gold(111, 6);
@@ -213,7 +215,7 @@ function w3s1() {
   b.ground(0, 26).liquid(27, 31).ground(32, 58).liquid(59, 66).ground(67, 104).liquid(105, 110).ground(111, 150).liquid(151, 158).ground(159, 213);
   b.hint(2, '커피 공장이에요! 커피잔은 뜨거운 방울을 뱉어요.');
   b.row(8, 9, 'B?B', 'power').e('cup', 16).e('bean', 21).plat(27, 10, 5);
-  b.pipe(36, 10).e('can', 42).e('cup', 48).row(50, 8, '???', 'bone', 'power', 'bone').e('bean', 55);
+  b.pipe(36, 10).e('can', 42).e('cup', 48).row(50, 8, '???', 'magnet', 'power', 'clock').e('bean', 55);
   b.mover(59, 11, 4, 'x', 4).bones(60, 7, 6);
   b.check(70).e('hedgehog', 76).e('cup', 82).fill(86, 88, 9, 12, 'H').e('cup', 87, 9).e('bean', 94).e('bean', 97).row(98, 9, 'bB', 'star');
   b.mover(105, 10, 4, 'y', 3);
@@ -233,7 +235,7 @@ function w3s2() {
   b.plat(16, 11, 5, 'c').plat(23, 9, 4, 'c').e('bean', 25, 9).plat(29, 11, 5, 'c').bones(30, 9, 4).plat(36, 8, 4, 'c');
   b.fly('pigeon', 40, 5).plat(42, 10, 6, 'c').e('can', 45, 10).plat(50, 12, 4, 'c').plat(55, 9, 6, 'c').q(57, 5, 'power');
   b.mover(62, 10, 4, 'x', 4).plat(71, 11, 5, 'c').e('hedgehog', 73, 11).fly('pigeon', 76, 6).plat(78, 9, 4, 'c').plat(84, 11, 6, 'c');
-  b.check(96).row(97, 9, '?b?', 'bone', 'star', 'bone');
+  b.check(96).row(97, 9, '?b?', 'wing', 'star', 'bigBone');
   b.plat(106, 11, 4, 'c').fly('pigeon', 110, 7).plat(112, 9, 4, 'c').plat(118, 7, 4, 'c').bones(119, 5, 3).plat(124, 10, 5, 'c').e('bean', 126, 10);
   b.mover(131, 9, 4, 'y', 3).plat(137, 11, 5, 'c').e('can', 139, 11).fly('pigeon', 143, 5).plat(144, 9, 4, 'c');
   b.row(146, 5, 'h', 'heart').plat(150, 11, 4, 'c').mover(156, 10, 4, 'x', 6).plat(167, 9, 5, 'c').e('hedgehog', 169, 9);
@@ -252,7 +254,7 @@ function w3s3() {
   b.row(8, 9, 'C?C', 'power').e('hedgehog', 14).fill(18, 19, GROUND - 1, GROUND - 1, '^').plat(23, 10, 5);
   b.e('can', 32).fill(36, 38, 9, 12, 'C').e('cup', 37, 9).e('bean', 42).e('bean', 45).row(46, 8, '?', 'bone');
   b.mover(51, 11, 4, 'x', 4).bones(52, 7, 6);
-  b.check(62).e('hedgehog', 66).row(68, 9, 'C?C?C', 'power', 'bone').e('can', 74).fill(78, 79, GROUND - 1, GROUND - 1, '^').e('cup', 84);
+  b.check(62).e('hedgehog', 66).row(68, 9, 'C?C?C', 'power', 'shield').e('can', 74).fill(78, 79, GROUND - 1, GROUND - 1, '^').e('cup', 84);
   b.mover(91, 10, 4, 'y', 3);
   b.row(100, 9, 'hC', 'heart').e('hedgehog', 104).e('bean', 108).e('can', 112).row(116, 8, '??', 'power', 'star');
   b.e('bean', 122).e('hedgehog', 126);
@@ -262,5 +264,122 @@ function w3s3() {
   return b.build();
 }
 
-export const LEVELS = [w1s1(), w1s2(), w1s3(), w2s1(), w2s2(), w2s3(), w3s1(), w3s2(), w3s3()];
-export const WORLD_NAMES = ['햇살 공원', '달밤 지붕 골목', '커피 성'];
+
+function volcanoDecor(b, from, to) { for (let x = from + 6; x < to; x += 41) b.deco('volcano', x, GROUND - 1); }
+
+// ── WORLD 4 · 불꽃 화산 (더 어려워요) ────────────────────────
+function w4s1() {
+  const b = new Builder('4-1', '불꽃 화산 골짜기', 216, { theme: 'volcano', music: 'volcano', time: 350 });
+  volcanoDecor(b, 0, 216);
+  b.ground(0, 20).liquid(21, 26).ground(27, 45).liquid(46, 55).ground(56, 80).liquid(81, 88).ground(89, 120).liquid(121, 127).ground(128, 160).liquid(161, 170).ground(171, 215);
+  b.hint(2, '용 에스프레소의 화산이에요! 용암에서 불꽃이 튀어 올라요.');
+  b.row(8, 9, '?B?', 'power', 'bone').ember(23, 6);
+  b.e('dino', 34).hint(30, '꼬마 용은 불을 뿜어요. 위에서 밟으면 돼요!').fly('bat', 40, 4);
+  b.crumble(46, 12, 10).ember(50, 6).hint(44, '금이 간 블록은 밟으면 무너져요. 멈추지 말고 건너요!');
+  b.row(60, 9, '?B?', 'clock', 'power').e('dino', 66).e('dino', 72).e('hedgehog', 76);
+  b.mover(82, 11, 3, 'x', 3, 1.2).ember(86, 5);
+  b.check(92).fly('bat', 98, 4).e('hedgehog', 100).fly('bat', 104, 5).pipe(108, 10).e('dino', 114);
+  b.crumble(122, 11, 5).ember(124, 5);
+  b.row(134, 8, '??', 'shield', 'bigBone').e('dino', 140).fly('bat', 146, 4).e('cup', 152);
+  b.crumble(162, 11, 1).crumble(165, 10, 1).crumble(168, 11, 1).ember(164, 5).ember(167, 6);
+  b.stairs(180, 6).fill(186, 187, GROUND - 6, GROUND - 1, 'H').e('dino', 193);
+  b.finish(202);
+  b.gold(37, 7); b.gold(100, 7); b.gold(165, 6);
+  return b.build();
+}
+
+function w4s2() {
+  const b = new Builder('4-2', '용암 동굴', 200, { theme: 'volcano', music: 'volcano2', time: 330 });
+  b.fill(0, 199, 0, 1, 'B');
+  b.ground(0, 18).liquid(19, 24).ground(25, 50).liquid(51, 60).ground(61, 90).liquid(91, 98).ground(99, 130).liquid(131, 140).ground(141, 199);
+  b.hint(3, '뜨거운 동굴이에요. 천장의 박쥐를 조심해요!');
+  b.mover(19, 11, 3, 'y', 3, 1.2).ember(22, 4);
+  b.fill(30, 44, 2, 6, 'B').fly('bat', 34, 7).fly('bat', 40, 7).e('dino', 46);
+  b.mover(51, 11, 3, 'x', 4, 1.2).ember(58, 4);
+  b.check(64).row(66, 9, 'B?B', 'power').e('hedgehog', 70).e('dino', 76).fill(80, 82, 9, 12, 'B').fly('bat', 86, 6);
+  b.crumble(92, 12, 6).ember(95, 5);
+  b.e('dino', 104).e('dino', 110).row(114, 8, '?h?', 'bigBone', 'heart', 'magnet').fly('bat', 118, 5).e('can', 122).e('hedgehog', 126);
+  b.mover(131, 11, 3, 'x', 3, 1.3).crumble(138, 11, 2).ember(136, 4);
+  b.e('dino', 148).fly('bat', 152, 6).e('cup', 156).stairs(165, 5).fill(170, 171, GROUND - 5, GROUND - 1, 'H');
+  b.finish(182);
+  b.gold(42, 8); b.gold(96, 8); b.gold(172, 3);
+  return b.build();
+}
+
+function w4s3() {
+  const b = new Builder('4-3', '용의 둥지 입구', 160, { theme: 'volcano', music: 'volcano', time: 320 });
+  volcanoDecor(b, 0, 130);
+  b.ground(0, 30).liquid(31, 36).ground(37, 60).liquid(61, 68).ground(69, 100).liquid(101, 106).ground(107, 159);
+  b.hint(2, '땅이 흔들려요... 커다란 용이 가까이 있어요!');
+  b.crumble(32, 11, 4).ember(34, 5);
+  b.e('dino', 44).fly('bat', 50, 4).e('hedgehog', 55);
+  b.mover(62, 11, 3, 'x', 3, 1.2).ember(66, 4);
+  b.check(72).row(76, 9, '?B?', 'power', 'shield').e('dino', 84).e('dino', 90).fly('bat', 94, 5);
+  b.crumble(102, 11, 4).ember(104, 5);
+  b.row(114, 9, '??', 'heart', 'power').e('can', 120);
+  b.hint(126, '용은 날아다니며 불을 뿜어요. 땅에 내려와 쉴 때 머리를 밟아요!');
+  b.bossArena(136, 5, false, 'dragon');
+  b.gold(34, 7); b.gold(77, 5); b.gold(118, 5);
+  return b.build();
+}
+
+// ── WORLD 5 · 용의 하늘 성 (가장 어려워요) ───────────────────
+function w5s1() {
+  const b = new Builder('5-1', '바람 부는 구름 성벽', 220, { theme: 'dragon', music: 'dragon', time: 330 });
+  skyDecor(b, 0, 220);
+  b.ground(0, 14);
+  b.hint(2, '용의 하늘 성이에요! 구름과 무너지는 블록뿐이에요.');
+  b.plat(16, 11, 4, 'c').crumble(22, 10, 2).plat(26, 9, 4, 'c').e('dino', 28, 9).plat(32, 11, 5, 'c').fly('bat', 36, 6).crumble(39, 10, 3);
+  b.fill(44, 48, 11, 15, 'C').e('hedgehog', 46, 11).plat(51, 9, 3, 'c').fly('pigeon', 54, 6).plat(56, 11, 4, 'c').mover(62, 10, 3, 'x', 4, 1.3);
+  b.fill(70, 80, 12, 15, 'C').check(72).row(74, 8, '?B?', 'power', 'wing').e('dino', 78, 12);
+  b.crumble(82, 11, 2).crumble(86, 10, 2).crumble(90, 11, 2).fly('bat', 88, 5);
+  b.fill(94, 100, 10, 15, 'C').e('cup', 97, 10).plat(103, 8, 4, 'c').fly('bat', 106, 4).plat(109, 11, 3, 'c').mover(114, 10, 3, 'y', 4, 1.2).plat(119, 7, 4, 'c').e('dino', 120, 7).plat(125, 10, 4, 'c');
+  b.crumble(131, 11, 6).fly('bat', 134, 6);
+  b.fill(139, 146, 11, 15, 'C').e('hedgehog', 143, 11).row(141, 7, '?', 'shield');
+  b.mover(149, 11, 3, 'x', 5, 1.4).plat(160, 9, 4, 'c').fly('pigeon', 162, 5).plat(166, 11, 4, 'c').e('dino', 168, 11).crumble(172, 10, 3);
+  b.ground(178, 219).stairs(184, 6).fill(190, 191, GROUND - 6, GROUND - 1, 'H');
+  b.finish(202);
+  b.gold(29, 6); b.gold(99, 6); b.gold(121, 4);
+  return b.build();
+}
+
+function w5s2() {
+  const b = new Builder('5-2', '용의 하늘길', 270, { theme: 'dragon', music: 'sky', time: 300, mode: 'fly' });
+  skyDecor(b, 0, 270);
+  b.start = { tx: 3, ty: 7 };
+  b.hint(1, '다시 풍선이에요! 이번엔 박쥐와 불꽃이 가득해요.');
+  b.bones(12, 6, 5).fly('pigeon', 22, 5).fly('bat', 26, 10);
+  b.fill(30, 32, 0, 5, 'C').fill(30, 32, 11, 15, 'C').fly('bat', 40, 4).fly('bat', 44, 10).fly('pigeon', 48, 7);
+  b.fill(56, 58, 8, 15, 'C').e('dino', 57, 8).fill(66, 68, 0, 5, 'C').fly('bat', 74, 9).fly('bat', 78, 3).fly('pigeon', 82, 12);
+  b.fill(90, 92, 0, 4, 'C').fill(90, 92, 10, 15, 'C').fill(100, 102, 5, 10, 'C').fly('pigeon', 108, 2).fly('pigeon', 110, 13);
+  b.fill(118, 120, 9, 15, 'C').e('cup', 119, 9).fill(126, 128, 0, 5, 'C').fly('bat', 134, 10).fly('bat', 138, 4).fly('bat', 142, 8);
+  b.fill(150, 152, 0, 4, 'C').fill(150, 152, 10, 15, 'C').bones(151, 6, 1).bones(151, 7, 1).fill(160, 162, 5, 9, 'C');
+  b.fly('pigeon', 170, 3).fly('bat', 172, 12).fly('pigeon', 176, 7).fly('bat', 180, 4).fly('bat', 184, 10);
+  b.fill(192, 194, 0, 6, 'C').fill(202, 204, 8, 15, 'C').e('dino', 203, 8).fill(212, 214, 0, 4, 'C').fill(212, 214, 10, 15, 'C');
+  b.fly('bat', 222, 5).fly('bat', 226, 11).fly('pigeon', 230, 8).bones(236, 5, 6).fly('bat', 244, 7);
+  b.gold(61, 3); b.gold(131, 10); b.gold(213, 7);
+  return b.build();
+}
+
+function w5s3() {
+  const b = new Builder('5-3', '에스프레소의 성', 184, { theme: 'dragon', music: 'dragon', time: 350 });
+  b.fill(0, 183, 0, 1, 'C');
+  b.ground(0, 20).liquid(21, 27).ground(28, 48).liquid(49, 58).ground(59, 84).liquid(85, 94).ground(95, 124).liquid(125, 130).ground(131, 183);
+  for (let x = 4; x < 140; x += 14) b.deco('windowS', x, 4);
+  b.hint(2, '마지막 성이에요! 모카가 저 안에 있어요.');
+  b.crumble(22, 11, 5).ember(24, 5).e('dino', 34).fill(38, 39, GROUND - 1, GROUND - 1, '^').fly('bat', 42, 5).e('hedgehog', 45);
+  b.mover(49, 11, 3, 'x', 5, 1.4).ember(53, 4).ember(56, 5);
+  b.check(62).row(64, 9, 'C?C?C', 'power', 'shield').e('dino', 70).fill(74, 75, GROUND - 1, GROUND - 1, '^').e('cup', 78).fly('bat', 82, 5);
+  b.crumble(86, 11, 2).crumble(89, 10, 2).crumble(92, 11, 2).ember(88, 5).ember(91, 4);
+  b.e('dino', 100).e('dino', 106).row(110, 8, '?h?', 'power', 'heart', 'star').fly('bat', 114, 4).e('hedgehog', 118);
+  b.crumble(126, 11, 4).ember(128, 5);
+  b.row(136, 9, '??', 'heart', 'power');
+  b.hint(142, '마지막 대결! 용 에스프레소를 이기고 모카를 구해요!');
+  b.bossArena(150, 8, true, 'dragon');
+  b.gold(35, 7); b.gold(66, 5); b.gold(111, 4);
+  return b.build();
+}
+
+export const LEVELS = [w1s1(), w1s2(), w1s3(), w2s1(), w2s2(), w2s3(), w3s1(), w3s2(), w3s3(), w4s1(), w4s2(), w4s3(), w5s1(), w5s2(), w5s3()];
+export const WORLD_NAMES = ['햇살 공원', '달밤 지붕 골목', '커피 성', '불꽃 화산', '용의 하늘 성'];
+export const STORY1_END = 8; // 3-3을 깨면 첫 번째 이야기 끝, 용이 나타나요

@@ -266,6 +266,74 @@ const balloon = ['..3333', '.300113', '30011113', '30111113', '31111113', '.3111
 const puff = ['..3.3', '3.....3', '', '3.....3', '..3.3'];
 const brickBit = ['.33', '3113', '3123', '.33'];
 const ring = [];
+// ── 월드 4·5 추가: 플레이어 커피(오른쪽을 봐요), 용 에스프레소, 새 적과 아이템 ─────────
+const catHead = [
+  '..........3...3.',
+  '.........323.313',
+  '.3.......3223113',
+  '313......3000013',
+  '313......3000303',
+  '313......3000033',
+];
+const catBody = [
+  '.3133333330000 3'.replace(' ', ''),
+  '..311122000003',
+  '..311122000003',
+  '..300000000003',
+  '..330000000033',
+];
+const catLegs = {
+  stand: ['...313....313', '...313....313', '...333....333'],
+  walk1: ['..313......313', '..313......313', '..333......333'],
+  walk2: ['.....313.313', '.....313.313', '.....333.333'],
+  jump: ['..313......313', '.313........313', '.33..........33'],
+};
+const cat = leg => [...catHead, ...catBody, ...catLegs[leg]];
+const bigCat = leg => [...catHead, '.3133333330000 3'.replace(' ', ''), '..311122222223', '..311122000003', '..311122000003', '..300000000003', '..300000000003', '..330000000033', catLegs[leg][0], ...catLegs[leg]];
+const catDash = ['', '', '..........3...3.', '.........323.313', '.........3223113', '33.......3000013', '.3333333330003033', '..31112200000033', '..3111220000003.', '..3300000000033', '.313........3133', '33..........33'];
+
+const dragonA = [
+  '...........3.3',
+  '..........32323.........3333',
+  '.......3333222223......311113',
+  '......32222222223.....3111113',
+  '.....322202222223....31111113',
+  '....3222222222223...311111113',
+  '...32222222222222333111111113',
+  '..3222222222222222221111111113',
+  '.30002222223333222222211111113',
+  '.3030322223...3222222221111113',
+  '..3333222223..32222222222111133',
+  '......3222233322222222222223113',
+  '......32222200000002222222223.3',
+  '......3222200000000022222222233',
+  '.......3220000000000022222222223',
+  '.......32200000000000222223322223',
+  '........3200000000002222223.33223',
+  '........322000000002222223.....333',
+  '.........3322222222222333',
+  '..........322333.32223',
+  '..........3223...3223',
+  '.........33333..33333',
+];
+const dragonB = dragonA.map((r, i) => i === 1 ? '..........32323' : i === 2 ? '.......3333222223' : i === 3 ? '......32222222223' : i === 4 ? '.....322202222223' : i === 5 ? '....3222222222223' : i === 6 ? '...32222222222222333333333' : i === 7 ? '..3222222222222222221111113.' : r);
+const dragonHurt = dragonA.map((r, i) => i === 4 ? '.....322333222223....31111113' : r);
+const bat = ['3.........3', '33..333..33', '3133222331 3'.replace(' ', ''), '.311202113', '..3122213', '...32223', '....333'];
+const batUp = ['...........', '....333', '3..32223..3', '33322022333', '3113222311 3'.replace(' ', ''), '.31.323.13', '.3..333..3'];
+const ember = ['..3', '.313', '31013', '31113', '32123', '.323', '..3'];
+const emberB = ['.3.3', '3131', '31013', '31113', '32123', '.323', '..3'];
+const dino = ['......3333', '.....322223', '.....320223', '.....3222233', '.3...32223', '3232322223', '.32222222 3'.replace(' ', ''), '..3200022 3'.replace(' ', ''), '...32222 3'.replace(' ', ''), '...3333', '...3..3', '..33.33'];
+const dinoStep = dino.map((r, i) => i === 10 ? '....3.3' : i === 11 ? '...33.33' : r);
+const fire = ['.33', '3013', '3113', '.33'];
+const fish = ['......3', '.3333.33', '3001213 3'.replace(' ', ''), '3011123', '.3333.33', '......3'];
+const wing = ['......33', '....3303', '..330003', '.3000033', '3000003', '.33333'];
+const shield = ['..3333', '.300113', '30011113', '3011111 3'.replace(' ', ''), '31111113', '31111113', '.311113', '..3333'];
+const magnet = ['33..33', '3113113'.slice(0, 6), '3113113'.slice(0, 6), '311113', '311113', '.3113'];
+const clock = ['..333', '.30003', '3000303', '3033003', '3000003', '.30003', '..333'];
+const bigBone = ['33......33', '3033333303', '3000000003', '3033333303', '33......33'];
+const crumble = ['33333333', '31121121', '32112212', '31211121', '33333333', '12112112', '21221211', '33333333'];
+const volcano = ['.......33', '......3113', '.....311113', '....31111113', '...3111111113', '..311111111113', '.31111111111113', '3111111111111113'];
+
 // 황금 뼈다귀와 라떼 꾸미기(오른쪽을 볼 때 기준)
 const goldBone = ['.33....33.', '3013333103', '3001111003', '3011111113', '3123333213', '.33....33.'];
 const cap = ['..33333', '.3111113', '311111113', '3333333333'];
@@ -291,6 +359,10 @@ export const SPRITES = {
   bean, beanStep, beanFlat, can, canStep, canShell, pigeon, pigeonUp, hedgehog, hedgehogStep, cup,
   bone, meat, ball, star, heart, smallBall, drop, yarn,
   goldBone, cap, shades, bow, crown,
+  coffeeStand: cat('stand'), coffeeWalk1: cat('walk1'), coffeeWalk2: cat('walk2'), coffeeJump: cat('jump'), coffeeDash: catDash,
+  bigCoffeeStand: bigCat('stand'), bigCoffeeWalk1: bigCat('walk1'), bigCoffeeWalk2: bigCat('walk2'), bigCoffeeJump: bigCat('jump'), bigCoffeeDash: catDash,
+  smallYarn: ['.33', '3213', '3123', '.33'],
+  dragonA, dragonB, dragonHurt, bat, batUp, ember, emberB, dino, dinoStep, fire, fish, wing, shield, magnet, clock, bigBone, crumble, volcano, t_crumble: crumble,
   cloud, bush, tree, hill, moon, twinkle, chimney, windowS, hydrant, hydrantOn, flag, house, cage, balloon, puff, brickBit,
   ...Object.fromEntries(Object.entries(T).map(([k, v]) => ['t_' + k, v])),
 };
@@ -321,6 +393,9 @@ export const COLOR_PALETTES = {
   ball: ['#fbffe0', '#d4f047', '#8fa020', '#27300a'],
   heart: ['#fff0f0', '#ff6b7f', '#b3243c', '#3a0a12'],
   fx: ['#ffffff', '#fff2a0', '#ffb84a', '#502a10'],
+  dragon: ['#ffe9c8', '#6fc07a', '#3f5a8a', '#141a2e'], bat: ['#ffe0e0', '#ff8a4a', '#6a2a5a', '#1e0a1a'], fire: ['#fffbd0', '#ffd23a', '#ff6a2a', '#6a1a0a'],
+  dino: ['#fff4d8', '#ff9a5a', '#d24a2a', '#3a1008'], fish: ['#ffffff', '#8fd0ff', '#3a86c8', '#0e2a4a'], wing: ['#ffffff', '#ffffff', '#cfe6ff', '#4a6a9a'],
+  shield: ['#ffffff', '#9fe8ff', '#4ab0e0', '#1a4a6a'], magnet: ['#ffffff', '#ff5a4a', '#c0302a', '#3a0a08'], clock: ['#ffffff', '#ffe89a', '#c8a040', '#3a2a08'],
 };
 
 // 월드별 배경·타일 색 (컬러 모드)
@@ -356,14 +431,18 @@ export const PIECE_PALETTES = {
   cloud: ['#ffffff', '#ffffff', '#dcefff', '#86acd8'], bush: ['#eaffdc', '#72d65c', '#3a9a44', '#185a24'], hill: ['#eaffdc', '#98e070', '#4fae4a', '#1f6a2c'],
   tree: ['#eaffdc', '#5cc85a', '#8a5a30', '#1a4a22'], moon: ['#fffbe0', '#fff2a8', '#f0d060', '#a08428'], twinkle: ['#ffffff', '#ffffff', '#ffffff', '#ffec8a'],
   windowS: ['#ffe89a', '#ffd35a', '#735e8a', '#2a1e3a'], chimney: brick, house: ['#fff6e6', '#f4c878', '#d8482a', '#3a1a10'],
-  cage: ['#ffffff', '#d4dce6', '#8e9aaa', '#2e3642'], goldBone: ['#fffbe0', '#ffd23a', '#d08a14', '#5a3206'],
+  cage: ['#ffffff', '#d4dce6', '#8e9aaa', '#2e3642'], t_crumble: ['#fff4e0', '#d8a878', '#8a5a3a', '#2a1a10'], volcano: ['#ffe0d0', '#8a3a3a', '#5a2424', '#2a0c0c'], goldBone: ['#fffbe0', '#ffd23a', '#d08a14', '#5a3206'],
   cap: ['#ffffff', '#ee4a3a', '#a82a20', '#3a0a08'], shades: ['#ffffff', '#9a9ab0', '#2a2a36', '#0a0a12'], bow: ['#ffffff', '#ff8fb8', '#e0457e', '#5a1030'], crown: ['#fffbe0', '#ffd23a', '#e0402a', '#5a3206'], puff: ['#ffffff', '#ffffff', '#ffffff', '#ffffff'], brickBit: brick,
 };
 // 월드마다 땅 느낌을 바꿔요
 const stone = ['#eef4fa', '#9fb4c6', '#5f7a92', '#1c2a38'];
 const roofTile = ['#ffe6d6', '#e0705a', '#9a3a44', '#2a1020'];
 const metal = ['#ffffff', '#c9b08e', '#7e6048', '#2a1a10'];
+const rock = ['#ffe0d0', '#9a4a3a', '#5a2420', '#1a0808'];
+const lava = ['#fffbd0', '#ffc23a', '#ff5a1a', '#6a1008'];
 export const THEME_PIECES = {
+  volcano: { t_top: rock, t_dirt: ['#ffe0d0', '#7a3a30', '#5a2420', '#1a0808'], t_brick: ['#ffd8c8', '#b0503a', '#6a2a22', '#200a08'], t_liquid0: lava, t_liquid1: lava, t_plat: ['#fff0e0', '#b07a5a', '#6a3a2a', '#200a08'], t_crumble: ['#ffe0c8', '#d0905a', '#8a4a2a', '#2a1008'] },
+  dragon: { t_castle: ['#fff0e8', '#d8a0a8', '#9a5a7a', '#3a1a30'], t_liquid0: lava, t_liquid1: lava, t_crumble: ['#fff0e0', '#e0b090', '#9a6a5a', '#3a1a20'], t_cloudPlat: ['#ffffff', '#ffffff', '#ffd8e0', '#b86a8a'] },
   sewer: { t_top: stone, t_dirt: stone, t_brick: ['#e6f0fa', '#7f9cb8', '#4c6682', '#18263a'], t_liquid0: ['#e6fff4', '#7fd6c0', '#2f8a78', '#0c3a30'], t_liquid1: ['#e6fff4', '#7fd6c0', '#2f8a78', '#0c3a30'] },
   roof: { t_top: roofTile, t_dirt: ['#ffe6d6', '#b85a5a', '#8a3a44', '#2a1020'], t_plat: ['#ffffff', '#f2f2f2', '#b0b8d0', '#3a3f60'] },
   factory: { t_top: metal, t_dirt: ['#ffffff', '#b89a7a', '#7e6048', '#2a1a10'] },
@@ -375,5 +454,7 @@ export const THEME_SKY = {
   roof: { sky: '#232857', far: '#323a78', mid: '#a9b0e8', ink: '#fff7d6' },
   sky: { sky: '#9fdcff', far: '#d8f2ff', mid: '#4d7fb8', ink: '#1c2a44' },
   factory: { sky: '#f4d4a4', far: '#e2b280', mid: '#9a5a2a', ink: '#3a1a08' },
+  volcano: { sky: '#4a1a26', far: '#6e2a2e', mid: '#ffb080', ink: '#fff0e0' },
+  dragon: { sky: '#f4a88c', far: '#c8708a', mid: '#7a3a6a', ink: '#2a1030' },
   castle: { sky: '#2e2342', far: '#382c50', mid: '#c0aee0', ink: '#fff0f6' },
 };

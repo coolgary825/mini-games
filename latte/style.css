@@ -56,7 +56,7 @@ button { font: inherit; color: inherit; }
 }
 .card { position: absolute; left: 0; right: 0; top: 36%; text-align: center; font-size: clamp(12px, 3.6vw, 15px); pointer-events: none; }
 .card b { display: none; }
-.card span { display: inline-block; padding: 1px 6px; }
+.card span { display: inline-block; padding: 1px 6px; color: var(--sky-ink, var(--lcd-ink)); }
 .menu {
   position: absolute; inset: 49% 5% 4% 5%; overflow: auto; padding: 4px; background: var(--lcd);
   border: 2px solid var(--lcd-ink); box-shadow: 3px 3px 0 color-mix(in srgb, var(--lcd-ink) 35%, transparent); scrollbar-width: none;
@@ -114,6 +114,8 @@ button { font: inherit; color: inherit; }
 .bark::after { content: ""; position: absolute; inset: -5px; border-radius: 50%; background: conic-gradient(#0000 calc((1 - var(--cd, 0)) * 360deg), #5b5c6e99 0); pointer-events: none; }
 .bark.ready::after { background: none; box-shadow: 0 0 0 3px #f7c35c88; animation: glow 1.4s ease-in-out infinite; }
 .bark.down { transform: translateY(3px); box-shadow: 0 1px 0 #8b5409; }
+.bark.cat { background: #e0663a; box-shadow: 0 4px 0 #8a2e14, 0 1px 0 #ffb08a inset; }
+.bark.cat span { text-shadow: 0 1px 0 #8a2e14; }
 @keyframes glow { 50% { box-shadow: 0 0 0 5px #f7c35c33; } }
 .pills { grid-area: pills; display: flex; justify-content: center; gap: 22px; padding-right: 30px; }
 .pill { display: flex; flex-direction: column; align-items: center; gap: 7px; border: 0; background: none; cursor: pointer; transform: rotate(-25deg); padding: 6px; touch-action: none; }

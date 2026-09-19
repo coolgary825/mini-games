@@ -18,7 +18,7 @@ function enemy(r, type, x) {
 }
 
 test('모든 스테이지 지도가 16줄이고 너비가 맞아요', () => {
-  assert.equal(LEVELS.length, 9);
+  assert.equal(LEVELS.length, 15);
   for (const L of LEVELS) {
     assert.equal(L.rows.length, ROWS, L.id);
     for (const row of L.rows) assert.equal(row.length, L.w, L.id);
@@ -141,4 +141,71 @@ test('황금 뼈다귀를 먹으면 표시가 켜지고 알림이 가요', () =>
   r.player.x = g.tx * T - 1; r.player.y = g.ty * T - 2; r.player.vy = 0;
   r.collectTiles(r.player);
   assert.equal(got, 0); assert.equal(r.gold & 1, 1); assert.equal(r.tile(g.tx, g.ty), '.');
+});
+
+test('커피의 냥냥 대시는 고슴도치도 물리치고, 대시 중에는 다치지 않아요', () => {
+  const c = { ...carry(), char: 'coffee' }, r = new Run(LEVELS[0], c, {}, { easy: true });
+  stand(r, 3 * T);
+  const e = enemy(r, 'hedgehog', 5 * T);
+  r.update({ ...idle, barkPressed: true });
+  assert.ok(r.player.dashT > 0);
+  for (let i = 0; i < 12; i++) r.update(idle);
+  assert.ok(e.dead); assert.equal(r.state, 'play');
+});
+
+test('커피는 공중에서 한 번 더 뛰어요(이단 점프), 라떼는 날개가 있어야 해요', () => {
+  for (const [char, power, expect] of [['coffee', null, true], ['latte', null, false], ['latte', 'wing', true]]) {
+    const c = { ...carry(), char, power, big: !!power }, r = new Run(LEVELS[0], c, {}, { easy: true });
+    stand(r, 3 * T);
+    r.update({ ...idle, a: true, aPressed: true });
+    for (let i = 0; i < 12; i++) r.update({ ...idle, a: true });
+    const vyBefore = r.player.vy;
+    r.update({ ...idle, a: true, aPressed: true });
+    assert.equal(r.player.vy < vyBefore - 1, expect, `${char} ${power}`);
+  }
+});
+
+test('날개가 있으면 A를 누른 채 천천히 내려와요', () => {
+  const c = { ...carry(), power: 'wing', big: true }, r = new Run(LEVELS[0], c, {}, { easy: true });
+  r.player.x = 3 * T; r.player.y = 2 * T; r.player.vy = 2; r.player.ground = false;
+  for (let i = 0; i < 5; i++) r.update({ ...idle, a: true });
+  assert.ok(r.player.vy <= .7 + 1e-9);
+});
+
+test('방울 방패는 한 번 막아 주고, 자석은 뼈다귀를 끌어와요', () => {
+  const c = { ...carry(), shield: true }, r = new Run(LEVELS[0], c, {}, { easy: true });
+  stand(r, 3 * T);
+  r.hurt(); assert.equal(r.state, 'play'); assert.equal(c.shield, false);
+  const m = new Run(LEVELS[0], carry(), {}, { easy: true });
+  m.player.x = 37 * T; m.player.y = 11 * T - m.player.h; m.player.magnet = 60;
+  const before = m.carry.bones; m.pullBones(m.player);
+  assert.ok(m.carry.bones > before);
+});
+
+test('무너지는 블록은 밟으면 잠시 뒤 사라지고, 한참 뒤 다시 생겨요', () => {
+  const L = LEVELS[9], r = new Run(L, carry(), {}, { easy: true });
+  const tx = 47, ty = 12; assert.equal(r.tile(tx, ty), 'F');
+  r.player.x = tx * T; r.player.y = ty * T - r.player.h - 1; r.player.vy = 1;
+  r.update(idle);
+  assert.ok(r.crumbles.has(`${tx},${ty}`));
+  for (let i = 0; i < 30; i++) r.update(idle);
+  assert.equal(r.tile(tx, ty), '.');
+  r.player.x = 2 * T; r.player.y = r.groundBelow(2 * T, 0) - r.player.h;
+  for (let i = 0; i < 340; i++) { r.player.x = 2 * T; r.player.y = r.groundBelow(2 * T, 0) - r.player.h; r.update(idle); }
+  assert.equal(r.tile(tx, ty), 'F');
+});
+
+test('용 에스프레소: 쉬려고 내려오고, 밟으면 체력이 줄고, 마지막 성에서 지면 엔딩이에요', () => {
+  const L = LEVELS[14]; let ended = false;
+  const r = new Run(L, carry(), { say: (l, d) => d(), ending: () => { ended = true; } }, { easy: true });
+  r.god = true;
+  r.player.x = (L.boss.arena + 3) * T; r.player.y = r.groundBelow(r.player.x, 0) - r.player.h;
+  r.update(idle); r.update(idle);
+  const b = r.boss; assert.equal(b.kind, 'dragon');
+  let rested = false;
+  for (let i = 0; i < 600 && !rested; i++) { r.update(idle); if (b.state === 'rest') rested = true; }
+  assert.ok(rested, '용이 내려와 쉬어요');
+  while (b.hp > 0) r.hitBoss(b, 1);
+  for (let i = 0; i < 200 && !ended; i++) r.update(idle);
+  assert.ok(ended);
 });
