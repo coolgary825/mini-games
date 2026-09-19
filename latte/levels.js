@@ -58,7 +58,7 @@ class Builder {
   deco(spr, x, y) { this.decor.push({ spr, x: x * 8, y: y * 8 }); return this; }
   hint(x, text) { this.hints.push({ tx: x, text }); return this; }
   bossArena(x0, hp, final = false, kind = 'coffee') {
-    this.boss = { arena: x0, hp, final, kind, tx: x0 + (kind === 'dragon' ? 12 : 15) };
+    this.boss = { arena: x0, hp, final, kind, tx: x0 + ({ dragon: 12, owl: 12, scorpion: 13, crab: 13 }[kind] || 15) };
     this.fill(x0 + 19, x0 + 19, 0, GROUND - 1, 'H');
     return this;
   }
@@ -392,6 +392,190 @@ function w5s3() {
   return b.build();
 }
 
-export const LEVELS = [w1s1(), w1s2(), w1s3(), w2s1(), w2s2(), w2s3(), w3s1(), w3s2(), w3s3(), w4s1(), w4s2(), w4s3(), w5s1(), w5s2(), w5s3()];
-export const WORLD_NAMES = ['햇살 공원', '달밤 지붕 골목', '커피 성', '불꽃 화산', '용의 하늘 성'];
+// ── 3부: 콜드브루가 햇볕 돌 세 개를 훔쳐 갔어요 ──────────────
+// 땅 위에만 장식을 놓아요(모래늪·바다 위에 떠 있지 않게)
+function onGround(b, x) { return b.g[GROUND][x] === '#' && b.g[GROUND - 1][x] === '.'; }
+function desertDecor(b, from, to) { for (let x = from + 5; x < to; x += 23) if (onGround(b, x) && onGround(b, x + 4)) b.deco('cactus', x, GROUND - 1.25); }
+function beachDecor(b, from, to) { for (let x = from + 7; x < to; x += 29) if (onGround(b, x) && onGround(b, x + 5)) b.deco('palm', x, GROUND - 1.5); }
+function iceDecor(b, from, to) { for (let x = from + 9; x < to; x += 31) if (onGround(b, x)) b.deco('snowman', x, GROUND - 1.375); }
+
+// ── WORLD 6 · 햇살 사막 (드래곤의 고향) ──────────────────────
+function w6s1() {
+  const b = new Builder('6-1', '햇살 사막', 212, { theme: 'desert', music: 'desert', time: 360 });
+  b.ground(0, 24).liquid(25, 30).ground(31, 58).liquid(59, 66).ground(67, 100).liquid(101, 108).ground(109, 146).liquid(147, 156).ground(157, 211);
+  desertDecor(b, 0, 212);
+  b.hint(2, '드래곤의 고향, 햇살 사막이에요! 모래늪에 빠지지 않게 조심해요.');
+  b.row(8, 9, '?B?', 'power', 'bone').e('bean', 16).set(20, GROUND - 1, '^').hint(17, '초록 선인장 가시는 밟으면 아파요!');
+  b.plat(26, 10, 3);
+  b.e('scorp', 36).hint(32, '꼬마 전갈은 꼬리가 뾰족해서 그냥 밟으면 아파요! 멍!(C)으로 기절시킨 뒤 밟아요.');
+  b.pipe(42, 10).e('bean', 47).row(50, 8, 'B?B?', 'bone', 'clock').e('can', 55);
+  b.mover(59, 11, 3, 'x', 4, 1.1).bones(60, 8, 5);
+  b.check(70).e('dino', 76).stairs(80, 4).fill(84, 86, GROUND - 4, GROUND - 1, 'H').stairs(87, 4, -1).e('scorp', 94).fly('pigeon', 97, 6);
+  b.crumble(102, 11, 6);
+  b.row(114, 9, 'B?B', 'power').e('scorp', 120).e('bean', 124).set(128, GROUND - 1, '^').set(129, GROUND - 1, '^').e('can', 134).row(138, 8, 'h', 'heart').e('dino', 142);
+  b.mover(147, 11, 3, 'x', 5, 1.2).fly('pigeon', 152, 6);
+  b.e('scorp', 162).row(166, 9, '??', 'bone', 'bigBone').stairs(174, 6).fill(180, 181, GROUND - 6, GROUND - 1, 'H');
+  b.finish(196);
+  b.gold(27, 7); b.gold(85, 6); b.gold(151, 7);
+  b.check(130);
+  return b.build();
+}
+
+function w6s2() {
+  const b = new Builder('6-2', '피라미드 속 보물길', 200, { theme: 'tomb', music: 'tomb', time: 360 });
+  b.fill(0, 199, 0, 1, 'B');
+  b.ground(0, 20).liquid(21, 26).ground(27, 52).liquid(53, 60).ground(61, 96).liquid(97, 104).ground(105, 140).liquid(141, 148).ground(149, 199);
+  for (let x = 6; x < 190; x += 16) b.deco('windowS', x, 4);
+  b.hint(3, '어두운 피라미드 속이에요. 가시 함정과 무너지는 블록을 조심해요!');
+  b.row(8, 9, 'B?B', 'power').e('scorp', 14).plat(22, 10, 4);
+  b.set(30, GROUND - 1, '^').set(31, GROUND - 1, '^').e('bean', 35).fill(38, 40, 9, 12, 'B').e('scorp', 44).row(46, 8, '???', 'bone', 'shield', 'magnet').fly('bat', 50, 4);
+  b.crumble(54, 11, 6);
+  b.check(64).e('can', 68).set(72, GROUND - 1, '^').set(73, GROUND - 1, '^').e('dino', 78).fill(82, 90, 7, 8, 'B').bones(83, 11, 7).e('scorp', 86).fly('bat', 92, 5);
+  b.mover(97, 11, 3, 'x', 4, 1.2);
+  b.row(108, 9, 'BhB', 'heart').e('scorp', 114).e('bean', 118).set(122, GROUND - 1, '^').set(123, GROUND - 1, '^').e('dino', 128).fly('bat', 132, 4).row(134, 8, '?b', 'power', 'star');
+  b.crumble(142, 11, 2).crumble(145, 10, 2);
+  b.e('scorp', 154).e('can', 160).stairs(166, 5).fill(171, 172, GROUND - 5, GROUND - 1, 'H');
+  b.finish(184);
+  b.gold(39, 7); b.gold(100, 7); b.gold(146, 7);
+  b.check(120);
+  return b.build();
+}
+
+function w6s3() {
+  const b = new Builder('6-3', '카라멜의 모래 언덕', 170, { theme: 'desert', music: 'desert2', time: 330 });
+  b.ground(0, 26).liquid(27, 32).ground(33, 62).liquid(63, 70).ground(71, 102).liquid(103, 108).ground(109, 169);
+  desertDecor(b, 0, 124);
+  b.hint(2, '모래바람이 불어요... 이 언덕 너머에 첫 번째 햇볕 돌이 있어요!');
+  b.row(8, 9, '?B?', 'power', 'bone').e('scorp', 16).e('bean', 20).plat(28, 10, 3).fly('pigeon', 30, 6);
+  b.e('dino', 38).set(42, GROUND - 1, '^').set(43, GROUND - 1, '^').e('scorp', 48).row(52, 8, '?h?', 'shield', 'heart', 'bone').e('can', 58);
+  b.crumble(64, 11, 2).crumble(67, 10, 2).check(74);
+  b.e('scorp', 80).e('dino', 86).fly('pigeon', 90, 5).e('bean', 95).mover(103, 11, 3, 'x', 3, 1.2);
+  b.row(114, 9, '??', 'power', 'heart').e('scorp', 120);
+  b.hint(124, '카라멜은 모래 속에 숨어요! 둔덕이 흔들리면 얼른 피하고, 어지러워할 때 밟아요.');
+  b.bossArena(130, 5, false, 'scorpion');
+  b.gold(29, 7); b.gold(50, 6); b.gold(68, 6);
+  b.check(112);
+  return b.build();
+}
+
+// ── WORLD 7 · 파도 바닷가 (팝콘공의 고향) ────────────────────
+function w7s1() {
+  const b = new Builder('7-1', '반짝 해변', 214, { theme: 'beach', music: 'beach', time: 360 });
+  b.ground(0, 22).liquid(23, 30).ground(31, 56).liquid(57, 66).ground(67, 98).liquid(99, 108).ground(109, 140).liquid(141, 152).ground(153, 213);
+  beachDecor(b, 0, 214);
+  b.hint(2, '팝콘공의 고향, 파도 바닷가예요! 바닷물에 빠지면 안 돼요.');
+  b.row(8, 9, '?B?', 'power', 'bone').e('crabling', 15).e('crabling', 19).hint(12, '꼬마 꽃게는 빨라요! 위에서 콩 밟아요.');
+  b.plat(25, 10, 3);
+  b.e('bean', 36).pipe(40, 10).e('crabling', 45).row(48, 8, 'B??B', 'clock', 'power').fly('pigeon', 52, 5);
+  b.mover(57, 11, 3, 'x', 6, 1.2).bones(59, 8, 6);
+  b.check(70).e('crabling', 75).e('can', 80).e('crabling', 84).fill(88, 90, 9, 12, 'H').e('crabling', 94);
+  b.plat(100, 11, 2).plat(104, 10, 2);
+  b.row(113, 9, 'BhB', 'heart').e('crabling', 118).e('dino', 124).fly('pigeon', 128, 6).e('crabling', 133).row(136, 8, '?', 'shield');
+  b.mover(141, 11, 3, 'x', 3, 1.2).plat(147, 10, 2);
+  b.e('crabling', 158).e('crabling', 162).stairs(168, 6).fill(174, 175, GROUND - 6, GROUND - 1, 'H');
+  b.finish(190);
+  b.gold(26, 7); b.gold(89, 6); b.gold(148, 7);
+  b.check(134);
+  return b.build();
+}
+
+function w7s2() {
+  const b = new Builder('7-2', '갈매기 바다 위', 262, { theme: 'beach', music: 'sky2', time: 300, mode: 'fly' });
+  skyDecor(b, 0, 262);
+  b.fill(0, 261, 14, 15, '~');
+  b.start = { tx: 3, ty: 7 };
+  b.hint(1, '풍선을 타고 바다를 건너요! 갈매기와 산호 기둥을 조심해요.');
+  b.bones(12, 6, 5).fly('pigeon', 22, 5).fly('pigeon', 26, 10);
+  b.fill(30, 32, 0, 4, 'H').fill(30, 32, 10, 13, 'H').fly('pigeon', 40, 4).fly('pigeon', 44, 10).fly('bat', 48, 7);
+  b.fill(56, 58, 8, 13, 'H').e('crabling', 57, 8).fill(66, 68, 0, 5, 'H').fly('pigeon', 74, 9).fly('bat', 78, 3).fly('pigeon', 82, 12);
+  b.fill(90, 92, 0, 4, 'H').fill(90, 92, 10, 13, 'H').fill(100, 102, 5, 9, 'H').fly('pigeon', 108, 2).fly('pigeon', 110, 12);
+  b.fill(118, 120, 9, 13, 'H').e('crabling', 119, 9).fill(126, 128, 0, 5, 'H').fly('bat', 134, 10).fly('pigeon', 138, 4).fly('bat', 142, 8);
+  b.fill(150, 152, 0, 4, 'H').fill(150, 152, 10, 13, 'H').bones(151, 6, 1).bones(151, 7, 1).fill(160, 162, 5, 9, 'H');
+  b.fly('pigeon', 170, 3).fly('bat', 172, 12).fly('pigeon', 176, 7).fly('bat', 180, 4).fly('pigeon', 184, 10);
+  b.fill(192, 194, 0, 6, 'H').fill(202, 204, 8, 13, 'H').e('crabling', 203, 8).fill(212, 214, 0, 4, 'H').fill(212, 214, 10, 13, 'H');
+  b.fly('bat', 222, 5).fly('pigeon', 226, 11).fly('pigeon', 230, 8).bones(236, 5, 6).fly('bat', 244, 7);
+  b.gold(61, 3); b.gold(131, 10); b.gold(213, 7);
+  return b.build();
+}
+
+function w7s3() {
+  const b = new Builder('7-3', '마키아토의 산호 동굴', 176, { theme: 'beach', music: 'beach2', time: 330 });
+  b.fill(0, 175, 0, 1, 'C');
+  b.ground(0, 22).liquid(23, 29).ground(30, 56).liquid(57, 64).ground(65, 96).liquid(97, 104).ground(105, 175);
+  b.hint(2, '분홍 산호 동굴이에요. 천장에 박쥐가 살아요!');
+  b.row(8, 9, 'C?C', 'power').e('crabling', 14).e('crabling', 18).crumble(24, 11, 5);
+  b.fly('bat', 34, 3).e('can', 38).fill(42, 44, 9, 12, 'C').e('crabling', 43, 9).e('crabling', 48).row(50, 8, '?h?', 'bigBone', 'heart', 'power').fly('bat', 54, 4);
+  b.mover(57, 11, 3, 'x', 5, 1.3).check(68);
+  b.e('dino', 72).e('crabling', 76).set(80, GROUND - 1, '^').set(81, GROUND - 1, '^').e('crabling', 85).fly('bat', 88, 4).e('can', 92);
+  b.crumble(98, 11, 2).crumble(101, 10, 2);
+  b.row(110, 9, '??', 'power', 'shield').e('crabling', 116).e('crabling', 120);
+  b.hint(126, '마키아토 등딱지는 단단해요! 쿵! 한 뒤 헉헉댈 때 밟아요. 파도는 점프로 넘어요!');
+  b.bossArena(132, 6, false, 'crab');
+  b.gold(43, 5); b.gold(60, 7); b.gold(102, 7);
+  b.check(112);
+  return b.build();
+}
+
+// ── WORLD 8 · 콜드브루의 얼음 나라 (가장 어려워요) ───────────
+function w8s1() {
+  const b = new Builder('8-1', '꽁꽁 눈 들판', 216, { theme: 'ice', music: 'ice', time: 360 });
+  b.ground(0, 22).liquid(23, 29).ground(30, 58).liquid(59, 67).ground(68, 100).liquid(101, 109).ground(110, 146).liquid(147, 156).ground(157, 215);
+  iceDecor(b, 0, 216); nightDecor(b, 0, 216);
+  b.hint(2, '콜드브루의 얼음 나라예요! 얼음 땅은 미끌미끌해요. 일찍 멈춰요.');
+  b.row(8, 9, '?B?', 'power', 'bone').e('penguin', 16).plat(24, 10, 4);
+  b.e('penguin', 32).row(36, 8, 'B?B', 'clock').fill(44, 46, 10, 12, 'H').e('penguin', 50).fly('bat', 54, 5).hint(34, '펭귄은 미끄러지듯 빨라요!');
+  b.crumble(60, 11, 7);
+  b.check(71).e('penguin', 76).e('can', 80).plat(84, 9, 5).e('penguin', 92).fly('bat', 96, 5);
+  b.mover(101, 11, 3, 'x', 5, 1.3);
+  b.row(114, 9, 'BhB', 'heart').e('penguin', 120).set(124, GROUND - 1, '^').set(125, GROUND - 1, '^').e('penguin', 130).row(134, 8, '?b', 'power', 'star').e('dino', 140);
+  b.crumble(148, 11, 2).crumble(151, 10, 2).crumble(154, 11, 2);
+  b.e('penguin', 162).e('penguin', 166).stairs(172, 6).fill(178, 179, GROUND - 6, GROUND - 1, 'H');
+  b.finish(192);
+  b.gold(26, 7); b.gold(86, 6); b.gold(152, 7);
+  b.check(135);
+  return b.build();
+}
+
+function w8s2() {
+  const b = new Builder('8-2', '고드름 얼음 동굴', 206, { theme: 'ice', music: 'ice2', time: 360 });
+  b.fill(0, 205, 0, 1, 'C');
+  b.ground(0, 20).liquid(21, 27).ground(28, 54).liquid(55, 62).ground(63, 98).liquid(99, 106).ground(107, 142).liquid(143, 150).ground(151, 205);
+  b.hint(3, '고드름 동굴이에요! 고드름이 달달 떨리면 얼른 지나가요.');
+  b.fly('icicle', 12, 2).row(8, 9, 'C?C', 'power').e('penguin', 16).plat(22, 10, 4);
+  b.fly('icicle', 32, 2).fly('icicle', 35, 2).e('penguin', 38).fly('bat', 42, 3).row(44, 8, '???', 'bone', 'shield', 'bigBone').fly('icicle', 50, 2);
+  b.crumble(56, 11, 6);
+  b.check(66).fly('icicle', 70, 2).e('penguin', 74).fly('icicle', 78, 2).fly('icicle', 81, 2).fill(84, 86, 9, 12, 'C').e('penguin', 85, 9).fly('bat', 90, 3).e('can', 94);
+  b.mover(99, 11, 3, 'x', 5, 1.4);
+  b.row(110, 9, 'ChC', 'heart').fly('icicle', 116, 2).e('penguin', 118).fly('icicle', 122, 2).fly('icicle', 125, 2).e('dino', 130).row(134, 8, '?', 'power').fly('bat', 138, 4);
+  b.crumble(144, 11, 2).crumble(147, 10, 2);
+  b.fly('icicle', 156, 2).e('penguin', 160).fly('icicle', 164, 2).stairs(170, 5).fill(175, 176, GROUND - 5, GROUND - 1, 'H');
+  b.finish(188);
+  b.gold(24, 7); b.gold(85, 5); b.gold(148, 7);
+  b.check(120);
+  return b.build();
+}
+
+function w8s3() {
+  const b = new Builder('8-3', '콜드브루의 얼음 성', 186, { theme: 'ice', music: 'castle', time: 360 });
+  b.fill(0, 185, 0, 1, 'C');
+  b.ground(0, 20).liquid(21, 27).ground(28, 50).liquid(51, 58).ground(59, 86).liquid(87, 96).ground(97, 124).liquid(125, 130).ground(131, 185);
+  for (let x = 4; x < 140; x += 14) b.deco('windowS', x, 4);
+  b.hint(2, '마지막 성이에요! 마지막 햇볕 돌이 저 안에 있어요.');
+  b.crumble(22, 11, 5).fly('icicle', 30, 2).e('penguin', 34).set(38, GROUND - 1, '^').set(39, GROUND - 1, '^').fly('bat', 42, 4).e('penguin', 46);
+  b.mover(51, 11, 3, 'x', 5, 1.4).fly('icicle', 56, 2);
+  b.check(62).row(64, 9, 'C?C?C', 'power', 'shield').e('penguin', 70).set(74, GROUND - 1, '^').set(75, GROUND - 1, '^').fly('icicle', 78, 2).e('dino', 80).fly('bat', 84, 4);
+  b.crumble(88, 11, 2).crumble(91, 10, 2).crumble(94, 11, 2);
+  b.e('penguin', 102).fly('icicle', 106, 2).e('penguin', 110).row(112, 8, '?h?', 'power', 'heart', 'star').fly('bat', 116, 4).e('can', 120);
+  b.crumble(126, 11, 4);
+  b.row(136, 9, '??', 'heart', 'power');
+  b.hint(142, '마지막 대결! 콜드브루가 휙 내려와 어지러워할 때 머리를 밟아요!');
+  b.bossArena(150, 8, true, 'owl');
+  b.gold(30, 6); b.gold(65, 6); b.gold(111, 6);
+  b.check(100);
+  return b.build();
+}
+
+export const LEVELS = [w1s1(), w1s2(), w1s3(), w2s1(), w2s2(), w2s3(), w3s1(), w3s2(), w3s3(), w4s1(), w4s2(), w4s3(), w5s1(), w5s2(), w5s3(), w6s1(), w6s2(), w6s3(), w7s1(), w7s2(), w7s3(), w8s1(), w8s2(), w8s3()];
+export const WORLD_NAMES = ['햇살 공원', '달밤 지붕 골목', '커피 성', '불꽃 화산', '용의 하늘 성', '햇살 사막', '파도 바닷가', '콜드브루의 얼음 나라'];
 export const STORY1_END = 8; // 3-3을 깨면 첫 번째 이야기 끝, 용이 나타나요
+export const STORY2_END = 14; // 5-3을 깨면 두 번째 이야기 끝, 콜드브루가 나타나요(에스프레소도 고를 수 있어요)

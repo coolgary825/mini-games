@@ -7,6 +7,7 @@ const PHYS = { walk: 1.25, run: 2.05, acc: .07, airAcc: .055, friction: .09, ski
 const SIZES = {
   bean: [10, 11], can: [10, 12], hedgehog: [13, 9], pigeon: [12, 8], cup: [12, 10], boss: [18, 18],
   bat: [11, 7], ember: [5, 7], dino: [10, 12], dragon: [26, 18],
+  crabling: [10, 8], scorp: [12, 9], penguin: [10, 11], icicle: [8, 7], scorpion: [26, 16], crab: [28, 15], owl: [20, 18],
 };
 const STILL = ['ball', 'wing', 'magnet', 'clock', 'bigBone', 'shield'];
 const STOMP_SCORES = [100, 200, 400, 800, 1000, 2000, 4000, 8000];
@@ -35,8 +36,8 @@ export class Run {
     this.hintsShown = new Set();
     this.frame = 0; this.time = L.time; this.timeTick = 0; this.state = 'play'; this.stateT = 0;
     this.gold = 0; this.shake = 0; this.crumbles = new Map(); this.respawns = new Map();
-    this.char = ['coffee', 'turtle', 'lizard'].includes(this.carry.char) ? this.carry.char : 'latte';
-    this.hero = { latte: '라떼', coffee: '커피', turtle: '팝콘공', lizard: '드래곤' }[this.char]; this.friend = '모카';
+    this.char = ['coffee', 'turtle', 'lizard', 'espresso'].includes(this.carry.char) ? this.carry.char : 'latte';
+    this.hero = { latte: '라떼', coffee: '커피', turtle: '팝콘공', lizard: '드래곤', espresso: '에스프레소' }[this.char]; this.friend = '모카';
     if (this.char === 'turtle') this.carry.shield = true; // 팝콘공의 단단한 등껍질: 스테이지마다 한 번 막아 줘요
     this.chain = 0; this.reveal = 0; this.flag = null; this.boss = null; this.bossStarted = false; this.clearT = 0;
     this.fly = L.mode === 'fly';
@@ -157,17 +158,19 @@ export class Run {
     if (p.onMover) { const m = p.onMover; this.moveX(p, m.dx); if (m.dy < 0) p.y += m.dy; }
     if (p.magnet > 0) { p.magnet--; this.pullBones(p); }
     const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0), max = input.b ? P.run : P.walk;
+    const ice = this.L.theme === 'ice' && p.ground; // 얼음 땅은 미끌미끌: 천천히 서고 천천히 돌아서요
     if (p.dashT > 0) { // 커피의 냥냥 대시: 곧게 쌩 날아가요
       p.dashT--; p.vx = p.dashDir * 3.6; p.vy = 0;
       if (this.frame % 2 === 0) this.fx.push({ kind: 'dust', x: p.x + p.w / 2, y: p.y + p.h / 2, life: 10, dir: -p.dashDir });
       if (p.dashT === 0) p.vx = p.dashDir * 1.6;
     } else if (dir) {
-      if (p.ground && p.vx && Math.sign(p.vx) !== dir) p.vx += dir * P.skid;
-      else p.vx += dir * (p.ground ? P.acc : P.airAcc);
+      if (p.ground && p.vx && Math.sign(p.vx) !== dir) p.vx += dir * (ice ? .05 : P.skid);
+      else p.vx += dir * (p.ground ? (ice ? .045 : P.acc) : P.airAcc);
       if (Math.abs(p.vx) > max) p.vx = Math.sign(p.vx) * Math.max(max, Math.abs(p.vx) - .06);
       p.face = dir;
     } else if (p.ground) {
-      p.vx = Math.abs(p.vx) <= P.friction ? 0 : p.vx - Math.sign(p.vx) * P.friction;
+      const fr = ice ? .022 : P.friction;
+      p.vx = Math.abs(p.vx) <= fr ? 0 : p.vx - Math.sign(p.vx) * fr;
     }
     p.jumpBuf = input.aPressed ? 7 : Math.max(0, p.jumpBuf - 1);
     p.coyote = p.ground ? 6 : Math.max(0, p.coyote - 1);
@@ -184,6 +187,7 @@ export class Run {
     }
     if (p.dashT === 0) p.vy = Math.min(P.maxFall, p.vy + (p.vy < 0 && input.a ? P.gHold : P.g));
     if (this.carry.power === 'wing' && !p.ground && input.a && p.vy > .7) p.vy = .7; // 날개로 사뿐히
+    if (this.char === 'espresso' && !p.ground && input.a && p.vy > .9) p.vy = .9; // 에스프레소는 용 날개로 늘 사뿐히
     if (input.barkPressed) this.special();
     if (input.bPressed && this.carry.power === 'ball' && this.shots.filter(s => s.kind === 'ball').length < 2) {
       this.shots.push({ kind: 'ball', x: p.x + (p.face > 0 ? p.w : -4), y: p.y + 3, w: 4, h: 4, vx: p.face * 2.3, vy: 2.3, life: 240 });
@@ -261,6 +265,7 @@ export class Run {
     if (this.char === 'coffee' && !this.fly) this.dash();
     else if (this.char === 'turtle') this.popcorn();
     else if (this.char === 'lizard') this.flame();
+    else if (this.char === 'espresso') this.bigFlame();
     else this.bark();
   }
   popcorn() { // 팝콘공의 팝!: 팝콘이 부채꼴로 튀어 나가요
@@ -281,6 +286,15 @@ export class Run {
       this.shots.push({ kind: 'flame', x: p.x + (dir > 0 ? p.w - 2 : -4), y: p.y + 3, w: 5, h: 5, vx: dir * sp, vy, life: 20, bossHit: false });
     this.hooks.sound('fire');
   }
+  bigFlame() { // 에스프레소의 화!: 커다란 불덩이 세 개가 멀리 날아가요
+    const p = this.player;
+    if (p.barkCd > 0) return;
+    p.barkCd = 90; p.barkT = 18;
+    const dir = this.fly ? 1 : p.face;
+    for (const [vy, sp] of [[-.5, 2.8], [0, 3.3], [.5, 2.8]])
+      this.shots.push({ kind: 'flame', big: true, x: p.x + (dir > 0 ? p.w - 2 : -6), y: p.y + 2, w: 7, h: 7, vx: dir * sp, vy, life: 36, bossHit: false });
+    this.hooks.sound('fire');
+  }
   dash() {
     const p = this.player;
     if (p.barkCd > 0) return;
@@ -299,9 +313,9 @@ export class Run {
     p.barkCd = 150; p.barkT = 22; this.reveal = 150;
     this.hooks.sound('bark');
     const cx = p.x + p.w / 2, cy = p.y + p.h / 2, near = e => Math.hypot(e.x + e.w / 2 - cx, e.y + e.h / 2 - cy);
-    for (const e of this.enemies) if (!e.dead && near(e) < 44) { e.stun = 200; e.vx = 0; this.fx.push({ kind: 'stars', x: e.x + e.w / 2, y: e.y - 4, life: 40 }); }
+    for (const e of this.enemies) if (!e.dead && e.type !== 'icicle' && near(e) < 44) { e.stun = 200; e.vx = 0; this.fx.push({ kind: 'stars', x: e.x + e.w / 2, y: e.y - 4, life: 40 }); }
     for (const f of this.foes) if (near(f) < 48) f.gone = true;
-    if (this.boss && !this.boss.dead && near(this.boss) < 56 && this.boss.hurt === 0) { this.boss.stun = 110; this.fx.push({ kind: 'stars', x: this.boss.x + 9, y: this.boss.y - 4, life: 60 }); }
+    if (this.boss && !this.boss.dead && !this.boss.hidden && near(this.boss) < 56 && this.boss.hurt === 0) { this.boss.stun = 110; this.fx.push({ kind: 'stars', x: this.boss.x + 9, y: this.boss.y - 4, life: 60 }); }
     this.fx.push({ kind: 'ring', x: cx, y: cy, life: 22 });
   }
 
@@ -370,6 +384,7 @@ export class Run {
       if (d.type === 'ember') { e.y = ROWS * T + 8; e.cool = 20 + (d.tx % 4) * 20; e.state = 'lava'; }
       if (d.type === 'dino') e.cool = 90 + (d.tx % 5) * 10;
       if (d.type === 'bat') { e.state = 'hang'; e.y = d.ty * T; }
+      if (d.type === 'icicle') { e.state = 'hang'; e.y = d.ty * T; }
       this.enemies.push(e);
     }
   }
@@ -397,6 +412,14 @@ export class Run {
       e.x += e.dir * (this.fly ? 1.1 : .8); e.y = e.baseY + Math.abs(Math.sin(e.t * .04)) * 24;
       return;
     }
+    if (e.type === 'icicle') { // 고드름: 밑으로 지나가면 달달 떨다가 뚝 떨어져요(밟을 수 없어요)
+      const p = this.player;
+      if (e.state === 'hang') { if (Math.abs(p.x + p.w / 2 - (e.x + e.w / 2)) < 22 && p.y > e.y) { e.state = 'shake'; e.t = 0; this.hooks.sound('crumble'); } return; }
+      if (e.state === 'shake') { if (e.t > 28) { e.state = 'drop'; e.vy = 0; } return; }
+      e.vy = Math.min(5, e.vy + .3); e.y += e.vy;
+      if (SOLID.includes(this.tile(Math.floor((e.x + e.w / 2) / T), Math.floor((e.y + e.h) / T))) || e.y > ROWS * T) { e.gone = true; this.fx.push({ kind: 'splash', x: e.x, y: e.y + 2, life: 12 }); }
+      return;
+    }
     if (e.type === 'cup') {
       e.vy = Math.min(4, e.vy + .3); if (this.moveY(e, e.vy).length) e.vy = 0;
       const p = this.player, dx = p.x - e.x;
@@ -411,7 +434,7 @@ export class Run {
     if (e.state === 'shell') {
       if (e.vx === 0 && ++e.idle > 420) { e.state = 'walk'; e.h = 12; e.y -= 4; }
     } else {
-      e.vx = e.dir * (e.type === 'hedgehog' ? .3 : e.type === 'can' ? .34 : e.type === 'dino' ? .32 : .38);
+      e.vx = e.dir * ({ hedgehog: .3, can: .34, dino: .32, crabling: .62, scorp: .3, penguin: .55 }[e.type] || .38);
       if (e.type === 'dino') { // 꼬마 용: 가끔 멈춰 불꽃을 뿜어요
         const p = this.player;
         if (--e.cool <= 0 && Math.abs(p.x - e.x) < 120) { e.cool = 210; e.dir = Math.sign(p.x - e.x) || e.dir; e.breath = 24; }
@@ -425,7 +448,7 @@ export class Run {
     const tx0 = Math.floor(e.x / T), ty = Math.floor((e.y + e.h - 2) / T);
     if (this.tile(tx0, ty) === '~') e.gone = true;
     if (e.state === 'shell' && e.vx) for (const o of this.enemies) if (o !== e && !o.dead && overlap(e, o)) { this.knock(o); this.score(200, o.x, o.y); }
-    if (e.state === 'walk') for (const o of this.enemies) if (o !== e && !o.dead && o.state === 'walk' && !['pigeon', 'cup', 'ember', 'bat'].includes(o.type) && overlap(e, o)) { e.dir = e.x < o.x ? -1 : 1; o.dir = -e.dir; }
+    if (e.state === 'walk') for (const o of this.enemies) if (o !== e && !o.dead && o.state === 'walk' && !['pigeon', 'cup', 'ember', 'bat', 'icicle'].includes(o.type) && overlap(e, o)) { e.dir = e.x < o.x ? -1 : 1; o.dir = -e.dir; }
   }
 
   knock(e) { e.dead = true; e.state = 'fall'; e.vy = -2.5; e.vx = e.x < this.player.x ? -.6 : .6; e.t = 0; this.hooks.sound('kick'); }
@@ -475,7 +498,7 @@ export class Run {
       for (const e of this.enemies) if (!e.dead && e.type !== 'ember' && overlap(s, e)) { this.knock(e); this.score(100, e.x, e.y - 6); if (s.kind !== 'flame') { s.gone = true; break; } }
       for (const f of this.foes) if (overlap(s, f)) { f.gone = true; s.gone = true; }
       const b = this.boss;
-      if (b && !b.dead && !s.gone && !s.bossHit && overlap(s, b)) { if (s.kind === 'flame') { for (const o of this.shots) if (o.kind === 'flame') o.bossHit = true; } else s.gone = true; if (b.hurt === 0) { b.chip += 1; this.hooks.sound('bump'); if (b.chip >= 3) { b.chip = 0; this.hitBoss(b, 40); } } }
+      if (b && !b.dead && !b.hidden && !s.gone && !s.bossHit && overlap(s, b)) { if (s.kind === 'flame') { for (const o of this.shots) if (o.kind === 'flame') o.bossHit = true; } else s.gone = true; if (b.hurt === 0) { b.chip += 1; this.hooks.sound('bump'); if (b.chip >= 3) { b.chip = 0; this.hitBoss(b, 40); } } }
     }
     this.shots = this.shots.filter(s => !s.gone);
   }
@@ -484,7 +507,14 @@ export class Run {
     for (const f of this.foes) {
       if (--f.life <= 0) { f.gone = true; continue; }
       if (f.kind === 'fire') { f.x += f.vx; f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 2) / T), Math.floor((f.y + 2) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
-      else if (f.kind === 'drop') { f.vy += f.g; f.x += f.vx; f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 2) / T), Math.floor((f.y + 3) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
+      else if (f.kind === 'drop' || f.kind === 'sting' || f.kind === 'shard') { f.vy += f.g; f.x += f.vx; f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 2) / T), Math.floor((f.y + 3) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
+      else if (f.kind === 'bubble') { f.t = (f.t || 0) + 1; f.x += f.vx; f.y += f.vy + Math.sin(f.t / 9) * .45; if (f.y < 2 * T) f.gone = true; }
+      else if (f.kind === 'wave') { if (this.moveX(f, f.vx)) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
+      else if (f.kind === 'fallice') {
+        if (f.delay > 0) f.delay--;
+        else { f.vy = Math.min(5, f.vy + .25); f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 3) / T), Math.floor((f.y + f.h) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y + 4, life: 12 }); } }
+      }
+      else if (f.kind === 'snow') { f.vy = Math.min(4, f.vy + .3); if (this.moveX(f, f.vx)) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } if (this.moveY(f, f.vy).length) f.vy = 0; }
       else if (f.kind === 'yarn') {
         f.vy = Math.min(4, f.vy + .15);
         if (this.moveX(f, f.vx)) f.vx = -f.vx;
@@ -497,7 +527,7 @@ export class Run {
 
   updateFx() {
     if (this.shake > 0) this.shake--;
-    for (const f of this.fx) { f.life--; if (f.kind === 'dust') { f.x += f.dir * .35; f.y -= .15; } if (f.kind === 'brick') { f.x += f.vx; f.y += f.vy; f.vy += .2; } if (f.kind === 'fallblock') { f.vy += .2; f.y += f.vy; } if (f.kind === 'fly') { f.x += (f.tx - f.x) * .3; f.y += (f.ty - f.y) * .3; } }
+    for (const f of this.fx) { f.life--; if (f.kind === 'dust') { f.x += f.dir * .35; f.y -= .15; } if (f.kind === 'brick') { f.x += f.vx; f.y += f.vy; f.vy += .2; } if (f.kind === 'fallblock') { f.vy += .2; f.y += f.vy; } if (f.kind === 'fly') { f.x += (f.tx - f.x) * .3; f.y += (f.ty - f.y) * .3; } if (f.kind === 'sun' && f.y > 3 * T) f.y -= .4; }
     this.fx = this.fx.filter(f => f.life > 0);
     for (const q of this.pops) { q.life--; q.y -= .4; }
     this.pops = this.pops.filter(q => q.life > 0);
@@ -522,7 +552,7 @@ export class Run {
       if (e.dead || !overlap(p, e)) continue;
       if (p.star > 0 || p.dashT > 0) { this.knock(e); this.score(200, e.x, e.y - 6); continue; }
       if (e.type === 'ember' && e.state === 'lava') continue;
-      const stompable = !(e.type === 'hedgehog' && e.stun === 0) && e.type !== 'ember';
+      const stompable = !((e.type === 'hedgehog' || e.type === 'scorp') && e.stun === 0) && e.type !== 'ember' && e.type !== 'icicle';
       const fromAbove = p.vy > 0 && p.prevBottom <= e.y + 5;
       if (fromAbove && stompable && !this.fly) { this.stomp(e); p.y = e.y - p.h; continue; }
       if (fromAbove && this.fly && stompable) { this.knock(e); this.score(100, e.x, e.y); continue; }
@@ -533,17 +563,19 @@ export class Run {
     }
     for (const f of this.foes) {
       if (!overlap(p, f)) continue;
-      if (f.kind === 'yarn' && p.vy > 0 && p.prevBottom <= f.y + 4) { f.gone = true; p.vy = -3; this.hooks.sound('stomp'); continue; }
+      if (f.kind === 'fallice' && f.delay > 0) continue;
+      if ((f.kind === 'yarn' || f.kind === 'bubble' || f.kind === 'snow') && p.vy > 0 && p.prevBottom <= f.y + 4) { f.gone = true; p.vy = -3; this.hooks.sound('stomp'); if (f.kind !== 'yarn') this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); continue; }
       if (p.star > 0 || p.dashT > 0) { f.gone = true; continue; }
       this.hurt();
     }
     const b = this.boss;
-    if (b && !b.dead && overlap(p, b) && p.dashT > 0 && b.hurt === 0) { this.hitBoss(b, 60); p.dashT = 0; p.vx = -p.dashDir * 2; p.vy = -3; }
-    else if (b && !b.dead && overlap(p, b)) {
+    if (b && !b.dead && !b.hidden && overlap(p, b) && p.dashT > 0 && b.hurt === 0) { if (!b.armored) this.hitBoss(b, 60); else this.hooks.sound('bump'); p.dashT = 0; p.vx = -p.dashDir * 2; p.vy = -3; }
+    else if (b && !b.dead && !b.hidden && overlap(p, b)) {
       const fromAbove = p.vy > 0 && p.prevBottom <= b.y + 7;
-      if (fromAbove && b.hurt === 0) { this.hitBoss(b, 70); p.vy = -4.4; p.y = b.y - p.h; }
+      if (fromAbove && b.armored) { p.vy = -4; p.y = b.y - p.h; this.hooks.sound('bump'); } // 단단한 등딱지: 튕겨 나가요
+      else if (fromAbove && b.hurt === 0) { this.hitBoss(b, 70); p.vy = -4.4; p.y = b.y - p.h; }
       else if (fromAbove) p.vy = -3.5;
-      else if (b.hurt === 0 && b.stun === 0) this.hurt();
+      else if (b.hurt === 0 && b.stun === 0 && !b.safe) this.hurt();
     }
   }
 
@@ -639,27 +671,41 @@ export class Run {
     const B = this.L.boss;
     this.bossStarted = true; this.cam = B.arena * T;
     for (let ty = 0; ty < ROWS - 3; ty++) this.setTile(B.arena, ty, 'H');
-    const dragon = B.kind === 'dragon', [w, h] = dragon ? SIZES.dragon : SIZES.boss;
-    this.boss = { kind: dragon ? 'dragon' : 'coffee', state: 'fly', fireT: 90, diveT: 200, restT: 0, x: B.tx * T, y: (ROWS - 3) * T - h, w, h, vx: 0, vy: 0, dir: -1, hp: B.hp, maxHp: B.hp, hurt: 0, stun: 0, chip: 0, jumpT: 120, throwT: 80, t: 0, dead: false, final: B.final, ground: false };
-    this.hooks.music(null); this.hooks.sound('meow');
+    const kind = B.kind || 'coffee', [w, h] = SIZES[kind === 'coffee' ? 'boss' : kind], flier = kind === 'dragon' || kind === 'owl';
+    this.boss = {
+      kind, state: flier ? 'fly' : 'walk', fireT: 90, diveT: 200, restT: 0, x: B.tx * T, y: (ROWS - 3) * T - h, w, h, vx: 0, vy: 0, dir: -1, hp: B.hp, maxHp: B.hp,
+      hurt: 0, stun: 0, chip: 0, jumpT: 120, throwT: 80, t: 0, t2: 0, dead: false, final: B.final, ground: false,
+      stingT: 100, burrowT: 260, blowT: 140, slamT: 230, shardT: 90, iceT: 200, snowT: 120, blinkT: 420, swoopT: 240, homeX: B.tx * T, moundX: 0,
+    };
+    this.hooks.music(null); this.hooks.sound(kind === 'coffee' ? 'meow' : 'roar');
     this.state = 'bossTalk';
-    if (dragon) { this.boss.y = 3 * T; this.hooks.sound('roar'); }
-    const lines = dragon
-      ? (B.final
-        ? ['에스프레소: 크아아앙! 여기까지 오다니!', `에스프레소: ${this.friend}는 내 보물이다! 절대 못 돌려준다!`, this.char === 'coffee' ? '커피: 친구를 괴롭히면 가만 안 둔다냥!' : this.char === 'mocha' ? '모카: 야옹! 라떼를 돌려줘!' : '라떼: 멍멍! 모카를 돌려줘!']
-        : ['에스프레소: 크르릉... 조그만 녀석들이 감히!', '에스프레소: 내 불꽃 맛을 보여 주마!'])
-      : B.final
-      ? ['커피: 냐하하! 여기까지 오다니 대단하다냥!', `커피: 하지만 ${this.friend}는 절대 못 데려간다냥! 덤벼라, ${this.hero}!`]
-      : this.L.id === '1-3'
-        ? [`커피: 냐옹~ 네가 ${this.hero}냥? ${this.friend}는 내가 데려갔다냥!`, `커피: ${this.friend}를 찾고 싶으면 나를 이겨 봐라냥!`]
-        : ['커피: 또 왔냥? 이번엔 더 빠르다냥!', '커피: 털실 공 맛 좀 봐라냥!'];
-    this.hooks.say(lines, () => { this.state = 'play'; this.hooks.music(dragon ? 'dragonBoss' : 'boss'); });
+    if (flier) this.boss.y = 3 * T;
+    const me = { latte: '라떼', coffee: '커피', turtle: '팝콘공', lizard: '드래곤', espresso: '에스프레소' }[this.char];
+    const my = lines => `${me}: ${lines[this.char] || lines.latte}`;
+    const lines = {
+      dragon: B.final
+        ? ['에스프레소: 크아아앙! 여기까지 오다니!', `에스프레소: ${this.friend}는 내 보물이다! 절대 못 돌려준다!`, this.char === 'espresso' ? '에스프레소: 어? 나랑 똑같이 생긴 용이잖아?!' : this.char === 'coffee' ? '커피: 친구를 괴롭히면 가만 안 둔다냥!' : my({ latte: '멍멍! 모카를 돌려줘!', turtle: '모카를 돌려줘! 팝팝!', lizard: '모카를 돌려줘! 불 뿜는 건 나도 해!' })]
+        : ['에스프레소: 크르릉... 조그만 녀석들이 감히!', '에스프레소: 내 불꽃 맛을 보여 주마!'],
+      scorpion: ['카라멜: 찰칵찰칵! 여기는 내 모래 언덕이다!', '카라멜: 햇볕 돌은 콜드브루님이 맡긴 거야. 절대 못 줘!', my({ latte: '멍! 햇볕 돌을 돌려줘!', lizard: '우리 사막의 해님을 돌려줘!', turtle: '햇볕 돌을 돌려줘! 팝!', coffee: '햇볕 돌 내놔라냥!', espresso: '크릉! 햇볕 돌을 돌려받으러 왔다!' }), '카라멜: 모래 속에서 콕 찔러 주지! 꼬리 독침도 조심해!'],
+      crab: ['마키아토: 집게집게! 여긴 내 바다다!', '마키아토: 두 번째 햇볕 돌도 절대 못 줘! 집게 쿵쿵!', my({ latte: '멍멍! 햇볕 돌을 돌려줘!', turtle: '마키아토, 우리 바다가 꽁꽁 얼고 있어!', lizard: '햇볕 돌을 돌려줘!', coffee: '꽃게 따위 안 무섭다냥!', espresso: '크릉! 내 불꽃이 더 뜨겁다!' }), '마키아토: 등딱지는 단단하다! 쿵 하고 헉헉댈 때만 빼고!'],
+      owl: ['콜드브루: 부엉부엉! 여기까지 오다니!', '콜드브루: 마지막 햇볕 돌은 내 거다! 얼음 마법을 받아라!', my({ latte: '멍멍! 햇볕 돌을 돌려줘!', lizard: '해님을 돌려줘! 우리 모두 추워!', turtle: '바다를 녹여 줘! 팝팝!', coffee: '친구들을 춥게 하면 안 된다냥!', espresso: '내 불꽃은 얼음보다 뜨겁다! 크앙!' })],
+      coffee: B.final
+        ? ['커피: 냐하하! 여기까지 오다니 대단하다냥!', `커피: 하지만 ${this.friend}는 절대 못 데려간다냥! 덤벼라, ${this.hero}!`]
+        : this.L.id === '1-3'
+          ? [`커피: 냐옹~ 네가 ${this.hero}냥? ${this.friend}는 내가 데려갔다냥!`, `커피: ${this.friend}를 찾고 싶으면 나를 이겨 봐라냥!`]
+          : ['커피: 또 왔냥? 이번엔 더 빠르다냥!', '커피: 털실 공 맛 좀 봐라냥!'],
+    }[kind];
+    const music = { coffee: 'boss', dragon: 'dragonBoss', owl: 'finalBoss' }[kind] || 'bigBoss';
+    this.hooks.say(lines, () => { this.state = 'play'; this.hooks.music(music); });
   }
   updateBoss(b) {
     b.t++;
     if (b.dead) return;
     if (b.hurt > 0) b.hurt--;
     if (b.kind === 'dragon') return this.updateDragon(b);
+    if (b.kind === 'scorpion') return this.updateScorpion(b);
+    if (b.kind === 'crab') return this.updateCrab(b);
+    if (b.kind === 'owl') return this.updateOwl(b);
     const p = this.player, arena = this.L.boss.arena * T;
     const speed = .45 + (b.maxHp - b.hp) * .12;
     if (b.stun > 0) { b.stun--; b.vx = 0; }
@@ -710,18 +756,146 @@ export class Run {
     b.ground = b.state === 'rest';
     b.x = clamp(b.x, arena + T, arena + 19 * T - b.w);
   }
+  // ── 월드 6~8의 더 센 보스들 ─────────────────────────────────
+  // 사막 전갈 카라멜: 꼬리 독침을 부채꼴로 쏘고, 모래 속으로 숨었다가 발밑에서 솟아올라요. 솟아오른 뒤 어지러울 때가 기회!
+  updateScorpion(b) {
+    const p = this.player, arena = this.L.boss.arena * T, groundY = (ROWS - 3) * T - b.h, rage = (b.maxHp - b.hp) / b.maxHp;
+    const lo = arena + T, hi = arena + 19 * T - b.w;
+    if (b.stun > 0) { if (b.state === 'walk') { b.state = 'dizzy'; b.restT = b.stun; } b.stun = 0; }
+    if (b.state === 'walk') {
+      b.y = groundY;
+      const dx = p.x + p.w / 2 - (b.x + b.w / 2);
+      if (Math.abs(dx) > 12) b.dir = Math.sign(dx);
+      b.x = clamp(b.x + b.dir * (.45 + rage * .55), lo, hi);
+      if (--b.stingT <= 0) {
+        b.stingT = Math.round(125 - rage * 45);
+        const n = 3 + Math.round(rage * 2), sx = b.dir < 0 ? b.x + b.w - 6 : b.x + 2, s = Math.sign(dx) || b.dir;
+        for (let i = 0; i < n; i++) this.foes.push({ kind: 'sting', x: sx, y: b.y - 2, w: 4, h: 4, vx: s * (.55 + i * .5), vy: -3.4, g: .13, life: 220 });
+        this.hooks.sound('spit');
+      }
+      if (--b.burrowT <= 0) { b.state = 'dig'; b.t2 = 0; this.hooks.sound('crumble'); }
+    } else if (b.state === 'dig') { // 모래 속으로 쏙
+      b.t2++; b.y = groundY + b.t2 * .6;
+      if (b.t2 >= 26) { b.state = 'under'; b.t2 = 0; b.moundX = b.x + b.w / 2; }
+    } else if (b.state === 'under') { // 모래 둔덕이 쫓아오다가, 멈춰서 흔들리면 곧 솟아올라요
+      b.t2++;
+      const chase = 95 - rage * 30, sp = 1.3 + rage * .8;
+      if (b.t2 < chase) b.moundX += clamp(p.x + p.w / 2 - b.moundX, -sp, sp);
+      b.warn = b.t2 >= chase; // 멈춰서 흔들리면 곧 솟아올라요
+      b.moundX = clamp(b.moundX, lo + b.w / 2, hi + b.w / 2);
+      if (b.t2 >= chase + 28) {
+        b.state = 'erupt'; b.x = b.moundX - b.w / 2; b.y = groundY; b.vy = -4.6; this.shake = 8; this.hooks.sound('bossJump');
+        for (const vx of [-1.8, -.9, .9, 1.8]) this.foes.push({ kind: 'sting', x: b.moundX, y: groundY + b.h - 6, w: 4, h: 4, vx, vy: -2.8, g: .15, life: 120, sand: true });
+      }
+    } else if (b.state === 'erupt') {
+      b.vy += .28; b.y += b.vy;
+      if (b.y >= groundY && b.vy > 0) { b.y = groundY; b.state = 'dizzy'; b.restT = Math.round(95 - rage * 25); this.shake = 6; this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + b.h, life: 14 }); }
+    } else if (b.state === 'dizzy') {
+      if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 6, life: 20 });
+      if (--b.restT <= 0) { b.state = 'walk'; b.burrowT = Math.round(260 - rage * 90); }
+    }
+    b.hidden = b.state === 'under' || b.state === 'dig' && b.t2 > 12;
+    b.safe = b.state === 'dizzy'; b.ground = b.state !== 'erupt';
+  }
+  // 대왕 꽃게 마키아토: 옆으로 쌩쌩 달리고, 거품을 뿜고, 높이 뛰어 쿵! 하면 파도가 양쪽으로 밀려와요.
+  // 등딱지가 단단해서 밟으면 튕겨요. 쿵! 한 뒤 헉헉댈 때만 밟을 수 있어요.
+  updateCrab(b) {
+    const p = this.player, arena = this.L.boss.arena * T, groundY = (ROWS - 3) * T - b.h, rage = (b.maxHp - b.hp) / b.maxHp;
+    const lo = arena + T, hi = arena + 19 * T - b.w;
+    if (b.stun > 0) { if (b.state === 'walk' || b.state === 'blow') { b.state = 'tired'; b.restT = b.stun; } b.stun = 0; }
+    if (b.state === 'walk') {
+      b.y = groundY;
+      b.x += b.dir * (.9 + rage * .9);
+      if (b.x <= lo || b.x >= hi) { b.x = clamp(b.x, lo, hi); b.dir *= -1; }
+      if (--b.blowT <= 0) { b.state = 'blow'; b.t2 = 0; }
+      else if (--b.slamT <= 0) { b.state = 'leap'; b.vy = -6; b.leapX = clamp(p.x + p.w / 2 - b.w / 2, lo, hi); this.hooks.sound('bossJump'); }
+    } else if (b.state === 'blow') { // 거품: 천천히 떠올라 날아와요(밟으면 톡 터져요)
+      b.t2++;
+      const n = 2 + Math.round(rage * 2), s = Math.sign(p.x - b.x) || -1;
+      if (b.t2 % 14 === 0 && b.t2 <= 14 * n) { this.foes.push({ kind: 'bubble', x: b.x + b.w / 2 - 3, y: b.y - 2, w: 5, h: 5, vx: s * (.5 + (b.t2 / 14 % 3) * .2), vy: -.28, life: 340 }); this.hooks.sound('spit'); }
+      if (b.t2 > 14 * n + 20) { b.state = 'walk'; b.blowT = Math.round(210 - rage * 70); }
+    } else if (b.state === 'leap') {
+      b.vy += .26; b.y += b.vy; b.x += clamp(b.leapX - b.x, -2, 2);
+      if (b.y >= groundY && b.vy > 0) {
+        b.y = groundY; b.state = 'tired'; b.restT = Math.round(115 - rage * 30); this.shake = 12; this.hooks.sound('crumble');
+        const sp = 1.7 + rage * .6, wy = (ROWS - 3) * T - 5;
+        this.foes.push({ kind: 'wave', x: b.x - 8, y: wy, w: 8, h: 5, vx: -sp, vy: 0, life: 240 }, { kind: 'wave', x: b.x + b.w, y: wy, w: 8, h: 5, vx: sp, vy: 0, life: 240 });
+      }
+    } else if (b.state === 'tired') {
+      if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 6, life: 20 });
+      if (--b.restT <= 0) { b.state = 'walk'; b.slamT = Math.round(230 - rage * 80); }
+    }
+    b.armored = b.state !== 'tired'; b.safe = b.state === 'tired'; b.ground = b.state !== 'leap';
+  }
+  // 얼음 부엉이 콜드브루(마지막 보스): 얼음 조각을 부채꼴로 쏘고, 고드름을 떨어뜨리고, 순간이동해요.
+  // 휙 내려와 땅에 부딪혀 어지러울 때 머리를 밟아요. 체력이 절반 아래면 화가 나서 눈덩이도 굴려요.
+  updateOwl(b) {
+    const p = this.player, arena = this.L.boss.arena * T, groundY = (ROWS - 3) * T - b.h;
+    const lo = arena + T, hi = arena + 19 * T - b.w, angry = b.hp <= b.maxHp / 2;
+    if (angry && !b.angry) { b.angry = true; this.hooks.sound('roar'); this.hooks.hint('콜드브루가 화났어요! 굴러오는 눈덩이는 밟으면 부서져요.'); }
+    if (b.stun > 0) { if (b.state === 'fly') b.state = 'fall'; b.stun = 0; }
+    if (b.state === 'fly') {
+      b.x += (b.homeX - b.x) * .04; b.y += ((2.2 * T + Math.sin(b.t / 14) * 5) - b.y) * .08;
+      if (b.t % 150 === 0) b.homeX = clamp(p.x + (p.x < arena + 10 * T ? 5 : -5) * T, lo, hi);
+      b.dir = p.x < b.x ? -1 : 1;
+      if (--b.shardT <= 0) {
+        b.shardT = angry ? 80 : 115;
+        const n = angry ? 5 : 3, cx = b.x + b.w / 2, cy = b.y + 12, a0 = Math.atan2(p.y + p.h / 2 - cy, p.x + p.w / 2 - cx);
+        for (let i = 0; i < n; i++) { const a = a0 + (i - (n - 1) / 2) * .3; this.foes.push({ kind: 'shard', x: cx - 2, y: cy, w: 5, h: 5, vx: Math.cos(a) * 1.6, vy: Math.sin(a) * 1.6, g: 0, life: 200 }); }
+        this.hooks.sound('throw');
+      }
+      if (--b.iceT <= 0) { // 고드름 비: 위에서 달달 떨다 떨어져요
+        b.iceT = angry ? 210 : 300;
+        for (const k of [-1, 0, 1]) this.foes.push({ kind: 'fallice', x: clamp(p.x + k * 30, lo, hi + b.w - 8), y: 2 * T, w: 6, h: 8, vx: 0, vy: 0, delay: 40 + (k + 1) * 12, life: 400 });
+        this.hooks.sound('crumble');
+      }
+      if (angry && --b.snowT <= 0) { // 눈덩이 굴리기
+        b.snowT = 240;
+        const fromRight = p.x < arena + 10 * T;
+        this.foes.push({ kind: 'snow', x: fromRight ? arena + 18 * T - 9 : arena + T + 1, y: (ROWS - 3) * T - 8, w: 8, h: 8, vx: fromRight ? -1.3 : 1.3, vy: 0, life: 400 });
+      }
+      if (--b.blinkT <= 0) { b.state = 'blink'; b.t2 = 0; b.blinkT = angry ? 330 : 480; }
+      else if (--b.swoopT <= 0) { b.state = 'swoop'; b.swoopX = clamp(p.x + p.w / 2 - b.w / 2, lo, hi); this.hooks.sound('roar'); }
+    } else if (b.state === 'blink') { // 순간이동: 깜빡이다 사라져 반대편에 나타나요
+      b.t2++;
+      if (b.t2 === 30) { b.homeX = b.x + b.w / 2 < arena + 10 * T ? hi - T : lo + T; b.x = b.homeX; }
+      if (b.t2 >= 55) b.state = 'fly';
+    } else if (b.state === 'swoop') {
+      b.x += clamp(b.swoopX - b.x, -2.4, 2.4); b.y += angry ? 3.2 : 2.6;
+      if (b.y >= groundY) { b.y = groundY; b.state = 'rest'; b.restT = angry ? 100 : 125; this.shake = 8; this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + b.h, life: 14 }); }
+    } else if (b.state === 'fall') {
+      b.y = Math.min(groundY, b.y + 2.5); if (b.y >= groundY) { b.state = 'rest'; b.restT = 100; }
+    } else if (b.state === 'rest') {
+      if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 6, life: 20 });
+      if (--b.restT <= 0) b.state = 'rise';
+    } else if (b.state === 'rise') {
+      b.y -= 1.8; if (b.y <= 2.2 * T) { b.state = 'fly'; b.swoopT = angry ? 160 : 230; }
+    }
+    b.hidden = b.state === 'blink' && b.t2 >= 20 && b.t2 < 40;
+    b.safe = b.state === 'rest'; b.ground = b.state === 'rest';
+    b.x = clamp(b.x, lo, hi);
+  }
   hitBoss(b, inv) {
-    b.hp--; b.hurt = inv; b.stun = 0; this.hooks.sound('bossHit'); this.hooks.sound(b.kind === 'dragon' ? 'roar' : 'meow');
-    if (b.kind === 'dragon' && b.state === 'rest') { b.state = 'rise'; } this.shake = 10; this.carry.score += 1000; this.pop(b.x, b.y - 8, 1000);
+    b.hp--; b.hurt = inv; b.stun = 0; this.hooks.sound('bossHit'); this.hooks.sound(b.kind === 'coffee' ? 'meow' : 'roar');
+    if (b.kind === 'dragon' && b.state === 'rest') { b.state = 'rise'; }
+    if (b.kind === 'owl' && (b.state === 'rest' || b.state === 'fall')) b.state = 'rise';
+    if (b.kind === 'crab' && b.state === 'tired') { b.state = 'walk'; b.slamT = 200; }
+    if (b.kind === 'scorpion' && b.state === 'dizzy') { b.state = 'walk'; b.burrowT = 170; }
+    this.shake = 10; this.carry.score += 1000; this.pop(b.x, b.y - 8, 1000);
     if (b.hp <= 0) {
-      b.dead = true; this.foes = []; this.state = 'bossTalk'; this.hooks.music(null); this.hooks.sound('bossDown');
-      const lines = b.kind === 'dragon'
-        ? (b.final
+      b.dead = true; b.hidden = false; this.foes = []; this.state = 'bossTalk'; this.hooks.music(null); this.hooks.sound('bossDown');
+      if (b.kind === 'scorpion' || b.kind === 'crab') this.fx.push({ kind: 'sun', x: b.x + b.w / 2 - 4, y: b.y - 6, life: 400 });
+      const lines = {
+        dragon: b.final
           ? ['에스프레소: 크릉... 졌다...', '에스프레소: 사실은... 혼자 사는 게 너무 심심했어.', '모카: 그럼 너도 우리랑 친구 하자!']
-          : ['에스프레소: 크윽! 제법이군!', `에스프레소: 하지만 ${this.friend}는 내 성에 있다! 쫓아올 테면 와 봐라!`])
-        : b.final
-        ? ['커피: 으앙... 졌다냥.', '커피: 사실은... 나도 같이 놀 친구가 갖고 싶었어.', this.char === 'mocha' ? '모카: 야옹! 그럼 우리랑 친구 하자!' : '라떼: 멍멍! 그럼 우리랑 친구 하자!']
-        : ['커피: 으앗! 제법이다냥!', `커피: 하지만 ${this.friend}는 여기 없지롱~ 다음 곳에서 보자냥!`];
+          : ['에스프레소: 크윽! 제법이군!', `에스프레소: 하지만 ${this.friend}는 내 성에 있다! 쫓아올 테면 와 봐라!`],
+        scorpion: ['카라멜: 찰칵... 졌다. 사실 모래 속은 너무 추웠어.', '카라멜: 햇볕 돌 하나 돌려줄게! 따뜻해지면 나도 좋아.', '카라멜: 콜드브루는 바닷가로 날아갔어. 조심해!', '드래곤: 해님이 돌아왔다! 햇볕 돌 1개 되찾았어!'],
+        crab: ['마키아토: 집게... 항복! 추워서 심술이 났었어.', '마키아토: 두 번째 햇볕 돌이야. 바다를 녹여 줘!', '팝콘공: 바다가 다시 반짝반짝해! 고마워!', '마키아토: 마지막 햇볕 돌은 콜드브루의 얼음 성에 있어!'],
+        owl: ['콜드브루: 부엉... 졌다...', '콜드브루: 사실은... 나는 늘 추워서 따뜻한 햇볕이 갖고 싶었어.', '드래곤: 그럼 우리랑 같이 햇볕 쬐자! 엄청 따뜻해!'],
+        coffee: b.final
+          ? ['커피: 으앙... 졌다냥.', '커피: 사실은... 나도 같이 놀 친구가 갖고 싶었어.', this.char === 'mocha' ? '모카: 야옹! 그럼 우리랑 친구 하자!' : '라떼: 멍멍! 그럼 우리랑 친구 하자!']
+          : ['커피: 으앗! 제법이다냥!', `커피: 하지만 ${this.friend}는 여기 없지롱~ 다음 곳에서 보자냥!`],
+      }[b.kind];
       this.hooks.say(lines, () => { this.state = 'bossEnd'; this.stateT = 0; });
     }
   }

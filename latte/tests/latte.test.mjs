@@ -18,7 +18,7 @@ function enemy(r, type, x) {
 }
 
 test('모든 스테이지 지도가 16줄이고 너비가 맞아요', () => {
-  assert.equal(LEVELS.length, 15);
+  assert.equal(LEVELS.length, 24);
   for (const L of LEVELS) {
     assert.equal(L.rows.length, ROWS, L.id);
     for (const row of L.rows) assert.equal(row.length, L.w, L.id);
@@ -257,6 +257,104 @@ test('쉬워진 규칙: 커져 있으면 구덩이에 빠져도 작아지기만 
   assert.equal(s.state, 'dying', '작을 때 빠지면 쓰러져요');
 });
 
-test('팝콘공·드래곤으로도 15스테이지를 모두 끝까지 갈 수 있어요', () => {
-  for (const char of ['turtle', 'lizard']) for (const L of LEVELS) { const r = searchRun(L, { char }); assert.ok(['clear', 'ending'].includes(r.result), `${char} ${L.id}: ${JSON.stringify(r)}`); }
+test('팝콘공·드래곤·에스프레소로도 24스테이지를 모두 끝까지 갈 수 있어요', () => {
+  for (const char of ['turtle', 'lizard', 'espresso']) for (const L of LEVELS) { const r = searchRun(L, { char }); assert.ok(['clear', 'ending'].includes(r.result), `${char} ${L.id}: ${JSON.stringify(r)}`); }
+});
+
+// ── 3부: 월드 6~8 ──────────────────────────────────────────
+const byId = id => LEVELS.find(L => L.id === id);
+const talk = { say: (l, d) => d() };
+function enterBoss(L, hooks = {}, c = carry()) {
+  const r = new Run(L, c, { ...talk, ...hooks }, { easy: true });
+  r.player.x = (L.boss.arena + 3) * T; r.player.y = r.groundBelow(r.player.x, 0) - r.player.h;
+  r.update(idle); r.update(idle);
+  return r;
+}
+
+test('에스프레소: 화!는 큰 불덩이 세 개, A를 누르고 있으면 사뿐히 내려와요', () => {
+  const c = { ...carry(), char: 'espresso' }, r = new Run(LEVELS[0], c, {}, { easy: true });
+  assert.equal(r.hero, '에스프레소');
+  stand(r, 3 * T);
+  const e = enemy(r, 'hedgehog', 7 * T);
+  r.update({ ...idle, barkPressed: true });
+  assert.equal(r.shots.filter(s => s.kind === 'flame' && s.big).length, 3);
+  for (let i = 0; i < 30; i++) r.update(idle);
+  assert.ok(e.dead, '가시 고슴도치도 불덩이로 물리쳐요');
+  r.player.x = 3 * T; r.player.y = 2 * T; r.player.vy = 3; r.player.ground = false;
+  for (let i = 0; i < 4; i++) r.update({ ...idle, a: true });
+  assert.ok(r.player.vy <= .9 + 1e-9, '용 날개로 천천히 내려와요');
+});
+
+test('얼음 땅은 미끌미끌: 손을 떼도 한참 미끄러져요', () => {
+  const slide = L => {
+    const r = new Run(L, carry(), {}, { easy: true }); r.spawnDefs = [];
+    stand(r, 2 * T);
+    for (let i = 0; i < 40; i++) r.update({ ...idle, right: true });
+    const x0 = r.player.x; for (let i = 0; i < 60; i++) r.update(idle);
+    return r.player.x - x0;
+  };
+  assert.ok(slide(byId('8-1')) > slide(byId('6-1')) * 3, '얼음 위에서 훨씬 멀리 미끄러져요');
+});
+
+test('고드름은 밑으로 지나가면 떨리다가 떨어져서 아파요', () => {
+  const L = byId('8-2'), c = { ...carry(), big: true }, r = new Run(L, c, {}, { easy: true });
+  r.spawnDefs = r.spawnDefs.filter(d => d.type === 'icicle' && d.tx === 12);
+  stand(r, 12 * T - 1);
+  r.update(idle);
+  const ic = r.enemies.find(e => e.type === 'icicle');
+  assert.ok(ic && ic.state === 'shake', '달달 떨어요');
+  for (let i = 0; i < 80 && c.big; i++) { r.player.x = 12 * T - 1; r.update(idle); }
+  assert.equal(c.big, false, '고드름에 맞으면 작아져요');
+});
+
+test('사막 전갈 카라멜: 독침을 쏘고, 모래 속에 숨었다 솟아오르고, 어지러울 때 밟혀요', () => {
+  const L = byId('6-3'); let cleared = false;
+  const r = enterBoss(L, { clear: () => { cleared = true; } });
+  r.god = true;
+  const b = r.boss; assert.equal(b.kind, 'scorpion'); assert.equal(b.hp, 5);
+  const seen = new Set();
+  for (let i = 0; i < 900; i++) { r.update(idle); seen.add(b.state); if (r.foes.some(f => f.kind === 'sting')) seen.add('sting'); }
+  for (const k of ['walk', 'under', 'erupt', 'dizzy', 'sting']) assert.ok(seen.has(k), `전갈이 ${k} 해요`);
+  // 숨었을 때는 밟을 수 없어요
+  b.state = 'under'; b.hidden = true; const hp = b.hp;
+  r.player.x = b.x; r.player.y = b.y - r.player.h - 2; r.player.vy = 2; r.interact();
+  assert.equal(b.hp, hp);
+  while (b.hp > 0) r.hitBoss(b, 1);
+  for (let i = 0; i < 400 && !cleared; i++) r.update(idle);
+  assert.ok(cleared, '이기면 다음 스테이지로');
+});
+
+test('대왕 꽃게 마키아토: 등딱지를 밟으면 튕기고, 쿵! 한 뒤 헉헉댈 때만 아파해요', () => {
+  const L = byId('7-3'), r = enterBoss(L);
+  r.god = true;
+  const b = r.boss; assert.equal(b.kind, 'crab');
+  r.update(idle);
+  assert.ok(b.armored);
+  const hp = b.hp, p = r.player;
+  p.x = b.x + 8; p.y = b.y - p.h + 2; p.vy = 2; p.prevBottom = b.y; r.interact();
+  assert.equal(b.hp, hp, '단단해서 튕겨요'); assert.ok(p.vy < 0);
+  let waves = false;
+  for (let i = 0; i < 700 && b.state !== 'tired'; i++) { r.update(idle); }
+  assert.equal(b.state, 'tired', '뛰어올라 쿵!');
+  waves = r.foes.some(f => f.kind === 'wave'); assert.ok(waves, '파도가 밀려와요');
+  p.x = b.x + 8; p.y = b.y - p.h + 2; p.vy = 2; p.prevBottom = b.y; b.hurt = 0; r.interact();
+  assert.equal(b.hp, hp - 1, '헉헉댈 때 밟으면 아파해요');
+});
+
+test('얼음 부엉이 콜드브루: 얼음 조각·고드름을 쏘고, 휙 내려와 쉴 때 밟히고, 지면 진짜 엔딩', () => {
+  const L = byId('8-3'); let ended = false, hinted = '';
+  const r = enterBoss(L, { ending: () => { ended = true; }, hint: t => { hinted = t; } });
+  r.god = true;
+  const b = r.boss; assert.equal(b.kind, 'owl'); assert.ok(b.final); assert.equal(b.hp, 8);
+  const seen = new Set();
+  for (let i = 0; i < 700; i++) { r.update(idle); seen.add(b.state); for (const f of r.foes) seen.add(f.kind); }
+  for (const k of ['shard', 'fallice', 'swoop', 'rest', 'blink']) assert.ok(seen.has(k), `콜드브루가 ${k} 해요`);
+  r.hitBoss(b, 1); r.hitBoss(b, 1); r.hitBoss(b, 1); r.hitBoss(b, 1);
+  b.hurt = 0; b.state = 'fly';
+  for (let i = 0; i < 400 && !r.foes.some(f => f.kind === 'snow'); i++) r.update(idle);
+  assert.ok(r.foes.some(f => f.kind === 'snow'), '화나면 눈덩이를 굴려요');
+  assert.match(hinted, /콜드브루가 화났어요/);
+  while (b.hp > 0) r.hitBoss(b, 1);
+  for (let i = 0; i < 200 && !ended; i++) r.update(idle);
+  assert.ok(ended);
 });
