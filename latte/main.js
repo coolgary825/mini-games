@@ -446,6 +446,7 @@ function step() {
   if (hintTimer > 0 && --hintTimer === 0) hintEl.hidden = true;
   if (dialogInput()) return endStep();
   if (menuInput()) return endStep();
+  if (newVersion && mode === 'title' && !menu) { newVersion = false; location.reload(); return endStep(); }
   if (mode === 'title') { if (modeT > 10) { if (pressed('select')) titleMenu(); else if (['a', 'b', 'start', 'bark', 'left', 'right', 'up', 'down'].some(pressed)) quickStart(); } }
   else if (mode === 'card') {
     const list = charsFor(stageIndex), d = pressed('right') ? 1 : pressed('left') ? -1 : 0;
@@ -849,7 +850,15 @@ document.addEventListener('visibilitychange', () => {
 });
 syncScreenColor();
 toTitle();
-if ('serviceWorker' in navigator && location.protocol === 'https:') addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+// 새 버전 받기: 홈 화면 앱으로 다시 열 때마다 확인하고, 새 버전이 자리 잡으면 첫 화면에서 한 번 새로고침해요(놀이 중엔 기다려요)
+let newVersion = false;
+if ('serviceWorker' in navigator && location.protocol === 'https:') addEventListener('load', () => {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) newVersion = true; });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+  }).catch(() => {});
+});
 requestAnimationFrame(loop);
 // 테스트·디버그용 창구
 window.__latte = { get run() { return run; }, get mode() { return mode; }, get carry() { return carry; }, get menu() { return menu; }, get dialog() { return dialog; }, get scene() { return scene; }, startGame, showCard, beginRun, startEnding, LEVELS, save };
