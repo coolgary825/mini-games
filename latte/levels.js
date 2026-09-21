@@ -1,6 +1,6 @@
 // 슈퍼 라떼 랜드 스테이지. 한 칸은 8픽셀, 높이는 16칸(화면 한 줄)이에요.
 // 타일: '#' 땅 · 'B' 벽돌 · '?' 물음표 블록 · 'U' 빈 블록 · 'H' 단단한 블록 · '[' ']' '{' '}' 토관
-//       'h' 숨은 블록 · '=' 발판(위에서만 밟혀요) · 'c' 구름 발판 · 'o' 뼈다귀 · 'G' 황금 뼈다귀 · '^' 가시 · '~' 뜨거운 커피(용암) · 'C' 성벽 · 'F' 무너지는 블록
+//       'h' 숨은 블록 · '=' 발판(위에서만 밟혀요) · 'c' 구름 발판 · 'o' 뼈다귀 · 'G' 황금 뼈다귀 · '^' 가시 · '~' 뜨거운 커피(용암) · 'C' 성벽 · 'F' 무너지는 블록 · 'J' 통통 젤리
 export const ROWS = 16;
 export const GROUND = 13;
 
@@ -45,7 +45,7 @@ class Builder {
   plat(x, y, w, c = '=') { for (let i = 0; i < w; i++) this.set(x + i, y, c); return this; }
   // 적 위치: 서 있는 땅 줄(ty)을 비우면 그 칸 아래 첫 땅을 찾아요.
   e(type, x, ty) {
-    if (ty === undefined) { ty = 2; while (ty < ROWS && !(/[#BU?H\[\]{}=cC^F]/.test(this.g[ty][x]) && !/[#BU?H\[\]{}=cC^F]/.test(this.g[ty - 1][x]))) ty++; }
+    if (ty === undefined) { ty = 2; while (ty < ROWS && !(/[#BU?H\[\]{}=cC^FJ]/.test(this.g[ty][x]) && !/[#BU?H\[\]{}=cC^FJ]/.test(this.g[ty - 1][x]))) ty++; }
     this.enemies.push({ type, tx: x, ty }); return this;
   }
   crumble(x, y, w) { for (let i = 0; i < w; i++) this.set(x + i, y, 'F'); return this; }
@@ -58,13 +58,13 @@ class Builder {
   deco(spr, x, y) { this.decor.push({ spr, x: x * 8, y: y * 8 }); return this; }
   hint(x, text) { this.hints.push({ tx: x, text }); return this; }
   bossArena(x0, hp, final = false, kind = 'coffee') {
-    this.boss = { arena: x0, hp, final, kind, tx: x0 + ({ dragon: 12, owl: 12, scorpion: 13, crab: 13 }[kind] || 15) };
+    this.boss = { arena: x0, hp, final, kind, tx: x0 + ({ dragon: 12, owl: 12, scorpion: 13, crab: 13, jelly: 13, gorilla: 13, ghost: 12, ufo: 11 }[kind] || 15) };
     this.fill(x0 + 19, x0 + 19, 0, GROUND - 1, 'H');
     return this;
   }
   build() {
-    const { id, name, w, theme, time, mode, music, items, enemies, decor, movers, checks, hints, goal, boss, start, golds } = this;
-    return { id, name, w, theme, time, mode, music, rows: this.g.map(r => r.join('')), items, enemies, decor, movers, checks, hints, goal, boss, start, golds };
+    const { id, name, w, theme, time, mode, music, items, enemies, decor, movers, checks, hints, goal, boss, start, golds, meteors = false, endless = false } = this;
+    return { id, name, w, theme, time, mode, music, rows: this.g.map(r => r.join('')), items, enemies, decor, movers, checks, hints, goal, boss, start, golds, meteors, endless };
   }
 }
 
@@ -575,7 +575,297 @@ function w8s3() {
   return b.build();
 }
 
-export const LEVELS = [w1s1(), w1s2(), w1s3(), w2s1(), w2s2(), w2s3(), w3s1(), w3s2(), w3s3(), w4s1(), w4s2(), w4s3(), w5s1(), w5s2(), w5s3(), w6s1(), w6s2(), w6s3(), w7s1(), w7s2(), w7s3(), w8s1(), w8s2(), w8s3()];
-export const WORLD_NAMES = ['햇살 공원', '달밤 지붕 골목', '커피 성', '불꽃 화산', '용의 하늘 성', '햇살 사막', '파도 바닷가', '콜드브루의 얼음 나라'];
+// ── 4부: 너구리 해적 아포가토가 모카를 우주선에 태워 갔어요 ──
+function candyDecor(b, from, to) { for (let x = from + 4; x < to; x += 19) if (onGround(b, x) && onGround(b, x + 5)) b.deco(x % 2 ? 'lollipop' : 'candyCane', x, GROUND - (x % 2 ? 1.625 : 1.375)); }
+function jungleDecor(b, from, to) { for (let x = from + 3; x < to; x += 13) if (onGround(b, x) && onGround(b, x + 5)) b.deco(x % 3 ? 'palm' : 'tree', x, GROUND - 1.5); }
+function ghostDecor(b, from, to) { b.deco('moon', from + 14, 2); for (let x = from + 6; x < to; x += 17) if (onGround(b, x) && onGround(b, x + 8)) b.deco('tomb', x, GROUND - 1.125); }
+function spaceDecor(b, from, to) { for (let x = from; x < to; x += 7) b.deco('twinkle', x + (x * 7) % 5, 1 + (x * 13) % 9); for (let x = from + 20; x < to; x += 70) b.deco('planet', x, 3 + (x % 3)); }
+
+// ── WORLD 9 · 사탕 과자 나라 ─────────────────────────────────
+function w9s1() {
+  const b = new Builder('9-1', '달콤 사탕 언덕', 212, { theme: 'candy', music: 'candy', time: 380 });
+  b.ground(0, 26).liquid(27, 32).ground(33, 70).liquid(71, 78).ground(79, 120).liquid(121, 128).ground(129, 166).liquid(167, 174).ground(175, 211);
+  candyDecor(b, 0, 212);
+  b.hint(2, '사탕 과자 나라예요! 초코 강에 빠지지 않게 조심해요.');
+  b.row(8, 9, '?B?', 'power', 'bone').e('gummy', 16).e('gummy', 20).hint(14, '젤리는 통통 뛰어요. 위에서 밟아요!');
+  b.plat(28, 10, 4);
+  b.set(40, GROUND - 1, 'J').fill(43, 44, GROUND - 5, GROUND - 1, 'H').hint(37, '분홍 젤리 블록을 밟으면 높이 튀어 올라요! A를 누르고 있으면 더 높이!');
+  b.e('bean', 50).row(54, 8, 'B?B?', 'spring', 'bone').e('gummy', 60).e('can', 66);
+  b.mover(71, 11, 3, 'x', 5, 1.2).bones(72, 8, 5);
+  b.check(82).e('gummy', 88).set(92, GROUND - 1, 'J').set(93, GROUND - 1, 'J').fill(96, 97, GROUND - 5, GROUND - 1, 'H').bones(96, 5, 2).e('bean', 104).e('gummy', 110).row(113, 9, 'BhB', 'heart');
+  b.plat(122, 10, 2).plat(126, 9, 2);
+  b.e('gummy', 134).row(138, 8, '??', 'cushion', 'power').e('can', 144).fly('pigeon', 150, 6).e('gummy', 156).e('gummy', 160);
+  b.crumble(168, 11, 6);
+  b.e('bean', 180).stairs(186, 6).fill(192, 193, GROUND - 6, GROUND - 1, 'H');
+  b.finish(202);
+  b.gold(44, 5); b.gold(97, 2); b.gold(127, 6);
+  b.check(140);
+  return b.build();
+}
+
+function w9s2() {
+  const b = new Builder('9-2', '솜사탕 구름 다리', 214, { theme: 'candy', music: 'candy2', time: 380 });
+  skyDecor(b, 0, 214);
+  b.ground(0, 14).ground(96, 108).ground(196, 213);
+  b.hint(2, '솜사탕 구름을 건너요. 젤리 블록으로 통통 뛰어 올라요!');
+  b.plat(16, 11, 5, 'c').set(23, 12, 'J').plat(26, 8, 4, 'c').e('gummy', 27, 8).plat(32, 10, 5, 'c').bones(33, 8, 4).set(39, 12, 'J').plat(41, 7, 5, 'c');
+  b.fly('pigeon', 46, 5).plat(48, 10, 6, 'c').e('gummy', 51, 10).plat(56, 12, 3, 'c').set(60, 12, 'J').plat(62, 8, 5, 'c').q(64, 4, 'rainbow');
+  b.mover(69, 10, 4, 'x', 5, 1.2).plat(80, 11, 4, 'c').e('gummy', 81, 11).set(86, 12, 'J').plat(88, 8, 5, 'c');
+  b.check(99).row(100, 9, '?b?', 'chick', 'bones', 'power');
+  b.plat(110, 11, 4, 'c').set(116, 12, 'J').plat(118, 7, 5, 'c').e('gummy', 120, 7).plat(125, 10, 4, 'c').fly('pigeon', 128, 6).plat(131, 12, 4, 'c');
+  b.mover(137, 9, 4, 'y', 3, 1.2).plat(143, 10, 5, 'c').e('gummy', 145, 10).set(150, 12, 'J').plat(152, 7, 4, 'c').plat(158, 10, 5, 'c');
+  b.mover(165, 10, 4, 'x', 6, 1.3).plat(177, 11, 4, 'c').set(183, 12, 'J').plat(185, 8, 5, 'c').e('gummy', 187, 8);
+  b.finish(204);
+  b.gold(43, 4); b.gold(120, 3); b.gold(154, 4);
+  b.check(150);
+  return b.build();
+}
+
+function w9s3() {
+  const b = new Builder('9-3', '바닐라의 케이크 성', 172, { theme: 'candy', music: 'candy', time: 340 });
+  b.ground(0, 26).liquid(27, 32).ground(33, 64).liquid(65, 72).ground(73, 104).liquid(105, 110).ground(111, 171);
+  candyDecor(b, 0, 126);
+  b.hint(2, '케이크 성이에요! 젤리곰 바닐라가 모카의 행방을 알고 있대요.');
+  b.row(8, 9, '?B?', 'power', 'bone').e('gummy', 16).e('gummy', 20).plat(28, 10, 3);
+  b.e('bean', 38).set(42, GROUND - 1, 'J').fill(45, 46, GROUND - 5, GROUND - 1, 'H').e('gummy', 52).row(56, 8, '?h?', 'shield', 'heart', 'bone').e('can', 60);
+  b.crumble(66, 11, 2).crumble(69, 10, 2).check(76);
+  b.e('gummy', 82).e('gummy', 86).fly('pigeon', 90, 5).e('bean', 96).mover(105, 11, 3, 'x', 3, 1.2);
+  b.row(114, 9, '??', 'power', 'heart').e('gummy', 120);
+  b.hint(124, '바닐라는 통통 뛸 때 밟으면 튕겨요! 세 번 뛰고 납작 쉴 때 밟아요.');
+  b.bossArena(130, 6, false, 'jelly');
+  b.gold(29, 7); b.gold(46, 4); b.gold(70, 6);
+  b.check(112);
+  return b.build();
+}
+
+// ── WORLD 10 · 초록 정글 ──────────────────────────────────────
+function w10s1() {
+  const b = new Builder('10-1', '초록 정글', 214, { theme: 'jungle', music: 'jungle', time: 380 });
+  b.ground(0, 24).liquid(25, 32).ground(33, 62).liquid(63, 72).ground(73, 110).liquid(111, 120).ground(121, 158).liquid(159, 168).ground(169, 213);
+  jungleDecor(b, 0, 214);
+  b.hint(2, '초록 정글이에요! 야자나무 밑을 지나면 코코넛이 떨어져요.');
+  b.row(8, 9, '?B?', 'power', 'bone').fly('coconut', 14, 8).e('monkey', 20).hint(17, '원숭이는 바나나를 던져요!');
+  b.mover(25, 11, 3, 'x', 5, 1.1);
+  b.e('crabling', 38).fly('coconut', 44, 8).row(48, 8, 'B?B?', 'bone', 'chick').e('monkey', 56).fly('bat', 60, 5);
+  b.mover(63, 11, 3, 'x', 7, 1.2).bones(64, 8, 7);
+  b.check(76).e('monkey', 82).fly('coconut', 88, 8).fill(92, 94, 9, 12, 'H').e('monkey', 93, 9).e('crabling', 100).row(104, 9, 'BhB', 'heart');
+  b.plat(112, 11, 2).plat(116, 10, 2);
+  b.fly('coconut', 126, 8).e('monkey', 130).row(134, 8, '??', 'spring', 'power').e('crabling', 142).fly('coconut', 148, 8).e('monkey', 152);
+  b.mover(159, 11, 3, 'x', 4, 1.3).plat(165, 10, 2);
+  b.e('monkey', 176).stairs(182, 6).fill(188, 189, GROUND - 6, GROUND - 1, 'H');
+  b.finish(200);
+  b.gold(29, 7); b.gold(93, 6); b.gold(166, 7);
+  b.check(138);
+  return b.build();
+}
+
+function w10s2() {
+  const b = new Builder('10-2', '폭포 통나무 다리', 208, { theme: 'jungle', music: 'jungle2', time: 380 });
+  b.ground(0, 18).liquid(19, 40).ground(41, 58).liquid(59, 84).ground(85, 104).liquid(105, 128).ground(129, 146).liquid(147, 170).ground(171, 207);
+  jungleDecor(b, 0, 208);
+  b.hint(2, '큰 강이 흘러요. 통나무를 타고 건너요!');
+  b.row(8, 9, '?B?', 'power', 'cushion').e('monkey', 14);
+  b.mover(19, 11, 3, 'x', 6, 1.1).crumble(29, 10, 3).mover(33, 11, 3, 'x', 4, 1.2);
+  b.e('crabling', 46).fly('coconut', 50, 8).e('monkey', 54);
+  b.mover(59, 11, 3, 'y', 3, 1.1).plat(64, 9, 3).mover(69, 11, 3, 'x', 5, 1.3).crumble(78, 10, 3);
+  b.check(88).e('monkey', 92).row(95, 8, '?b?', 'bigBone', 'bones', 'rainbow').fly('coconut', 100, 8);
+  b.mover(105, 11, 3, 'x', 5, 1.2).plat(113, 9, 3).fly('bat', 115, 5).mover(118, 11, 3, 'x', 5, 1.3);
+  b.e('crabling', 134).e('monkey', 140).fly('coconut', 144, 8);
+  b.crumble(148, 11, 3).mover(152, 10, 3, 'x', 5, 1.3).crumble(161, 11, 3).plat(166, 10, 3);
+  b.e('monkey', 176).fly('coconut', 180, 8).stairs(184, 5).fill(189, 190, GROUND - 5, GROUND - 1, 'H');
+  b.finish(198);
+  b.gold(31, 7); b.gold(65, 6); b.gold(114, 6);
+  b.check(132);
+  return b.build();
+}
+
+function w10s3() {
+  const b = new Builder('10-3', '헤이즐넛의 나무 왕국', 172, { theme: 'jungle', music: 'jungle', time: 340 });
+  b.ground(0, 26).liquid(27, 32).ground(33, 64).liquid(65, 72).ground(73, 104).liquid(105, 110).ground(111, 171);
+  jungleDecor(b, 0, 124);
+  b.hint(2, '정글의 왕 헤이즐넛이 사는 곳이에요. 쿵쿵 소리가 들려요!');
+  b.row(8, 9, '?B?', 'power', 'bone').e('monkey', 16).fly('coconut', 20, 8).mover(27, 11, 3, 'x', 3, 1.1);
+  b.e('crabling', 38).e('monkey', 44).fly('coconut', 50, 8).row(54, 8, '?h?', 'shield', 'heart', 'spring').e('monkey', 60);
+  b.crumble(66, 11, 2).crumble(69, 10, 2).check(76);
+  b.e('monkey', 82).fly('coconut', 86, 8).e('crabling', 90).fly('bat', 94, 5).e('monkey', 98).mover(105, 11, 3, 'x', 3, 1.2);
+  b.row(114, 9, '??', 'power', 'heart').e('monkey', 120);
+  b.hint(124, '헤이즐넛이 쿵쿵 뛰면 공중으로 피해요! 벽에 부딪혀 어지러울 때 밟아요.');
+  b.bossArena(130, 7, false, 'gorilla');
+  b.gold(29, 7); b.gold(52, 6); b.gold(70, 6);
+  b.check(112);
+  return b.build();
+}
+
+// ── WORLD 11 · 으스스 유령의 집 (어두워요) ────────────────────
+function w11s1() {
+  const b = new Builder('11-1', '으스스 묘지', 212, { theme: 'ghost', music: 'ghost', time: 380 });
+  b.ground(0, 24).ground(29, 60).ground(66, 98).ground(104, 140).ground(146, 211);
+  ghostDecor(b, 0, 212);
+  b.hint(2, '깜깜한 묘지예요! 꼬마 유령은 쳐다보면 멈추고, 등을 돌리면 다가와요.');
+  b.row(8, 9, '?B?', 'power', 'bone').fly('boo', 20, 8).e('hedgehog', 22);
+  b.plat(25, 10, 3);
+  b.e('bean', 36).fly('bat', 40, 4).row(44, 8, 'B?B?', 'bone', 'chick').fly('boo', 50, 7).e('hedgehog', 56);
+  b.plat(61, 10, 4);
+  b.check(70).fly('boo', 76, 6).e('bean', 80).set(84, GROUND - 1, '^').set(85, GROUND - 1, '^').fly('bat', 88, 4).e('hedgehog', 92).row(94, 9, 'BhB', 'heart');
+  b.plat(99, 11, 2).plat(102, 10, 2);
+  b.fly('boo', 110, 8).e('can', 114).row(118, 8, '??', 'rainbow', 'power').fly('boo', 126, 6).e('bean', 130).fly('bat', 134, 4);
+  b.crumble(141, 11, 5);
+  b.fly('boo', 152, 7).e('hedgehog', 158).fly('boo', 164, 9).stairs(172, 6).fill(178, 179, GROUND - 6, GROUND - 1, 'H');
+  b.finish(190);
+  b.gold(26, 7); b.gold(63, 7); b.gold(143, 7);
+  b.check(122);
+  return b.build();
+}
+
+function w11s2() {
+  const b = new Builder('11-2', '유령의 집 복도', 204, { theme: 'ghost', music: 'ghost2', time: 380 });
+  b.fill(0, 203, 0, 1, 'C');
+  b.ground(0, 20).liquid(21, 26).ground(27, 54).liquid(55, 62).ground(63, 96).liquid(97, 104).ground(105, 140).liquid(141, 148).ground(149, 203);
+  for (let x = 6; x < 196; x += 16) b.deco('windowS', x, 4);
+  b.hint(3, '유령의 집 복도예요. 보라색 물에 빠지지 말아요!');
+  b.row(8, 9, 'C?C', 'power').fly('boo', 16, 8).plat(22, 10, 4);
+  b.fly('bat', 30, 3).e('hedgehog', 34).set(38, GROUND - 1, '^').set(39, GROUND - 1, '^').fly('boo', 44, 7).row(46, 8, '???', 'bone', 'shield', 'cushion').e('can', 50);
+  b.crumble(56, 11, 6);
+  b.check(66).fly('boo', 72, 6).e('hedgehog', 76).fill(80, 82, 9, 12, 'C').fly('boo', 81, 5).fly('bat', 88, 3).e('bean', 92);
+  b.mover(97, 11, 3, 'x', 5, 1.3);
+  b.row(108, 9, 'ChC', 'heart').fly('boo', 114, 7).e('hedgehog', 118).fly('boo', 124, 9).set(128, GROUND - 1, '^').fly('bat', 132, 3).row(135, 8, '?', 'power');
+  b.crumble(142, 11, 2).crumble(145, 10, 2);
+  b.fly('boo', 156, 7).e('hedgehog', 160).fly('boo', 166, 9).stairs(170, 5).fill(175, 176, GROUND - 5, GROUND - 1, 'H');
+  b.finish(186);
+  b.gold(24, 7); b.gold(81, 5); b.gold(146, 7);
+  b.check(120);
+  return b.build();
+}
+
+function w11s3() {
+  const b = new Builder('11-3', '비엔나의 다락방', 176, { theme: 'ghost', music: 'ghost2', time: 340 });
+  b.fill(0, 175, 0, 1, 'C');
+  b.ground(0, 22).liquid(23, 29).ground(30, 56).liquid(57, 64).ground(65, 96).liquid(97, 104).ground(105, 175);
+  for (let x = 4; x < 130; x += 14) b.deco('windowS', x, 4);
+  b.hint(2, '다락방 끝에 유령 비엔나가 기다려요...');
+  b.row(8, 9, 'C?C', 'power').fly('boo', 16, 7).crumble(24, 11, 5);
+  b.fly('bat', 34, 3).e('hedgehog', 38).fill(42, 44, 9, 12, 'C').fly('boo', 48, 6).row(50, 8, '?h?', 'bigBone', 'heart', 'power').fly('bat', 54, 4);
+  b.mover(57, 11, 3, 'x', 5, 1.3).check(68);
+  b.fly('boo', 72, 8).e('hedgehog', 76).set(80, GROUND - 1, '^').set(81, GROUND - 1, '^').fly('boo', 86, 6).fly('bat', 88, 4).e('can', 92);
+  b.crumble(98, 11, 2).crumble(101, 10, 2);
+  b.row(110, 9, '??', 'power', 'shield').fly('boo', 116, 7).e('bean', 120);
+  b.hint(126, '모자 쓴 게 진짜 비엔나예요! 가짜는 닿으면 펑 사라져요.');
+  b.bossArena(132, 6, false, 'ghost');
+  b.gold(43, 5); b.gold(60, 7); b.gold(102, 7);
+  b.check(112);
+  return b.build();
+}
+
+// ── WORLD 12 · 별빛 우주 (몸이 가벼워요) ─────────────────────
+function w12s1() {
+  const b = new Builder('12-1', '둥실둥실 달 표면', 220, { theme: 'space', music: 'space', time: 380, meteors: true });
+  b.ground(0, 24).ground(32, 60).ground(69, 98).ground(107, 140).ground(150, 219);
+  spaceDecor(b, 0, 220);
+  b.hint(2, '우주에서는 몸이 가벼워서 아주 높이 뛰어요! 떨어지는 운석을 조심해요.');
+  b.row(8, 9, '?B?', 'power', 'bone').e('alien', 16).e('alien', 20).hint(14, '외계인은 폴짝폴짝 뛰어요. 위에서 밟아요!');
+  b.bones(26, 7, 5, -.4);
+  b.e('alien', 38).row(44, 7, 'B?B?', 'bone', 'spring').e('alien', 52).fill(56, 58, 9, 12, 'H');
+  b.bones(62, 5, 6);
+  b.check(72).e('alien', 78).fill(84, 86, 6, 12, 'H').e('alien', 85, 6).e('alien', 92).row(94, 8, 'BhB', 'heart');
+  b.plat(101, 9, 3).bones(101, 7, 3);
+  b.e('alien', 112).row(118, 7, '??', 'chick', 'power').e('alien', 126).fill(130, 132, 8, 12, 'H').e('alien', 136);
+  b.plat(143, 8, 3).bones(143, 5, 3);
+  b.e('alien', 156).e('alien', 162).stairs(172, 6).fill(178, 179, GROUND - 6, GROUND - 1, 'H');
+  b.finish(196);
+  b.gold(29, 3); b.gold(85, 3); b.gold(145, 3);
+  b.check(122);
+  return b.build();
+}
+
+function w12s2() {
+  const b = new Builder('12-2', '별똥별 우주길', 266, { theme: 'space', music: 'space2', time: 300, mode: 'fly' });
+  spaceDecor(b, 0, 266);
+  b.start = { tx: 3, ty: 7 };
+  b.hint(1, '로켓 풍선을 타고 우주를 날아요! 운석과 외계인을 조심해요.');
+  b.bones(12, 6, 5).fly('bat', 22, 5).fly('pigeon', 26, 10);
+  b.fill(30, 32, 0, 4, 'H').fill(30, 32, 10, 15, 'H').fly('bat', 40, 4).fly('bat', 44, 10).fly('pigeon', 48, 7);
+  b.fill(56, 58, 8, 15, 'H').e('alien', 57, 8).fill(66, 68, 0, 5, 'H').fly('bat', 74, 9).fly('bat', 78, 3).fly('pigeon', 82, 12);
+  b.fill(90, 92, 0, 4, 'H').fill(90, 92, 10, 15, 'H').fill(100, 102, 5, 9, 'H').fly('pigeon', 108, 2).fly('pigeon', 110, 13);
+  b.fill(118, 120, 9, 15, 'H').e('alien', 119, 9).fill(126, 128, 0, 5, 'H').fly('bat', 134, 10).fly('pigeon', 138, 4).fly('bat', 142, 8);
+  b.fill(150, 152, 0, 4, 'H').fill(150, 152, 10, 15, 'H').bones(151, 6, 1).bones(151, 7, 1).fill(160, 162, 5, 9, 'H');
+  b.fly('pigeon', 170, 3).fly('bat', 172, 12).fly('pigeon', 176, 7).fly('bat', 180, 4).fly('bat', 184, 10);
+  b.fill(192, 194, 0, 6, 'H').fill(202, 204, 8, 15, 'H').e('alien', 203, 8).fill(212, 214, 0, 4, 'H').fill(212, 214, 10, 15, 'H');
+  b.fly('bat', 222, 5).fly('pigeon', 226, 11).fly('bat', 230, 8).bones(236, 5, 6).fly('bat', 244, 7).fill(250, 252, 0, 5, 'H').fill(250, 252, 11, 15, 'H');
+  b.gold(61, 3); b.gold(131, 10); b.gold(213, 7);
+  return b.build();
+}
+
+function w12s3() {
+  const b = new Builder('12-3', '아포가토의 우주 기지', 190, { theme: 'space', music: 'space', time: 380, meteors: true });
+  b.ground(0, 22).ground(30, 54).ground(62, 88).ground(96, 124).ground(132, 189);
+  spaceDecor(b, 0, 150);
+  b.hint(2, '마지막 우주 기지예요! 모카가 저 안에 있어요.');
+  b.row(8, 9, '?B?', 'power', 'bone').e('alien', 14).e('alien', 18).bones(24, 6, 4);
+  b.e('alien', 36).fill(40, 42, 8, 12, 'H').e('alien', 41, 8).row(46, 7, '?h?', 'rainbow', 'heart', 'power').e('alien', 50);
+  b.plat(56, 9, 3).check(66);
+  b.e('alien', 70).fill(74, 76, 6, 12, 'H').e('alien', 80).fly('bat', 84, 4).e('alien', 86);
+  b.plat(90, 8, 3);
+  b.e('alien', 100).row(104, 7, '??', 'shield', 'cushion').e('alien', 110).fill(114, 116, 8, 12, 'H').e('alien', 120);
+  b.row(138, 9, '??', 'heart', 'power');
+  b.hint(142, '마지막 대결! 광선이 깜빡이면 얼른 옆으로! 우주선이 내려와 쉴 때 밟아요!');
+  b.bossArena(150, 10, true, 'ufo');
+  b.gold(26, 3); b.gold(75, 3); b.gold(115, 4);
+  b.check(100);
+  return b.build();
+}
+
+// ── 끝없는 모험: 조각을 이어 붙여 스테이지를 끝없이 만들어요(번호마다 늘 같은 모양) ──
+function rng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const ENDLESS = [
+  { theme: 'park', music: 'park', foes: ['bean', 'can', 'hedgehog'], decor: parkDecor },
+  { theme: 'desert', music: 'desert', foes: ['scorp', 'bean', 'dino'], liquid: true, decor: desertDecor },
+  { theme: 'roof', music: 'roof', foes: ['bean', 'can', 'hedgehog'], air: ['pigeon'], decor: nightDecor },
+  { theme: 'candy', music: 'candy', foes: ['gummy', 'bean', 'can'], liquid: true, jelly: true, decor: candyDecor },
+  { theme: 'factory', music: 'factory', foes: ['cup', 'bean', 'can'], liquid: true },
+  { theme: 'beach', music: 'beach', foes: ['crabling', 'bean'], air: ['pigeon'], liquid: true, decor: beachDecor },
+  { theme: 'jungle', music: 'jungle', foes: ['monkey', 'crabling'], liquid: true, hang: 'coconut', decor: jungleDecor },
+  { theme: 'volcano', music: 'volcano', foes: ['dino', 'hedgehog'], air: ['bat'], liquid: true, ember: true, decor: volcanoDecor },
+  { theme: 'ice', music: 'ice', foes: ['penguin', 'bean'], air: ['bat'], liquid: true, decor: iceDecor },
+  { theme: 'ghost', music: 'ghost', foes: ['hedgehog', 'bean'], air: ['boo', 'bat'], decor: ghostDecor },
+  { theme: 'space', music: 'space', foes: ['alien'], meteors: true, decor: spaceDecor },
+  { theme: 'dragon', music: 'dragon', foes: ['dino', 'hedgehog'], air: ['bat'], liquid: true, ember: true },
+];
+const ENDLESS_BOSSES = ['coffee', 'scorpion', 'jelly', 'dragon', 'crab', 'gorilla', 'owl', 'ghost', 'ufo'];
+export function endlessLevel(n) {
+  const R = rng(n * 9973 + 17), pick = a => a[Math.floor(R() * a.length)], ri = (a, z) => a + Math.floor(R() * (z - a + 1));
+  const th = ENDLESS[(n - 1) % ENDLESS.length], boss = n % 4 === 0, hard = Math.min(1, (n - 1) / 24);
+  const W = boss ? 190 : 214;
+  const b = new Builder(`E-${n}`, `끝없는 모험 ${n}`, W, { theme: th.theme, music: th.music, time: 400, meteors: !!th.meteors, endless: true });
+  const pit = (a, z) => th.liquid ? b.liquid(a, z) : b.hole(a, z);
+  const foe = x => { if (th.air && R() < .35) b.fly(pick(th.air), x, ri(4, 8)); else b.e(pick(th.foes), x); };
+  const itemsAll = ['power', 'bone', 'bone', 'spring', 'shield', 'chick', 'cushion', 'rainbow', 'magnet', 'heart', 'boneRain', 'wing', 'clock', 'bigBone'];
+  b.ground(0, 14); b.hint(1, `끝없는 모험 ${n}단계! 어디까지 갈 수 있을까요?`);
+  let x = 15, lastCheck = 0;
+  const end = boss ? W - 46 : W - 34;
+  while (x < end) {
+    const room = end - x, k = pick(['flat', 'flat', 'gap', 'gap', 'plat', 'mover', 'crumble', 'stairs', 'pipes', 'spikes', 'blocks', ...(th.jelly ? ['jelly', 'jelly'] : []), ...(th.hang ? ['hang'] : [])]);
+    if (room < 16 || k === 'flat') { const w = Math.min(room, ri(8, 14)); b.ground(x, x + w - 1); if (w > 8) { foe(x + 4); if (R() < .3 + hard * .5) foe(x + w - 3); } if (x - lastCheck > 70 && w > 6) { b.check(x + 2); lastCheck = x; } x += w; continue; }
+    if (k === 'gap') { const g = ri(2, 3 + Math.round(hard * 2)); pit(x, x + g - 1); if (th.ember && R() < .5) b.ember(x + Math.floor(g / 2), 5); b.bones(x, 8, g); x += g; b.ground(x, x + 5); x += 6; }
+    else if (k === 'plat') { const g = ri(6, 8); pit(x, x + g - 1); b.plat(x + 2, 10, 3); if (R() < .5) b.bones(x + 2, 8, 3); x += g; b.ground(x, x + 5); x += 6; }
+    else if (k === 'mover') { const g = ri(7, 9); pit(x, x + g - 1); b.mover(x, 11, 3, 'x', g - 4, 1 + hard * .4); x += g; b.ground(x, x + 5); x += 6; }
+    else if (k === 'crumble') { const g = ri(5, 7); pit(x, x + g - 1); b.crumble(x + 1, 11, g - 2); x += g; b.ground(x, x + 5); x += 6; }
+    else if (k === 'stairs') { const h = ri(3, 4); b.ground(x, x + h * 2 + 6); b.stairs(x + 1, h).fill(x + 1 + h, x + h + 3, GROUND - h, GROUND - 1, 'H').stairs(x + h + 4, h, -1); if (R() < .5) b.bones(x + h + 1, GROUND - h - 3, 3); x += h * 2 + 7; }
+    else if (k === 'pipes') { b.ground(x, x + 13); b.pipe(x + 2, ri(9, 11)); foe(x + 7); b.pipe(x + 10, ri(9, 11)); x += 14; }
+    else if (k === 'spikes') { b.ground(x, x + 9); b.set(x + 4, GROUND - 1, '^'); if (R() < hard) b.set(x + 5, GROUND - 1, '^'); b.bones(x + 3, 9, 4); x += 10; }
+    else if (k === 'blocks') { b.ground(x, x + 11); b.row(x + 3, 9, pick(['?B?', 'B?B?', '?b?', 'BhB']), pick(itemsAll), pick(itemsAll), 'bones'); foe(x + 9); x += 12; }
+    else if (k === 'jelly') { b.ground(x, x + 11); b.set(x + 3, GROUND - 1, 'J'); b.fill(x + 6, x + 7, GROUND - 5, GROUND - 1, 'H'); b.bones(x + 6, 4, 2); x += 12; }
+    else if (k === 'hang') { b.ground(x, x + 11); b.fly(th.hang, x + 4, 8); b.fly(th.hang, x + 8, 8); x += 12; }
+  }
+  b.ground(x, W - 1);
+  th.decor?.(b, 0, W);
+  if (boss) { const kind = ENDLESS_BOSSES[(n / 4 - 1) % ENDLESS_BOSSES.length]; b.row(x + 2, 9, '??', 'heart', 'power'); b.bossArena(W - 21, Math.min(8, 3 + Math.floor(n / 8)), false, kind); }
+  else { b.stairs(W - 26, 5).fill(W - 21, W - 20, GROUND - 5, GROUND - 1, 'H'); b.finish(W - 12); }
+  return b.build();
+}
+
+export const LEVELS = [w1s1(), w1s2(), w1s3(), w2s1(), w2s2(), w2s3(), w3s1(), w3s2(), w3s3(), w4s1(), w4s2(), w4s3(), w5s1(), w5s2(), w5s3(), w6s1(), w6s2(), w6s3(), w7s1(), w7s2(), w7s3(), w8s1(), w8s2(), w8s3(), w9s1(), w9s2(), w9s3(), w10s1(), w10s2(), w10s3(), w11s1(), w11s2(), w11s3(), w12s1(), w12s2(), w12s3()];
+export const WORLD_NAMES = ['햇살 공원', '달밤 지붕 골목', '커피 성', '불꽃 화산', '용의 하늘 성', '햇살 사막', '파도 바닷가', '콜드브루의 얼음 나라', '사탕 과자 나라', '초록 정글', '으스스 유령의 집', '별빛 우주'];
 export const STORY1_END = 8; // 3-3을 깨면 첫 번째 이야기 끝, 용이 나타나요
 export const STORY2_END = 14; // 5-3을 깨면 두 번째 이야기 끝, 콜드브루가 나타나요(에스프레소도 고를 수 있어요)
+export const STORY3_END = 23; // 8-3을 깨면 세 번째 이야기 끝, 아포가토가 모카를 데려가요(콜드브루도 고를 수 있어요)
+export const worldOf = L => L.endless ? '끝없는 모험' : WORLD_NAMES[+L.id.split('-')[0] - 1];

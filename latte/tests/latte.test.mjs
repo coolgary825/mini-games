@@ -1,7 +1,7 @@
 // node --test latte/tests/  — 브라우저 없이 규칙만 확인해요.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LEVELS, ROWS } from '../levels.js';
+import { LEVELS, ROWS, endlessLevel } from '../levels.js';
 import { Run, T } from '../engine.js';
 import { SPRITES } from '../sprites.js';
 import { searchRun } from './search.mjs';
@@ -18,7 +18,7 @@ function enemy(r, type, x) {
 }
 
 test('모든 스테이지 지도가 16줄이고 너비가 맞아요', () => {
-  assert.equal(LEVELS.length, 24);
+  assert.equal(LEVELS.length, 36);
   for (const L of LEVELS) {
     assert.equal(L.rows.length, ROWS, L.id);
     for (const row of L.rows) assert.equal(row.length, L.w, L.id);
@@ -257,8 +257,8 @@ test('쉬워진 규칙: 커져 있으면 구덩이에 빠져도 작아지기만 
   assert.equal(s.state, 'dying', '작을 때 빠지면 쓰러져요');
 });
 
-test('팝콘공·드래곤·에스프레소로도 24스테이지를 모두 끝까지 갈 수 있어요', () => {
-  for (const char of ['turtle', 'lizard', 'espresso']) for (const L of LEVELS) { const r = searchRun(L, { char }); assert.ok(['clear', 'ending'].includes(r.result), `${char} ${L.id}: ${JSON.stringify(r)}`); }
+test('팝콘공·드래곤·에스프레소·콜드브루로도 36스테이지를 모두 끝까지 갈 수 있어요', () => {
+  for (const char of ['turtle', 'lizard', 'espresso', 'owl']) for (const L of LEVELS) { const r = searchRun(L, { char }); assert.ok(['clear', 'ending'].includes(r.result), `${char} ${L.id}: ${JSON.stringify(r)}`); }
 });
 
 // ── 3부: 월드 6~8 ──────────────────────────────────────────
@@ -357,4 +357,110 @@ test('얼음 부엉이 콜드브루: 얼음 조각·고드름을 쏘고, 휙 내
   while (b.hp > 0) r.hitBoss(b, 1);
   for (let i = 0; i < 200 && !ended; i++) r.update(idle);
   assert.ok(ended);
+});
+
+// ── 4부: 월드 9~12, 난이도, 새 아이템, 끝없는 모험 ─────────────
+test('난이도: 평화로움은 안 아프고, 불가능은 한 번에 끝나고, 어려움은 구덩이에서 안 구해 줘요', () => {
+  const mk = (difficulty, c = { ...carry(), big: true }) => { const r = new Run(LEVELS[0], c, {}, { difficulty }); r.spawnDefs = []; stand(r, 3 * T); return r; };
+  const peace = mk('peace'); peace.hurt(); assert.equal(peace.state, 'play'); assert.ok(peace.carry.big, '평화로움: 작아지지도 않아요');
+  const imp = mk('impossible', { ...carry(), big: true, shield: true }); imp.hurt(); assert.equal(imp.state, 'dying', '불가능: 방패가 있어도 한 번에');
+  assert.equal(imp.checks.length, 0, '불가능: 소화전이 없어요');
+  const hard = mk('hard'); hard.player.x = 47 * T; hard.player.y = 12 * T; hard.player.vy = 3;
+  for (let i = 0; i < 80 && hard.state === 'play'; i++) hard.update(idle);
+  assert.equal(hard.state, 'dying', '어려움: 커도 구덩이에 빠지면 끝');
+  const pk = mk('peace', carry()); pk.player.x = 47 * T; pk.player.y = 12 * T; pk.player.vy = 3;
+  for (let i = 0; i < 80; i++) pk.update(idle);
+  assert.equal(pk.state, 'play', '평화로움: 작아도 구덩이에서 구해 줘요');
+  const boss = diff => { const L = byId('9-3'), r = new Run(L, carry(), talk, { difficulty: diff }); r.player.x = (L.boss.arena + 3) * T; r.player.y = r.groundBelow(r.player.x, 0) - r.player.h; r.update(idle); r.update(idle); return r.boss.hp; };
+  assert.ok(boss('impossible') > boss('normal') && boss('normal') > boss('peace'), '보스 체력도 달라져요');
+});
+
+test('콜드브루(플레이어): 공중에서 두 번 퍼덕이고, 꽁!에 맞은 적은 얼었다가 닿으면 날아가요', () => {
+  const c = { ...carry(), char: 'owl' }, r = new Run(LEVELS[0], c, {}, { easy: true });
+  assert.equal(r.hero, '콜드브루');
+  stand(r, 3 * T);
+  r.update({ ...idle, a: true, aPressed: true });
+  let flaps = 0;
+  for (let k = 0; k < 3; k++) { for (let i = 0; i < 10; i++) r.update({ ...idle, a: true }); const v = r.player.vy; r.update({ ...idle, a: true, aPressed: true }); if (r.player.vy < v - .5) flaps++; }
+  assert.equal(flaps, 2, '두 번만 퍼덕여요');
+  const q = new Run(LEVELS[0], { ...carry(), char: 'owl' }, {}, { easy: true });
+  stand(q, 3 * T);
+  const e = enemy(q, 'hedgehog', 7 * T);
+  q.update({ ...idle, barkPressed: true });
+  for (let i = 0; i < 20 && !e.frozen; i++) q.update(idle);
+  assert.ok(e.frozen && e.stun > 0, '꽁꽁 얼어요');
+  q.player.x = e.x - 2; q.player.y = e.y + e.h - q.player.h; q.interact();
+  assert.ok(e.dead, '언 적은 닿으면 톡 날아가요'); assert.equal(q.state, 'play');
+});
+
+test('새 아이템: 스프링 신발·구름 방석·병아리 친구·뼈다귀 비·무지개 사탕', () => {
+  const jumpTop = power => { const r = new Run(LEVELS[0], { ...carry(), big: true, power }, {}, { easy: true }); r.spawnDefs = []; stand(r, 3 * T); const y0 = r.player.y; r.update({ ...idle, a: true, aPressed: true }); let top = y0; for (let i = 0; i < 60; i++) { r.update({ ...idle, a: true }); top = Math.min(top, r.player.y); } return y0 - top; };
+  assert.ok(jumpTop('spring') > jumpTop(null) * 1.4, '스프링 신발은 훨씬 높이');
+  const give = (r, kind) => { r.things.push({ kind, x: r.player.x, y: r.player.y, w: 8, h: 8, vx: 0, vy: 0, rise: 0 }); r.interact(); };
+  const c = carry(), r = new Run(LEVELS[0], c, {}, { easy: true }); r.spawnDefs = []; stand(r, 43 * T);
+  for (let i = 0; i < 5; i++) r.update(idle);
+  give(r, 'cushion'); assert.ok(c.cushion);
+  r.player.x = 47 * T; r.player.y = 12 * T; r.player.vy = 3;
+  for (let i = 0; i < 80 && c.cushion; i++) r.update(idle);
+  assert.equal(r.state, 'play', '작아도 구름 방석이 구해 줘요'); assert.equal(c.cushion, false);
+  stand(r, 3 * T); give(r, 'chick'); assert.ok(r.buddy && c.buddy);
+  const e = enemy(r, 'bean', 8 * T);
+  for (let i = 0; i < 120 && !e.dead; i++) { r.player.x = 3 * T; r.update(idle); }
+  assert.ok(e.dead, '병아리가 콕!');
+  const before = c.bones; give(r, 'boneRain'); assert.ok(r.rain > 0);
+  for (let i = 0; i < 320; i++) { const b = r.things.find(t => t.kind === 'fallBone'); if (b) { r.player.x = b.x; r.player.y = b.y; } r.update(idle); }
+  assert.ok(c.bones > before + 5, '떨어지는 뼈다귀를 모아요');
+  stand(r, 50 * T); give(r, 'rainbow'); assert.ok(r.player.star > 0 && r.player.rainbow > 0);
+  for (let i = 0; i < 60; i++) r.update({ ...idle, right: true });
+  assert.ok(Math.abs(r.player.vx) > 2.3, '무지개 사탕은 엄청 빨라요');
+});
+
+test('젤리 블록은 통통, 우주는 몸이 가벼워요, 꼬마 유령은 쳐다보면 멈춰요', () => {
+  const L = byId('9-1'), r = new Run(L, carry(), {}, { easy: true }); r.spawnDefs = [];
+  r.player.x = 40 * T; r.player.y = 10 * T; r.player.vy = 2; r.player.ground = false;
+  for (let i = 0; i < 10 && r.player.vy >= 0; i++) r.update(idle);
+  assert.ok(r.player.vy < -4, '젤리를 밟으면 높이 튀어요');
+  const air = L2 => { const q = new Run(L2, carry(), {}, { easy: true }); q.spawnDefs = []; stand(q, 3 * T); q.update({ ...idle, a: true, aPressed: true }); let f = 0; while (!q.player.ground && f < 400) { q.update({ ...idle, a: true }); f++; } return f; };
+  assert.ok(air(byId('12-1')) > air(LEVELS[0]) * 1.6, '우주에서는 더 오래 떠 있어요');
+  const g = new Run(byId('11-1'), carry(), {}, { easy: true }); g.spawnDefs = []; stand(g, 20 * T);
+  const boo = { type: 'boo', x: 30 * T, y: 9 * T, w: 11, h: 10, vx: 0, vy: 0, dir: -1, t: 0, stun: 0, state: 'hang', dead: false, gone: false };
+  g.enemies = [boo];
+  g.player.face = 1; const x0 = boo.x; for (let i = 0; i < 30; i++) g.updateEnemy(boo);
+  assert.equal(boo.x, x0, '쳐다보면 멈춰요'); assert.equal(boo.state, 'hide');
+  g.player.face = -1; for (let i = 0; i < 30; i++) g.updateEnemy(boo);
+  assert.ok(boo.x < x0, '등을 돌리면 다가와요');
+});
+
+test('젤리곰·고릴라·유령·UFO 보스: 쉴 때만 밟히고, 12-3 UFO를 이기면 진짜 엔딩', () => {
+  const cases = [['9-3', 'jelly', 'squish'], ['10-3', 'gorilla', 'dizzy'], ['11-3', 'ghost', 'split'], ['12-3', 'ufo', 'rest']];
+  for (const [id, kind, st] of cases) {
+    let ended = false, cleared = false;
+    const r = enterBoss(byId(id), { ending: () => { ended = true; }, clear: () => { cleared = true; } });
+    r.god = true;
+    const b = r.boss; assert.equal(b.kind, kind);
+    const seen = new Set();
+    for (let i = 0; i < 1500 && !seen.has(st); i++) { r.update(idle); seen.add(b.state); }
+    assert.ok(seen.has(st), `${kind}: ${st} 해요 (${[...seen]})`);
+    while (b.hp > 0) r.hitBoss(b, 1);
+    for (let i = 0; i < 400 && !ended && !cleared; i++) r.update(idle);
+    assert.ok(kind === 'ufo' ? ended : cleared, `${kind} 끝`);
+  }
+  const g = enterBoss(byId('11-3')); g.god = true; const gb = g.boss;
+  for (let i = 0; i < 1500 && gb.state !== 'split'; i++) g.update(idle);
+  for (let i = 0; i < 5; i++) g.update(idle);
+  assert.equal(gb.fakes.length, 2, '비엔나는 셋으로 늘어나요');
+  const hp = gb.hp, f = gb.fakes[0]; g.player.x = f.x + 2; g.player.y = f.y + 2; g.update(idle);
+  assert.equal(gb.hp, hp, '가짜는 밟아도 체력이 안 줄어요'); assert.equal(gb.fakes.length, 1, '가짜는 펑 사라져요');
+});
+
+test('끝없는 모험: 번호마다 같은 스테이지, 4단계마다 보스, 처음 24단계는 모두 끝까지 갈 수 있어요', () => {
+  assert.deepEqual(endlessLevel(7).rows, endlessLevel(7).rows);
+  assert.notDeepEqual(endlessLevel(7).rows, endlessLevel(8).rows);
+  for (let n = 1; n <= 24; n++) {
+    const L = endlessLevel(n);
+    assert.equal(L.rows.length, ROWS); for (const row of L.rows) assert.equal(row.length, L.w);
+    assert.equal(!!L.boss, n % 4 === 0, `${n}단계 보스`);
+    const r = searchRun(L, { char: n % 2 ? 'latte' : 'owl' });
+    assert.ok(['clear', 'ending'].includes(r.result), `${n}: ${JSON.stringify(r)}`);
+  }
 });

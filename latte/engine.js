@@ -2,14 +2,24 @@
 import { ROWS } from './levels.js';
 
 export const T = 8, VIEW_W = 160, VIEW_H = 128;
-const SOLID = '#BU?H[]{}C^F';
+const SOLID = '#BU?H[]{}C^FJ'; // J: 통통 젤리 블록(밟으면 높이 튀어요)
 const PHYS = { walk: 1.25, run: 2.05, acc: .07, airAcc: .055, friction: .09, skid: .16, jump: 3.45, runJump: 3.8, gHold: .16, g: .34, maxFall: 4.5 };
 const SIZES = {
   bean: [10, 11], can: [10, 12], hedgehog: [13, 9], pigeon: [12, 8], cup: [12, 10], boss: [18, 18],
   bat: [11, 7], ember: [5, 7], dino: [10, 12], dragon: [26, 18],
   crabling: [10, 8], scorp: [12, 9], penguin: [10, 11], icicle: [8, 7], scorpion: [26, 16], crab: [28, 15], owl: [20, 18],
+  gummy: [10, 8], monkey: [10, 12], boo: [11, 10], alien: [10, 10], coconut: [6, 6], jelly: [22, 20], gorilla: [24, 20], ghost: [18, 18], ufo: [30, 14],
 };
-const STILL = ['ball', 'wing', 'magnet', 'clock', 'bigBone', 'shield'];
+// 난이도: 평화로움(다치지 않아요) → 불가능(한 번만 닿아도 끝)
+export const DIFFICULTY = {
+  peace: { name: '평화로움', en: 'PEACE', lives: 99, timer: false, startBig: true, harmless: true, pit: 'always', speed: .75, bossHp: .6 },
+  easy: { name: '쉬움', en: 'EASY', lives: 99, timer: false, startBig: true, pit: 'big', speed: 1, bossHp: 1 },
+  normal: { name: '보통', en: 'NORMAL', lives: 5, timer: true, startBig: true, pit: 'big', speed: 1, bossHp: 1 },
+  hard: { name: '어려움', en: 'HARD', lives: 3, timer: true, startBig: false, pit: 'none', speed: 1.3, bossHp: 1.5, timeMul: .8 },
+  impossible: { name: '불가능', en: 'IMPOSSIBLE', lives: 1, timer: true, startBig: false, pit: 'none', speed: 1.7, bossHp: 2, timeMul: .6, oneHit: true, noCheck: true },
+};
+export const DIFF_KEYS = Object.keys(DIFFICULTY);
+const STILL = ['ball', 'wing', 'magnet', 'clock', 'bigBone', 'shield', 'spring', 'cushion', 'boneRain', 'chick'];
 const STOMP_SCORES = [100, 200, 400, 800, 1000, 2000, 4000, 8000];
 
 export const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
@@ -17,7 +27,9 @@ export const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y
 export class Run {
   // carry: 목숨·점수·뼈다귀·변신 상태처럼 스테이지를 넘어 이어지는 값. hooks: 소리·대사·클리어 알림.
   constructor(level, carry, hooks = {}, opts = {}) {
-    this.L = level; this.carry = carry; this.easy = !!opts.easy;
+    this.L = level; this.carry = carry;
+    this.diff = DIFFICULTY[opts.difficulty] || (opts.easy ? DIFFICULTY.easy : DIFFICULTY.normal);
+    this.easy = !this.diff.timer; this.spd = this.diff.speed;
     this.hooks = { sound() {}, music() {}, hint() {}, say(lines, done) { done?.(); }, clear() {}, dead() {}, ending() {}, gold() {}, ...hooks };
     this.goldHave = opts.goldHave || 0; // 전에 모은 황금 뼈다귀(흐리게 보여요)
     this.checkpoint = opts.checkpoint ?? null;
@@ -32,17 +44,20 @@ export class Run {
     this.spawnDefs = L.enemies.map(e => ({ ...e, spawned: false }));
     this.enemies = []; this.things = []; this.shots = []; this.foes = []; this.fx = []; this.pops = [];
     this.movers = L.movers.map(m => ({ ...m, x: m.tx * T, y: m.ty * T, ox: m.tx * T, oy: m.ty * T, w: m.w * T, h: 4, t: 0, dx: 0, dy: 0 }));
-    this.checks = L.checks.map(tx => ({ tx, on: this.checkpoint !== null && tx <= this.checkpoint }));
+    this.checks = this.diff.noCheck ? [] : L.checks.map(tx => ({ tx, on: this.checkpoint !== null && tx <= this.checkpoint }));
     this.hintsShown = new Set();
-    this.frame = 0; this.time = L.time; this.timeTick = 0; this.state = 'play'; this.stateT = 0;
+    this.frame = 0; this.time = Math.round(L.time * (this.diff.timeMul || 1)); this.timeTick = 0; this.rain = 0;
+    this.state = 'play'; this.stateT = 0;
+    this.grav = L.theme === 'space' ? .5 : 1; // 우주에서는 몸이 가벼워요
     this.gold = 0; this.shake = 0; this.crumbles = new Map(); this.respawns = new Map();
-    this.char = ['coffee', 'turtle', 'lizard', 'espresso'].includes(this.carry.char) ? this.carry.char : 'latte';
-    this.hero = { latte: '라떼', coffee: '커피', turtle: '팝콘공', lizard: '드래곤', espresso: '에스프레소' }[this.char]; this.friend = '모카';
+    this.char = ['coffee', 'turtle', 'lizard', 'espresso', 'owl'].includes(this.carry.char) ? this.carry.char : 'latte';
+    this.hero = { latte: '라떼', coffee: '커피', turtle: '팝콘공', lizard: '드래곤', espresso: '에스프레소', owl: '콜드브루' }[this.char]; this.friend = '모카';
     if (this.char === 'turtle') this.carry.shield = true; // 팝콘공의 단단한 등껍질: 스테이지마다 한 번 막아 줘요
     this.chain = 0; this.reveal = 0; this.flag = null; this.boss = null; this.bossStarted = false; this.clearT = 0;
     this.fly = L.mode === 'fly';
     const sx = this.checkpoint !== null ? this.checkpoint * T : L.start.tx * T;
-    const p = this.player = { x: sx, y: 0, w: 10, h: 13, vx: 0, vy: 0, face: 1, ground: false, coyote: 0, jumpBuf: 0, inv: 0, star: 0, barkCd: 0, barkT: 0, shotCd: 0, anim: 0, onMover: null, isPlayer: true, flyHp: 3, airJumps: 0, dashT: 0, dashDir: 1, magnet: 0 };
+    const p = this.player = { x: sx, y: 0, w: 10, h: 13, vx: 0, vy: 0, face: 1, ground: false, coyote: 0, jumpBuf: 0, inv: 0, star: 0, barkCd: 0, barkT: 0, shotCd: 0, anim: 0, onMover: null, isPlayer: true, flyHp: this.diff.oneHit ? 1 : 3, airJumps: 0, dashT: 0, dashDir: 1, magnet: 0, rainbow: 0 };
+    this.buddy = this.carry.buddy ? { x: sx - 10, y: 60, cd: 60, t: 0 } : null;
     if (!this.fly && this.carry.big) { p.h = 20; }
     p.y = (this.fly ? L.start.ty * T : this.groundBelow(sx + 5, 0) ) - (this.fly ? 0 : p.h);
     this.cam = this.fly ? 0 : clamp(p.x - 64, 0, L.w * T - VIEW_W);
@@ -113,6 +128,9 @@ export class Run {
     for (const e of this.enemies) this.updateEnemy(e);
     this.enemies = this.enemies.filter(e => !e.gone);
     if (this.boss) this.updateBoss(this.boss);
+    if (this.rain > 0 && --this.rain % 7 === 0) this.things.push({ kind: 'fallBone', x: this.cam + 8 + (this.frame * 53 % 144), y: 2 * T, w: 8, h: 6, vx: 0, vy: 0, rise: 0 });
+    if (this.L.meteors && this.frame % Math.round(130 / this.spd) === 0 && !this.bossStarted) { this.foes.push({ kind: 'meteor', x: this.cam + 60 + (this.frame * 37 % 110), y: -8, w: 7, h: 7, vx: -.5, vy: 1.3, g: .02, life: 300 }); this.hooks.sound('spit'); }
+    if (this.buddy) this.updateBuddy();
     this.updateThings(); this.updateShots(); this.updateFoes(); this.updateFx();
     this.interact();
     this.updateCamera();
@@ -157,7 +175,8 @@ export class Run {
     // 움직이는 발판에 탄 채로 함께 이동
     if (p.onMover) { const m = p.onMover; this.moveX(p, m.dx); if (m.dy < 0) p.y += m.dy; }
     if (p.magnet > 0) { p.magnet--; this.pullBones(p); }
-    const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0), max = input.b ? P.run : P.walk;
+    if (p.rainbow > 0) p.rainbow--;
+    const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0), max = p.rainbow > 0 ? 2.8 : input.b ? P.run : P.walk;
     const ice = this.L.theme === 'ice' && p.ground; // 얼음 땅은 미끌미끌: 천천히 서고 천천히 돌아서요
     if (p.dashT > 0) { // 커피의 냥냥 대시: 곧게 쌩 날아가요
       p.dashT--; p.vx = p.dashDir * 3.6; p.vy = 0;
@@ -174,18 +193,18 @@ export class Run {
     }
     p.jumpBuf = input.aPressed ? 7 : Math.max(0, p.jumpBuf - 1);
     p.coyote = p.ground ? 6 : Math.max(0, p.coyote - 1);
-    if (p.ground) p.airJumps = (this.char === 'coffee' ? 1 : 0) + (this.carry.power === 'wing' ? 1 : 0);
+    if (p.ground) p.airJumps = (this.char === 'coffee' ? 1 : this.char === 'owl' ? 2 : 0) + (this.carry.power === 'wing' ? 1 : 0); // 콜드브루는 공중에서 두 번 퍼덕
     if (p.jumpBuf && p.coyote) {
-      p.vy = -(Math.abs(p.vx) > 1.6 ? P.runJump : P.jump); p.coyote = 0; p.jumpBuf = 0; p.ground = false; p.onMover = null;
+      p.vy = -(Math.abs(p.vx) > 1.6 ? P.runJump : P.jump) * (this.carry.power === 'spring' ? 1.3 : 1); p.coyote = 0; p.jumpBuf = 0; p.ground = false; p.onMover = null;
       this.hooks.sound(this.carry.big ? 'jumpBig' : 'jump');
     } else if (this.char === 'lizard' && p.wallT > 0 && !p.ground && input.aPressed) {
       p.vy = -3.5; p.vx = -p.wall * 1.9; p.face = -p.wall; p.wallT = 0; p.jumpBuf = 0; this.hooks.sound('jump2');
       this.fx.push({ kind: 'dust', x: p.x + (p.wall > 0 ? p.w : 0), y: p.y + p.h / 2, life: 12, dir: -p.wall });
     } else if (input.aPressed && !p.ground && !p.coyote && p.airJumps > 0 && p.dashT === 0) {
-      p.airJumps--; p.vy = -3.1; p.jumpBuf = 0; this.hooks.sound('jump2');
+      p.airJumps--; p.vy = this.char === 'owl' ? -2.8 : -3.1; p.jumpBuf = 0; this.hooks.sound('jump2');
       this.fx.push({ kind: 'dust', x: p.x + 1, y: p.y + p.h, life: 12, dir: -1 }, { kind: 'dust', x: p.x + p.w - 1, y: p.y + p.h, life: 12, dir: 1 });
     }
-    if (p.dashT === 0) p.vy = Math.min(P.maxFall, p.vy + (p.vy < 0 && input.a ? P.gHold : P.g));
+    if (p.dashT === 0) p.vy = Math.min(P.maxFall * (this.grav < 1 ? .7 : 1), p.vy + (p.vy < 0 && input.a ? P.gHold : P.g) * this.grav);
     if (this.carry.power === 'wing' && !p.ground && input.a && p.vy > .7) p.vy = .7; // 날개로 사뿐히
     if (this.char === 'espresso' && !p.ground && input.a && p.vy > .9) p.vy = .9; // 에스프레소는 용 날개로 늘 사뿐히
     if (input.barkPressed) this.special();
@@ -206,6 +225,7 @@ export class Run {
       if (!p.wasGround && p.vy > 2.6) { this.fx.push({ kind: 'dust', x: p.x + 1, y: p.y + p.h, life: 12, dir: -1 }, { kind: 'dust', x: p.x + p.w - 1, y: p.y + p.h, life: 12, dir: 1 }); }
       p.ground = true; p.vy = 0; p.onMover = null; this.chain = 0;
       if (hits.some(h => h[2] === '^')) this.hurt();
+      if (hits.some(h => h[2] === 'J')) { p.vy = input.a ? -6.2 : -5.4; p.ground = false; this.hooks.sound('boing'); for (const h of hits) if (h[2] === 'J') this.bumps.set(`${h[0]},${h[1]}`, 6); } // 통통 젤리
     } else if (p.vy < 0 && hits.length) {
       p.vy = .5;
       const cx = p.x + p.w / 2, best = hits.reduce((a, h) => Math.abs((h[0] + .5) * T - cx) < Math.abs((a[0] + .5) * T - cx) ? h : a);
@@ -266,6 +286,7 @@ export class Run {
     else if (this.char === 'turtle') this.popcorn();
     else if (this.char === 'lizard') this.flame();
     else if (this.char === 'espresso') this.bigFlame();
+    else if (this.char === 'owl') this.iceShot();
     else this.bark();
   }
   popcorn() { // 팝콘공의 팝!: 팝콘이 부채꼴로 튀어 나가요
@@ -295,11 +316,26 @@ export class Run {
       this.shots.push({ kind: 'flame', big: true, x: p.x + (dir > 0 ? p.w - 2 : -6), y: p.y + 2, w: 7, h: 7, vx: dir * sp, vy, life: 36, bossHit: false });
     this.hooks.sound('fire');
   }
+  iceShot() { // 콜드브루의 얼음!: 얼음 조각에 맞은 적은 꽁꽁 얼어요(닿으면 톡 날아가요)
+    const p = this.player;
+    if (p.barkCd > 0) return;
+    p.barkCd = 60; p.barkT = 14;
+    const dir = this.fly ? 1 : p.face;
+    for (const vy of [-.4, .4]) this.shots.push({ kind: 'ice', x: p.x + (dir > 0 ? p.w : -5), y: p.y + 3, w: 5, h: 5, vx: dir * 3, vy, life: 40 });
+    this.hooks.sound('throw');
+  }
   dash() {
     const p = this.player;
     if (p.barkCd > 0) return;
     p.barkCd = 110; p.barkT = 16; p.dashT = 16; p.dashDir = p.face; p.vy = 0;
     this.hooks.sound('dash');
+  }
+  updateBuddy() { // 아기 병아리: 주인공 뒤를 팔랑팔랑 따라오다 가까운 적을 콕!
+    const b = this.buddy, p = this.player; b.t++;
+    const tx = p.x + p.w / 2 - p.face * 12 - 3, ty = p.y - 10 + Math.sin(b.t / 10) * 3;
+    if (b.target && !b.target.dead) { b.x += (b.target.x + b.target.w / 2 - 3 - b.x) * .25; b.y += (b.target.y - 2 - b.y) * .25; if (Math.abs(b.target.x + b.target.w / 2 - 3 - b.x) < 4) { this.knock(b.target); this.score(100, b.target.x, b.target.y - 6); this.hooks.sound('stomp'); b.target = null; b.cd = 90; } return; }
+    b.target = null; b.x += (tx - b.x) * .12; b.y += (ty - b.y) * .12;
+    if (--b.cd <= 0) { b.cd = 20; b.target = this.enemies.find(e => !e.dead && e.stun === 0 && !['ember', 'icicle', 'coconut'].includes(e.type) && Math.hypot(e.x - p.x, e.y - p.y) < 70) || null; }
   }
   pullBones(p) { // 자석: 가까운 뼈다귀가 날아와요
     const cx = Math.floor((p.x + p.w / 2) / T), cy = Math.floor((p.y + p.h / 2) / T);
@@ -313,7 +349,7 @@ export class Run {
     p.barkCd = 150; p.barkT = 22; this.reveal = 150;
     this.hooks.sound('bark');
     const cx = p.x + p.w / 2, cy = p.y + p.h / 2, near = e => Math.hypot(e.x + e.w / 2 - cx, e.y + e.h / 2 - cy);
-    for (const e of this.enemies) if (!e.dead && e.type !== 'icicle' && near(e) < 44) { e.stun = 200; e.vx = 0; this.fx.push({ kind: 'stars', x: e.x + e.w / 2, y: e.y - 4, life: 40 }); }
+    for (const e of this.enemies) if (!e.dead && e.type !== 'icicle' && e.type !== 'coconut' && near(e) < 44) { e.stun = 200; e.vx = 0; this.fx.push({ kind: 'stars', x: e.x + e.w / 2, y: e.y - 4, life: 40 }); }
     for (const f of this.foes) if (near(f) < 48) f.gone = true;
     if (this.boss && !this.boss.dead && !this.boss.hidden && near(this.boss) < 56 && this.boss.hurt === 0) { this.boss.stun = 110; this.fx.push({ kind: 'stars', x: this.boss.x + 9, y: this.boss.y - 4, life: 60 }); }
     this.fx.push({ kind: 'ring', x: cx, y: cy, life: 22 });
@@ -384,7 +420,9 @@ export class Run {
       if (d.type === 'ember') { e.y = ROWS * T + 8; e.cool = 20 + (d.tx % 4) * 20; e.state = 'lava'; }
       if (d.type === 'dino') e.cool = 90 + (d.tx % 5) * 10;
       if (d.type === 'bat') { e.state = 'hang'; e.y = d.ty * T; }
-      if (d.type === 'icicle') { e.state = 'hang'; e.y = d.ty * T; }
+      if (d.type === 'icicle' || d.type === 'coconut' || d.type === 'boo') { e.state = 'hang'; e.y = d.ty * T; }
+      if (d.type === 'gummy') e.cool = 40 + (d.tx % 4) * 15;
+      if (d.type === 'monkey') e.cool = 80 + (d.tx % 5) * 12;
       this.enemies.push(e);
     }
   }
@@ -396,9 +434,9 @@ export class Run {
       e.vy = Math.min(4, e.vy + .25); e.x += e.vx; e.y += e.vy; if (e.y > ROWS * T + 16) e.gone = true; return;
     }
     if (e.x < this.cam - 64 || e.x > this.cam + VIEW_W + 120) { if (this.fly || e.x < this.cam - 64) e.gone = true; return; }
-    if (e.stun > 0) { e.stun--; e.vx = 0; if (e.type !== 'pigeon') { e.vy = Math.min(4, e.vy + .3); if (this.moveY(e, e.vy).length) e.vy = 0; } return; }
+    if (e.stun > 0) { if (--e.stun <= 0) e.frozen = false; e.vx = 0; if (e.type !== 'pigeon' && e.type !== 'boo') { e.vy = Math.min(4, e.vy + .3); if (this.moveY(e, e.vy).length) e.vy = 0; } return; }
     if (e.type === 'pigeon') {
-      e.x += (this.fly ? -.85 : -.45); e.y = e.baseY + Math.sin(e.t * .06) * 10; return;
+      e.x += (this.fly ? -.85 : -.45) * this.spd; e.y = e.baseY + Math.sin(e.t * .06) * 10; return;
     }
     if (e.type === 'ember') { // 용암에서 튀어 오르는 불꽃(밟을 수 없어요)
       if (e.state === 'lava') { if (--e.cool <= 0) { e.state = 'up'; e.vy = -Math.sqrt(2 * .16 * (ROWS * T + 8 - e.baseY)); this.hooks.sound('spit'); } return; }
@@ -412,12 +450,29 @@ export class Run {
       e.x += e.dir * (this.fly ? 1.1 : .8); e.y = e.baseY + Math.abs(Math.sin(e.t * .04)) * 24;
       return;
     }
-    if (e.type === 'icicle') { // 고드름: 밑으로 지나가면 달달 떨다가 뚝 떨어져요(밟을 수 없어요)
+    if (e.type === 'icicle' || e.type === 'coconut') { // 고드름·코코넛: 밑으로 지나가면 달달 떨다가 뚝 떨어져요(밟을 수 없어요)
       const p = this.player;
       if (e.state === 'hang') { if (Math.abs(p.x + p.w / 2 - (e.x + e.w / 2)) < 22 && p.y > e.y) { e.state = 'shake'; e.t = 0; this.hooks.sound('crumble'); } return; }
       if (e.state === 'shake') { if (e.t > 28) { e.state = 'drop'; e.vy = 0; } return; }
       e.vy = Math.min(5, e.vy + .3); e.y += e.vy;
       if (SOLID.includes(this.tile(Math.floor((e.x + e.w / 2) / T), Math.floor((e.y + e.h) / T))) || e.y > ROWS * T) { e.gone = true; this.fx.push({ kind: 'splash', x: e.x, y: e.y + 2, life: 12 }); }
+      return;
+    }
+    if (e.type === 'boo') { // 꼬마 유령: 바라보면 얼굴을 가리고 멈추고, 등을 돌리면 살금살금 다가와요
+      const p = this.player, dx = p.x + p.w / 2 - (e.x + e.w / 2), dy = p.y + p.h / 2 - (e.y + e.h / 2);
+      if (Math.abs(dx) > 150) return;
+      const watched = Math.sign(dx) !== p.face || this.fly;
+      e.state = watched ? 'hide' : 'chase'; e.dir = Math.sign(dx) || 1;
+      if (!watched) { const d = Math.hypot(dx, dy) || 1; e.x += dx / d * .55 * this.spd; e.y += dy / d * .55 * this.spd; }
+      return;
+    }
+    if (e.type === 'gummy') { // 젤리: 통통 뛰어서 다가와요
+      e.vy = Math.min(4, e.vy + .3);
+      if (this.moveX(e, e.vx)) e.vx = -e.vx;
+      const landed = this.moveY(e, e.vy).length && e.vy >= 0;
+      if (landed) { e.vy = 0; e.vx = 0; if (--e.cool <= 0) { e.cool = 70; e.dir = Math.sign(this.player.x - e.x) || -1; e.vy = -3.2; e.vx = e.dir * .9 * this.spd; } }
+      e.air = !landed;
+      if (e.y > ROWS * T + 8) e.gone = true;
       return;
     }
     if (e.type === 'cup') {
@@ -434,7 +489,13 @@ export class Run {
     if (e.state === 'shell') {
       if (e.vx === 0 && ++e.idle > 420) { e.state = 'walk'; e.h = 12; e.y -= 4; }
     } else {
-      e.vx = e.dir * ({ hedgehog: .3, can: .34, dino: .32, crabling: .62, scorp: .3, penguin: .55 }[e.type] || .38);
+      e.vx = e.dir * ({ hedgehog: .3, can: .34, dino: .32, crabling: .62, scorp: .3, penguin: .55, monkey: .3, alien: .36 }[e.type] || .38) * this.spd;
+      if (e.type === 'monkey') { // 원숭이: 가끔 멈춰 바나나를 던져요
+        const p = this.player;
+        if (--e.cool <= 0 && Math.abs(p.x - e.x) < 120) { e.cool = 170; e.dir = Math.sign(p.x - e.x) || e.dir; e.breath = 20; }
+        if (e.breath > 0) { e.vx = 0; if (--e.breath === 8) { this.foes.push({ kind: 'banana', x: e.x + 3, y: e.y - 2, w: 6, h: 6, vx: e.dir * Math.min(1.8, Math.abs(p.x - e.x) / 45 + .4), vy: -3, g: .12, life: 200 }); this.hooks.sound('throw'); } }
+      }
+      if (e.type === 'alien' && this.frame % 90 === (e.t0 ??= e.t % 90)) e.vy = -3; // 외계인: 폴짝폴짝
       if (e.type === 'dino') { // 꼬마 용: 가끔 멈춰 불꽃을 뿜어요
         const p = this.player;
         if (--e.cool <= 0 && Math.abs(p.x - e.x) < 120) { e.cool = 210; e.dir = Math.sign(p.x - e.x) || e.dir; e.breath = 24; }
@@ -448,7 +509,7 @@ export class Run {
     const tx0 = Math.floor(e.x / T), ty = Math.floor((e.y + e.h - 2) / T);
     if (this.tile(tx0, ty) === '~') e.gone = true;
     if (e.state === 'shell' && e.vx) for (const o of this.enemies) if (o !== e && !o.dead && overlap(e, o)) { this.knock(o); this.score(200, o.x, o.y); }
-    if (e.state === 'walk') for (const o of this.enemies) if (o !== e && !o.dead && o.state === 'walk' && !['pigeon', 'cup', 'ember', 'bat', 'icicle'].includes(o.type) && overlap(e, o)) { e.dir = e.x < o.x ? -1 : 1; o.dir = -e.dir; }
+    if (e.state === 'walk') for (const o of this.enemies) if (o !== e && !o.dead && o.state === 'walk' && !['pigeon', 'cup', 'ember', 'bat', 'icicle', 'coconut', 'boo', 'gummy'].includes(o.type) && overlap(e, o)) { e.dir = e.x < o.x ? -1 : 1; o.dir = -e.dir; }
   }
 
   knock(e) { e.dead = true; e.state = 'fall'; e.vy = -2.5; e.vx = e.x < this.player.x ? -.6 : .6; e.t = 0; this.hooks.sound('kick'); }
@@ -459,7 +520,7 @@ export class Run {
     const pts = STOMP_SCORES[this.chain - 1];
     if (this.chain >= 5) this.oneUp(); else this.score(pts, e.x, e.y - 6);
     p.vy = this.inputA ? -4.2 : -3; this.hooks.sound('stomp');
-    if (e.type === 'bean') { e.dead = true; e.state = 'flat'; e.t = 0; }
+    if (e.type === 'bean' || e.type === 'gummy') { e.dead = true; e.state = 'flat'; e.t = 0; }
     else if (e.type === 'can') {
       if (e.state === 'shell' && e.vx === 0) this.kick(e);
       else { e.state = 'shell'; e.vx = 0; e.idle = 0; e.stun = 0; if (e.h === 12) { e.h = 8; e.y += 4; } }
@@ -471,6 +532,7 @@ export class Run {
   updateThings() {
     for (const it of this.things) {
       if (it.kind === 'bonePop') { it.y += it.vy; it.vy += .25; if (--it.life <= 0) it.gone = true; continue; }
+      if (it.kind === 'fallBone') { it.y += 1.1; it.x += Math.sin((it.y + it.x) / 9) * .3; if (it.y > ROWS * T || SOLID.includes(this.tile(Math.floor((it.x + 4) / T), Math.floor((it.y + 6) / T)))) it.gone = true; continue; }
       if (it.rise > 0) { it.rise--; it.y -= .5; if (it.rise === 0) { it.baseY = it.y; it.vx = STILL.includes(it.kind) ? 0 : it.kind === 'star' ? 1 : .7; } continue; }
       if (it.kind === 'wing') { it.t = (it.t || 0) + 1; it.y = it.baseY + Math.sin(it.t / 12) * 3; continue; }
       if (STILL.includes(it.kind)) continue;
@@ -487,7 +549,7 @@ export class Run {
       if (--s.life <= 0 || s.x < this.cam - 16 || s.x > this.cam + VIEW_W + 16) { s.gone = true; continue; }
       if (s.kind === 'shot') { if (this.moveX(s, s.vx)) s.gone = true; }
       else if (s.kind === 'pop') { s.vy += s.g; s.x += s.vx; s.y += s.vy; if (SOLID.includes(this.tile(Math.floor((s.x + 2) / T), Math.floor((s.y + 2) / T)))) { s.gone = true; this.fx.push({ kind: 'sparkle', x: s.x + 2, y: s.y + 2, life: 10 }); } }
-      else if (s.kind === 'flame') { s.x += s.vx; s.y += s.vy; if (SOLID.includes(this.tile(Math.floor((s.x + 2) / T), Math.floor((s.y + 2) / T)))) s.gone = true; }
+      else if (s.kind === 'flame' || s.kind === 'ice') { s.x += s.vx; s.y += s.vy; if (SOLID.includes(this.tile(Math.floor((s.x + 2) / T), Math.floor((s.y + 2) / T)))) s.gone = true; }
       else {
         if (this.moveX(s, s.vx)) s.vx = -s.vx;
         const hits = this.moveY(s, s.vy);
@@ -495,7 +557,11 @@ export class Run {
         if (s.y > ROWS * T) s.gone = true;
       }
       this.collectTiles(s);
-      for (const e of this.enemies) if (!e.dead && e.type !== 'ember' && overlap(s, e)) { this.knock(e); this.score(100, e.x, e.y - 6); if (s.kind !== 'flame') { s.gone = true; break; } }
+      for (const e of this.enemies) if (!e.dead && e.type !== 'ember' && overlap(s, e)) {
+        if (s.kind === 'ice' && !e.frozen) { e.frozen = true; e.stun = 360; e.vx = 0; this.score(100, e.x, e.y - 6); s.gone = true; break; }
+        if (s.kind === 'ice') continue;
+        this.knock(e); this.score(100, e.x, e.y - 6); if (s.kind !== 'flame') { s.gone = true; break; }
+      }
       for (const f of this.foes) if (overlap(s, f)) { f.gone = true; s.gone = true; }
       const b = this.boss;
       if (b && !b.dead && !b.hidden && !s.gone && !s.bossHit && overlap(s, b)) { if (s.kind === 'flame') { for (const o of this.shots) if (o.kind === 'flame') o.bossHit = true; } else s.gone = true; if (b.hurt === 0) { b.chip += 1; this.hooks.sound('bump'); if (b.chip >= 3) { b.chip = 0; this.hitBoss(b, 40); } } }
@@ -507,12 +573,16 @@ export class Run {
     for (const f of this.foes) {
       if (--f.life <= 0) { f.gone = true; continue; }
       if (f.kind === 'fire') { f.x += f.vx; f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 2) / T), Math.floor((f.y + 2) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
-      else if (f.kind === 'drop' || f.kind === 'sting' || f.kind === 'shard') { f.vy += f.g; f.x += f.vx; f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 2) / T), Math.floor((f.y + 3) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
+      else if (f.kind === 'drop' || f.kind === 'sting' || f.kind === 'shard' || f.kind === 'banana' || f.kind === 'lolly' || f.kind === 'gfire' || f.kind === 'meteor') { f.vy += f.g; f.x += f.vx; f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 2) / T), Math.floor((f.y + 3) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
       else if (f.kind === 'bubble') { f.t = (f.t || 0) + 1; f.x += f.vx; f.y += f.vy + Math.sin(f.t / 9) * .45; if (f.y < 2 * T) f.gone = true; }
       else if (f.kind === 'wave') { if (this.moveX(f, f.vx)) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } }
       else if (f.kind === 'fallice') {
         if (f.delay > 0) f.delay--;
         else { f.vy = Math.min(5, f.vy + .25); f.y += f.vy; if (SOLID.includes(this.tile(Math.floor((f.x + 3) / T), Math.floor((f.y + f.h) / T)))) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y + 4, life: 12 }); } }
+      }
+      else if (f.kind === 'bomb') { // 폭탄: 떨어져 구르다 펑! 불꽃 네 개
+        f.vy = Math.min(4, f.vy + .2); if (this.moveX(f, f.vx)) f.vx = -f.vx; if (this.moveY(f, f.vy).length) { f.vy = f.vy > 1 ? -1.2 : 0; f.vx *= .9; }
+        if (f.life < 200) { f.gone = true; this.hooks.sound('crumble'); this.shake = Math.max(this.shake, 4); for (const [vx, vy] of [[-1.6, -1.2], [1.6, -1.2], [-.8, -2], [.8, -2]]) this.foes.push({ kind: 'drop', x: f.x, y: f.y, w: 4, h: 4, vx, vy, g: .1, life: 120 }); }
       }
       else if (f.kind === 'snow') { f.vy = Math.min(4, f.vy + .3); if (this.moveX(f, f.vx)) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x, y: f.y, life: 12 }); } if (this.moveY(f, f.vy).length) f.vy = 0; }
       else if (f.kind === 'yarn') {
@@ -547,12 +617,19 @@ export class Run {
       else if (it.kind === 'magnet') { p.magnet = 900; this.hooks.sound('power'); this.hooks.hint('뼈다귀 자석! 잠깐 동안 주변 뼈다귀가 날아와요.'); }
       else if (it.kind === 'clock') { if (this.easy) this.score(500, it.x, it.y); else { this.time += 100; this.pop(it.x, it.y - 6, '+100'); } this.hooks.sound('item'); }
       else if (it.kind === 'bigBone') { this.addBone(10); this.pop(it.x, it.y - 6, '+10'); }
+      else if (it.kind === 'spring') { if (!this.carry.big) this.grow(); this.carry.power = 'spring'; this.hooks.sound('power'); this.hooks.hint('스프링 신발! 훨씬 높이 뛰어요.'); }
+      else if (it.kind === 'rainbow') { p.star = 480; p.rainbow = 480; this.hooks.music('star'); this.hooks.sound('power'); this.hooks.hint('무지개 사탕! 잠깐 무적에 엄청 빨라져요!'); }
+      else if (it.kind === 'cushion') { this.carry.cushion = true; this.hooks.sound('power'); this.hooks.hint('구름 방석! 구덩이에 빠져도 한 번 구해 줘요.'); }
+      else if (it.kind === 'boneRain') { this.rain = 300; this.hooks.sound('oneup'); this.hooks.hint('뼈다귀 비가 내려요! 얼른 모아요!'); }
+      else if (it.kind === 'chick') { this.carry.buddy = true; this.buddy = { x: p.x, y: p.y - 12, cd: 40, t: 0 }; this.hooks.sound('heart'); this.hooks.hint('아기 병아리 친구! 가까운 적을 콕콕 쪼아 줘요.'); }
+      else if (it.kind === 'fallBone') this.addBone();
     }
     for (const e of this.enemies) {
       if (e.dead || !overlap(p, e)) continue;
       if (p.star > 0 || p.dashT > 0) { this.knock(e); this.score(200, e.x, e.y - 6); continue; }
       if (e.type === 'ember' && e.state === 'lava') continue;
-      const stompable = !((e.type === 'hedgehog' || e.type === 'scorp') && e.stun === 0) && e.type !== 'ember' && e.type !== 'icicle';
+      if (e.frozen && e.stun > 0) { this.knock(e); this.score(200, e.x, e.y - 6); continue; } // 꽁꽁 언 적은 톡 날아가요
+      const stompable = !((e.type === 'hedgehog' || e.type === 'scorp') && e.stun === 0) && !['ember', 'icicle', 'coconut', 'boo'].includes(e.type);
       const fromAbove = p.vy > 0 && p.prevBottom <= e.y + 5;
       if (fromAbove && stompable && !this.fly) { this.stomp(e); p.y = e.y - p.h; continue; }
       if (fromAbove && this.fly && stompable) { this.knock(e); this.score(100, e.x, e.y); continue; }
@@ -572,7 +649,7 @@ export class Run {
     if (b && !b.dead && !b.hidden && overlap(p, b) && p.dashT > 0 && b.hurt === 0) { if (!b.armored) this.hitBoss(b, 60); else this.hooks.sound('bump'); p.dashT = 0; p.vx = -p.dashDir * 2; p.vy = -3; }
     else if (b && !b.dead && !b.hidden && overlap(p, b)) {
       const fromAbove = p.vy > 0 && p.prevBottom <= b.y + 7;
-      if (fromAbove && b.armored) { p.vy = -4; p.y = b.y - p.h; this.hooks.sound('bump'); } // 단단한 등딱지: 튕겨 나가요
+      if (fromAbove && b.armored) { p.vy = b.bouncy ? -5.6 : -4; p.y = b.y - p.h; this.hooks.sound(b.bouncy ? 'boing' : 'bump'); } // 단단한 등딱지·말랑 젤리: 튕겨 나가요
       else if (fromAbove && b.hurt === 0) { this.hitBoss(b, 70); p.vy = -4.4; p.y = b.y - p.h; }
       else if (fromAbove) p.vy = -3.5;
       else if (b.hurt === 0 && b.stun === 0 && !b.safe) this.hurt();
@@ -583,6 +660,8 @@ export class Run {
   hurt() {
     const p = this.player;
     if (p.inv > 0 || p.star > 0 || this.state !== 'play' || this.god) return;
+    if (this.diff.harmless) { p.inv = 60; this.hooks.sound('boing'); this.fx.push({ kind: 'sparkle', x: p.x + p.w / 2, y: p.y, life: 14 }); return; } // 평화로움: 아프지 않아요
+    if (this.diff.oneHit && p.dashT === 0) return this.die(); // 불가능: 한 번만 닿아도 끝
     if (this.fly) { p.flyHp--; p.inv = 90; this.hooks.sound('hurt'); if (p.flyHp <= 0) this.die(); return; }
     if (p.dashT > 0) return;
     if (this.carry.shield) { this.carry.shield = false; p.inv = 140; this.hooks.sound('hurt'); this.fx.push({ kind: 'ring', x: p.x + p.w / 2, y: p.y + p.h / 2, life: 14 }); return; }
@@ -593,8 +672,11 @@ export class Run {
   fall() {
     const p = this.player, c = this.carry;
     if (this.state !== 'play') return;
-    if (!p.safe || !(c.shield || c.power || c.big)) return this.die();
-    if (c.shield) c.shield = false; else if (c.power) c.power = null; else { c.big = false; p.h = 13; }
+    const pit = this.diff.pit;
+    if (!p.safe || !(c.cushion || pit === 'always' || pit === 'big' && (c.shield || c.power || c.big))) return this.die();
+    if (c.cushion) c.cushion = false; // 구름 방석이 먼저 구해 줘요
+    else if (pit === 'always') {}
+    else if (c.shield) c.shield = false; else if (c.power) c.power = null; else { c.big = false; p.h = 13; }
     p.x = p.safe.x; p.y = p.safe.feet - p.h; p.vx = 0; p.vy = 0; p.inv = 150; p.onMover = null;
     this.hooks.sound('hurt'); this.fx.push({ kind: 'ring', x: p.x + p.w / 2, y: p.y + p.h / 2, life: 18 });
     if (!this.fallHint) { this.fallHint = true; this.hooks.hint('앗! 떨어졌지만 한 번은 구해 줬어요. 대신 작아졌어요.'); }
@@ -602,7 +684,7 @@ export class Run {
   die() {
     if (this.state !== 'play') return;
     this.state = 'dying'; this.stateT = 0; const p = this.player; p.vx = 0; p.vy = 0;
-    this.carry.big = false; this.carry.power = null; this.carry.shield = false;
+    this.carry.big = false; this.carry.power = null; this.carry.shield = false; this.carry.cushion = false; this.carry.buddy = false; this.buddy = null;
     this.hooks.music(null); this.hooks.sound('die');
   }
   updateDying() {
@@ -671,10 +753,11 @@ export class Run {
     const B = this.L.boss;
     this.bossStarted = true; this.cam = B.arena * T;
     for (let ty = 0; ty < ROWS - 3; ty++) this.setTile(B.arena, ty, 'H');
-    const kind = B.kind || 'coffee', [w, h] = SIZES[kind === 'coffee' ? 'boss' : kind], flier = kind === 'dragon' || kind === 'owl';
+    const kind = B.kind || 'coffee', [w, h] = SIZES[kind === 'coffee' ? 'boss' : kind], flier = ['dragon', 'owl', 'ghost', 'ufo'].includes(kind), hp = Math.max(1, Math.round(B.hp * this.diff.bossHp));
     this.boss = {
-      kind, state: flier ? 'fly' : 'walk', fireT: 90, diveT: 200, restT: 0, x: B.tx * T, y: (ROWS - 3) * T - h, w, h, vx: 0, vy: 0, dir: -1, hp: B.hp, maxHp: B.hp,
+      kind, state: flier ? (kind === 'ghost' ? 'float' : 'fly') : 'walk', fireT: 90, diveT: 200, restT: 0, x: B.tx * T, y: (ROWS - 3) * T - h, w, h, vx: 0, vy: 0, dir: -1, hp, maxHp: hp,
       hurt: 0, stun: 0, chip: 0, jumpT: 120, throwT: 80, t: 0, t2: 0, dead: false, final: B.final, ground: false,
+      hops: 0, poundT: 200, chargeT: 320, fakes: [], cycle: 0, bombT: 120, beamT: 330, landT: 480, alienT: 260,
       stingT: 100, burrowT: 260, blowT: 140, slamT: 230, shardT: 90, iceT: 200, snowT: 120, blinkT: 420, swoopT: 240, homeX: B.tx * T, moundX: 0,
     };
     this.hooks.music(null); this.hooks.sound(kind === 'coffee' ? 'meow' : 'roar');
@@ -683,6 +766,10 @@ export class Run {
     const me = { latte: '라떼', coffee: '커피', turtle: '팝콘공', lizard: '드래곤', espresso: '에스프레소' }[this.char];
     const my = lines => `${me}: ${lines[this.char] || lines.latte}`;
     const lines = {
+      jelly: ['바닐라: 말랑말랑~ 여긴 내 사탕 나라야!', '바닐라: 아포가토님이 모카를 데려오면 사탕을 잔뜩 준댔어!', my({ latte: '멍멍! 모카를 돌려줘!', coffee: '젤리 따위 안 무섭다냥!', turtle: '말랑해도 안 봐준다! 팝!', lizard: '모카를 돌려줘!', espresso: '크릉! 젤리는 녹여 주마!', owl: '부엉! 모카를 돌려줘!' }), '바닐라: 통통 튈 때는 밟아도 튕겨 나가지롱! 납작 쉴 때만 빼고!'],
+      gorilla: ['헤이즐넛: 우호호! 정글의 왕은 나다!', '헤이즐넛: 쿵쿵 발을 구르면 땅이 흔들린다! 공중으로 피해 봐라!', my({ latte: '멍! 비켜 줘, 모카를 구해야 해!', coffee: '힘만 세면 다가 아니다냥!', turtle: '팝콘 맛 좀 봐라!', lizard: '나무 타기는 나도 잘해!', espresso: '크앙! 덤벼라!', owl: '부엉! 하늘은 내 거야!' })],
+      ghost: ['비엔나: 우후후~ 유령의 집에 온 걸 환영해~', '비엔나: 나를 셋으로 늘려 볼까? 모자 쓴 게 진짜 나야~ 후후', my({ latte: '멍! 하나도 안 무서워!', coffee: '유령은... 조금 무섭다냥...', turtle: '등껍질에 숨으면 안 무서워!', lizard: '불로 밝혀 주지!', espresso: '크릉! 유령도 불은 무섭지?', owl: '부엉! 밤은 내 시간이야!' })],
+      ufo: ['아포가토: 너구리 해적 아포가토님 등장! 모카는 우주선에 태웠다!', '아포가토: 세상의 맛있는 간식은 전부 내 거야! 광선 발사!', my({ latte: '멍멍! 이번이 마지막이야, 모카를 돌려줘!', coffee: '모카는 우리 친구다냥! 돌려줘!', turtle: '팝팝! 우주에서도 안 져!', lizard: '모카를 돌려줘! 해님도 우리 편이야!', espresso: '크아앙! 우주선도 녹여 주마!', owl: '부엉! 하늘 대장은 나야!' }), '아포가토: 우주선이 땅에 내려와 연료를 넣을 때는... 아, 이건 비밀!'],
       dragon: B.final
         ? ['에스프레소: 크아아앙! 여기까지 오다니!', `에스프레소: ${this.friend}는 내 보물이다! 절대 못 돌려준다!`, this.char === 'espresso' ? '에스프레소: 어? 나랑 똑같이 생긴 용이잖아?!' : this.char === 'coffee' ? '커피: 친구를 괴롭히면 가만 안 둔다냥!' : my({ latte: '멍멍! 모카를 돌려줘!', turtle: '모카를 돌려줘! 팝팝!', lizard: '모카를 돌려줘! 불 뿜는 건 나도 해!' })]
         : ['에스프레소: 크르릉... 조그만 녀석들이 감히!', '에스프레소: 내 불꽃 맛을 보여 주마!'],
@@ -695,7 +782,7 @@ export class Run {
           ? [`커피: 냐옹~ 네가 ${this.hero}냥? ${this.friend}는 내가 데려갔다냥!`, `커피: ${this.friend}를 찾고 싶으면 나를 이겨 봐라냥!`]
           : ['커피: 또 왔냥? 이번엔 더 빠르다냥!', '커피: 털실 공 맛 좀 봐라냥!'],
     }[kind];
-    const music = { coffee: 'boss', dragon: 'dragonBoss', owl: 'finalBoss' }[kind] || 'bigBoss';
+    const music = { coffee: 'boss', dragon: 'dragonBoss', owl: 'finalBoss', ufo: 'ufoBoss' }[kind] || 'bigBoss';
     this.hooks.say(lines, () => { this.state = 'play'; this.hooks.music(music); });
   }
   updateBoss(b) {
@@ -706,6 +793,10 @@ export class Run {
     if (b.kind === 'scorpion') return this.updateScorpion(b);
     if (b.kind === 'crab') return this.updateCrab(b);
     if (b.kind === 'owl') return this.updateOwl(b);
+    if (b.kind === 'jelly') return this.updateJelly(b);
+    if (b.kind === 'gorilla') return this.updateGorilla(b);
+    if (b.kind === 'ghost') return this.updateGhost(b);
+    if (b.kind === 'ufo') return this.updateUfo(b);
     const p = this.player, arena = this.L.boss.arena * T;
     const speed = .45 + (b.maxHp - b.hp) * .12;
     if (b.stun > 0) { b.stun--; b.vx = 0; }
@@ -875,17 +966,144 @@ export class Run {
     b.safe = b.state === 'rest'; b.ground = b.state === 'rest';
     b.x = clamp(b.x, lo, hi);
   }
+  // ── 월드 9~12의 보스들 ─────────────────────────────────────
+  // 젤리곰 바닐라: 통통 크게 뛰며 사탕을 던지고, 세 번 뛰면 납작 쉬어요(그때만 밟혀요). 화나면 맞을 때마다 꼬마 젤리가 나와요.
+  updateJelly(b) {
+    const p = this.player, arena = this.L.boss.arena * T, groundY = (ROWS - 3) * T - b.h, rage = (b.maxHp - b.hp) / b.maxHp;
+    const lo = arena + T, hi = arena + 19 * T - b.w;
+    if (b.stun > 0) { if (b.state === 'walk') { b.state = 'squish'; b.restT = b.stun; } b.stun = 0; }
+    if (b.state === 'walk') { // 땅에서 잠깐 웅크렸다가 폴짝
+      b.y = groundY; b.t2++;
+      if (b.t2 > 26 - rage * 10) { b.state = 'hop'; b.t2 = 0; b.vy = -5.4 - rage; b.vx = clamp((p.x - b.x) / 60, -1.6, 1.6) * this.spd; b.dir = Math.sign(b.vx) || b.dir; this.hooks.sound('boing'); }
+    } else if (b.state === 'hop') {
+      b.vy += .22; b.y += b.vy; b.x = clamp(b.x + b.vx, lo, hi);
+      if (b.vy > -.2 && b.vy < .02 && b.hops % 2 === 0) { const s = Math.sign(p.x - b.x) || 1; for (const v of [.8, 1.5]) this.foes.push({ kind: 'lolly', x: b.x + b.w / 2, y: b.y + 4, w: 5, h: 5, vx: s * v, vy: -1.5, g: .12, life: 200 }); this.hooks.sound('throw'); }
+      if (b.y >= groundY && b.vy > 0) {
+        b.y = groundY; b.hops++; this.shake = 6; this.hooks.sound('crumble');
+        if (b.hops % 3 === 0) { b.state = 'squish'; b.restT = Math.round(110 - rage * 30); } else { b.state = 'walk'; b.t2 = 0; }
+      }
+    } else if (b.state === 'squish') {
+      if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 6, life: 20 });
+      if (--b.restT <= 0) { b.state = 'walk'; b.t2 = 0; }
+    }
+    b.armored = b.state !== 'squish'; b.safe = b.state === 'squish'; b.bouncy = true; b.ground = b.state !== 'hop';
+  }
+  // 고릴라 헤이즐넛: 쿵쿵 발 구르기(땅에 있으면 아파요), 통나무 굴리기, 벽까지 돌진! 벽에 쾅 부딪혀 어지러울 때가 기회.
+  updateGorilla(b) {
+    const p = this.player, arena = this.L.boss.arena * T, groundY = (ROWS - 3) * T - b.h, rage = (b.maxHp - b.hp) / b.maxHp;
+    const lo = arena + T, hi = arena + 19 * T - b.w;
+    if (b.stun > 0) { if (b.state === 'walk') { b.state = 'dizzy'; b.restT = b.stun; } b.stun = 0; }
+    if (b.state === 'walk') {
+      b.y = groundY;
+      const dx = p.x - b.x; if (Math.abs(dx) > 10) b.dir = Math.sign(dx);
+      b.x = clamp(b.x + b.dir * (.5 + rage * .4) * this.spd, lo, hi);
+      if (--b.throwT <= 0) { b.throwT = Math.round(150 - rage * 50); this.foes.push({ kind: 'snow', log: true, x: b.dir < 0 ? b.x - 8 : b.x + b.w, y: groundY + b.h - 8, w: 8, h: 8, vx: b.dir * (1.3 + rage * .5), vy: 0, life: 400 }); this.hooks.sound('throw'); }
+      if (--b.poundT <= 0) { b.state = 'pound'; b.t2 = 0; b.vy = -4.5; this.hooks.sound('roar'); }
+      else if (--b.chargeT <= 0) { b.state = 'ready'; b.t2 = 0; b.dir = Math.sign(p.x - b.x) || 1; this.hooks.sound('roar'); }
+    } else if (b.state === 'pound') { // 뛰어올라 쿵! 땅에 서 있으면 흔들림에 아파요
+      b.vy += .3; b.y += b.vy;
+      if (b.y >= groundY && b.vy > 0) {
+        b.y = groundY; this.shake = 14; this.hooks.sound('crumble'); b.t2++;
+        if (p.ground && !this.diff.harmless) this.hurt();
+        this.foes.push({ kind: 'wave', x: b.x - 8, y: (ROWS - 3) * T - 5, w: 8, h: 5, vx: -2, vy: 0, life: 200 }, { kind: 'wave', x: b.x + b.w, y: (ROWS - 3) * T - 5, w: 8, h: 5, vx: 2, vy: 0, life: 200 });
+        if (b.t2 < (rage > .5 ? 3 : 2)) b.vy = -4.5; else { b.state = 'walk'; b.poundT = Math.round(260 - rage * 80); }
+      }
+    } else if (b.state === 'ready') { // 가슴 두드리기(곧 돌진해요)
+      b.t2++; if (b.t2 % 10 === 0) this.hooks.sound('bump');
+      if (b.t2 > 40) b.state = 'charge';
+    } else if (b.state === 'charge') {
+      b.x += b.dir * (2.6 + rage) * this.spd;
+      if (b.x <= lo || b.x >= hi) { b.x = clamp(b.x, lo, hi); b.state = 'dizzy'; b.restT = Math.round(115 - rage * 30); this.shake = 12; this.hooks.sound('bossJump'); this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + 6, life: 14 }); }
+    } else if (b.state === 'dizzy') {
+      if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 6, life: 20 });
+      if (--b.restT <= 0) { b.state = 'walk'; b.chargeT = Math.round(300 - rage * 90); }
+    }
+    b.armored = b.state === 'charge'; b.safe = b.state === 'dizzy'; b.ground = b.state !== 'pound';
+  }
+  // 유령 비엔나: 둥둥 따라오며 도깨비불을 쏘고, 사라졌다 나타나요. 가끔 셋으로 늘어나는데 모자 쓴 게 진짜예요!
+  updateGhost(b) {
+    const p = this.player, arena = this.L.boss.arena * T, rage = (b.maxHp - b.hp) / b.maxHp;
+    const lo = arena + T, hi = arena + 19 * T - b.w, hover = (ROWS - 3) * T - b.h - 22;
+    if (b.stun > 0) { if (b.state === 'float') { b.state = 'scared'; b.restT = b.stun; } b.stun = 0; }
+    b.t2++;
+    if (b.state === 'float') {
+      const tx = clamp(p.x + p.w / 2 - b.w / 2 + Math.sin(b.t / 40) * 30, lo, hi);
+      b.x += (tx - b.x) * .02 * this.spd; b.y += (hover + Math.sin(b.t / 18) * 10 - b.y) * .05;
+      b.dir = p.x < b.x ? -1 : 1;
+      if (b.t2 % Math.round(110 - rage * 40) === 0) { const cx = b.x + b.w / 2, cy = b.y + 10, a = Math.atan2(p.y + p.h / 2 - cy, p.x + p.w / 2 - cx); this.foes.push({ kind: 'gfire', x: cx - 3, y: cy, w: 6, h: 6, vx: Math.cos(a) * 1.3, vy: Math.sin(a) * 1.3, g: 0, life: 220 }); this.hooks.sound('spit'); }
+      if (b.t2 > 240 - rage * 60) { b.cycle++; b.t2 = 0; b.state = b.cycle % 2 ? 'vanish' : 'split'; }
+    } else if (b.state === 'vanish') { // 사라졌다가 주인공 반대편에 나타나요
+      if (b.t2 === 30) { b.x = p.x < arena + 10 * T ? hi - T : lo + T; b.y = hover; }
+      if (b.t2 >= 60) { b.state = 'float'; b.t2 = 0; }
+    } else if (b.state === 'split') { // 셋으로 늘어나 빙글빙글, 그러다 한꺼번에 휙!
+      if (b.t2 === 1) { b.fakes = [0, 1].map(i => ({ x: b.x, y: b.y, w: b.w, h: b.h, a: i + 1 })); b.ax = arena + 10 * T; }
+      const spin = b.t2 / 30, n = 3, real = b.cycle % 3;
+      const place = (o, k) => { const a = spin + (k * Math.PI * 2) / n; o.x = b.ax + Math.cos(a) * 44 - b.w / 2; o.y = hover - 22 + Math.sin(a) * 12; }; // 머리 위에서 빙글빙글
+      [b, ...b.fakes].forEach((o, k) => place(o, (k + real) % n));
+      if (b.t2 > 150) { b.state = 'swoop'; b.t2 = 0; for (const o of [b, ...b.fakes]) { const a = Math.atan2(p.y - o.y, p.x - o.x); o.vx = Math.cos(a) * 1.9 * this.spd; o.vy = Math.sin(a) * 1.9 * this.spd; } }
+    } else if (b.state === 'swoop') {
+      for (const o of [b, ...b.fakes]) { o.x = clamp(o.x + o.vx, lo, hi); o.y = clamp(o.y + o.vy, 3 * T, (ROWS - 3) * T - b.h); }
+      if (b.t2 > 70) { b.fakes = []; b.state = 'float'; b.t2 = 0; }
+    } else if (b.state === 'scared') { if (--b.restT <= 0) b.state = 'float'; }
+    // 가짜 유령은 닿으면 펑 사라져요(아프지 않아요)
+    for (const f of b.fakes) if (overlap(p, f)) { f.gone = true; this.fx.push({ kind: 'splash', x: f.x + 6, y: f.y + 8, life: 12 }, { kind: 'stars', x: f.x + 9, y: f.y, life: 20 }); this.hooks.sound('pop'); }
+    b.fakes = b.fakes.filter(f => !f.gone);
+    b.hidden = b.state === 'vanish' && b.t2 >= 15 && b.t2 < 45;
+    b.safe = b.state === 'scared';
+  }
+  // 너구리 해적 아포가토의 UFO(마지막 보스): 폭탄을 떨어뜨리고, 광선으로 끌어당기고, 외계인을 내려보내요.
+  // 연료를 넣으려고 땅에 내려오면 유리 뚜껑을 밟아요! 화나면 운석도 쏟아져요.
+  updateUfo(b) {
+    const p = this.player, arena = this.L.boss.arena * T, groundY = (ROWS - 3) * T - b.h, rage = (b.maxHp - b.hp) / b.maxHp, angry = b.hp <= b.maxHp / 2;
+    const lo = arena + T, hi = arena + 19 * T - b.w, sky = 2 * T;
+    if (angry && !b.angry) { b.angry = true; this.hooks.sound('roar'); this.hooks.hint('아포가토가 화났어요! 운석이 떨어져요!'); }
+    if (b.stun > 0) { if (b.state === 'fly') { b.state = 'land'; } b.stun = 0; }
+    b.beam = false;
+    if (b.state === 'fly') {
+      const tx = clamp(p.x + p.w / 2 - b.w / 2 + Math.sin(b.t / 50) * 40, lo, hi);
+      b.x += (tx - b.x) * .025 * this.spd; b.y += (sky + Math.sin(b.t / 20) * 4 - b.y) * .08;
+      if (--b.bombT <= 0) { b.bombT = Math.round((angry ? 90 : 130) / this.spd); this.foes.push({ kind: 'bomb', x: b.x + b.w / 2 - 4, y: b.y + b.h, w: 8, h: 8, vx: (p.x > b.x ? .6 : -.6), vy: 0, life: 290 }); this.hooks.sound('spit'); }
+      if (--b.alienT <= 0) { b.alienT = 320; this.enemies.push({ type: 'alien', x: b.x + b.w / 2 - 5, y: b.y + b.h, w: 10, h: 10, vx: 0, vy: 0, dir: p.x < b.x ? -1 : 1, t: 0, stun: 0, state: 'walk', dead: false, gone: false }); }
+      if (angry && b.t % 70 === 0) this.foes.push({ kind: 'meteor', x: lo + (b.t * 37 % (18 * T)), y: -8, w: 7, h: 7, vx: -.3, vy: 1.4, g: .02, life: 300 });
+      if (--b.beamT <= 0) { b.state = 'beam'; b.t2 = 0; this.hooks.sound('roar'); }
+      else if (--b.landT <= 0) { b.state = 'land'; }
+    } else if (b.state === 'beam') { // 끌어당기는 광선: 광선 밖으로 달아나요!
+      b.t2++; b.x += clamp(p.x + p.w / 2 - b.w / 2 - b.x, -.5, .5);
+      b.beam = b.t2 > 30; // 처음 30프레임은 깜빡이는 예고
+      if (b.beam && p.x + p.w > b.x + 6 && p.x < b.x + b.w - 6 && !this.diff.harmless) { p.vy = Math.max(p.vy - .5, -2.4); p.ground = false; }
+      if (b.t2 > 120) { b.state = 'fly'; b.beamT = Math.round(330 - rage * 100); }
+    } else if (b.state === 'land') { // 연료 넣기: 내려와서 한참 쉬어요
+      b.y = Math.min(groundY, b.y + 1.6);
+      if (b.y >= groundY) { b.state = 'rest'; b.restT = angry ? 110 : 140; this.shake = 6; }
+    } else if (b.state === 'rest') {
+      if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 8, life: 20 });
+      if (--b.restT <= 0) b.state = 'rise';
+    } else if (b.state === 'rise') {
+      b.y -= 1.5; if (b.y <= sky) { b.state = 'fly'; b.landT = Math.round(480 - rage * 120); }
+    }
+    b.safe = b.state === 'rest'; b.ground = b.state === 'rest';
+    b.x = clamp(b.x, lo, hi);
+  }
   hitBoss(b, inv) {
     b.hp--; b.hurt = inv; b.stun = 0; this.hooks.sound('bossHit'); this.hooks.sound(b.kind === 'coffee' ? 'meow' : 'roar');
     if (b.kind === 'dragon' && b.state === 'rest') { b.state = 'rise'; }
     if (b.kind === 'owl' && (b.state === 'rest' || b.state === 'fall')) b.state = 'rise';
     if (b.kind === 'crab' && b.state === 'tired') { b.state = 'walk'; b.slamT = 200; }
     if (b.kind === 'scorpion' && b.state === 'dizzy') { b.state = 'walk'; b.burrowT = 170; }
+    if (b.kind === 'jelly') { if (b.state === 'squish') { b.state = 'walk'; b.t2 = 0; } if (b.hp <= b.maxHp / 2 && b.hp > 0) for (const d of [-1, 1]) this.enemies.push({ type: 'gummy', x: b.x + b.w / 2 - 5 + d * 12, y: b.y + b.h - 8, w: 10, h: 8, vx: 0, vy: -2.5, dir: d, t: 0, stun: 0, cool: 30, state: 'walk', dead: false, gone: false }); }
+    if (b.kind === 'gorilla' && b.state === 'dizzy') { b.state = 'walk'; b.chargeT = 200; }
+    if (b.kind === 'ghost') { b.fakes = []; b.state = 'vanish'; b.t2 = 0; }
+    if (b.kind === 'ufo' && (b.state === 'rest' || b.state === 'land')) b.state = 'rise';
     this.shake = 10; this.carry.score += 1000; this.pop(b.x, b.y - 8, 1000);
     if (b.hp <= 0) {
       b.dead = true; b.hidden = false; this.foes = []; this.state = 'bossTalk'; this.hooks.music(null); this.hooks.sound('bossDown');
+      b.fakes = []; b.beam = false;
       if (b.kind === 'scorpion' || b.kind === 'crab') this.fx.push({ kind: 'sun', x: b.x + b.w / 2 - 4, y: b.y - 6, life: 400 });
       const lines = {
+        jelly: ['바닐라: 말랑... 졌어. 사탕 욕심 부려서 미안해.', '바닐라: 아포가토는 정글을 지나 우주로 간댔어!', '바닐라: 모카를 꼭 구해 줘!'],
+        gorilla: ['헤이즐넛: 우호... 네가 진짜 정글의 왕이다!', '헤이즐넛: 아포가토의 우주선은 유령의 집 꼭대기에서 떠난대!'],
+        ghost: ['비엔나: 앗, 진짜 나를 찾아냈네~ 졌다!', '비엔나: 사실 혼자 사는 유령의 집은 너무 쓸쓸했어...', '비엔나: 우주선 발사대로 가는 길을 열어 줄게!'],
+        ufo: ['아포가토: 으악! 우주선이 고장 났다!', '아포가토: 흑흑... 사실은 나도 같이 간식 나눠 먹을 친구가 필요했어.', '모카: 그럼 훔치지 말고 같이 먹자! 우리 친구 할래?'],
         dragon: b.final
           ? ['에스프레소: 크릉... 졌다...', '에스프레소: 사실은... 혼자 사는 게 너무 심심했어.', '모카: 그럼 너도 우리랑 친구 하자!']
           : ['에스프레소: 크윽! 제법이군!', `에스프레소: 하지만 ${this.friend}는 내 성에 있다! 쫓아올 테면 와 봐라!`],

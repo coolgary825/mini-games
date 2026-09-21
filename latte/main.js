@@ -1,7 +1,7 @@
 // 슈퍼 라떼 랜드 — 화면 그리기, 입력, 메뉴, 이야기, 저장
 import { SPRITES, spriteSize, SCREEN_PALETTES, COLOR_PALETTES, THEME_PALETTES, PIECE_PALETTES, THEME_PIECES, THEME_SKY, COSTUMES } from './sprites.js';
-import { LEVELS, WORLD_NAMES, ROWS, STORY1_END, STORY2_END } from './levels.js';
-import { Run, T, VIEW_W } from './engine.js';
+import { LEVELS, ROWS, STORY1_END, STORY2_END, STORY3_END, endlessLevel, worldOf } from './levels.js';
+import { Run, T, VIEW_W, DIFFICULTY, DIFF_KEYS } from './engine.js';
 import { Chip } from './audio.js';
 
 const $ = id => document.getElementById(id);
@@ -18,25 +18,30 @@ const save = (() => { try { return JSON.parse(localStorage.getItem(SAVE_KEY)) ||
 save.player = PLAYERS.includes(save.player) ? save.player : '준우';
 save.palette = SCREEN_PALETTES[save.palette] ? save.palette : 'color';
 if ((save.v || 1) < 2) { save.palette = 'color'; save.v = 2; } // 기본을 컬러로
+if (!DIFFICULTY[save.difficulty]) save.difficulty = save.easy ? 'easy' : 'normal'; // 예전 '쉬운 모드'를 난이도로
+const diff = () => DIFFICULTY[save.difficulty];
 save.profiles ??= {};
 const profile = () => {
-  const p = (save.profiles[save.player] ??= { unlocked: 0, best: 0, done: false }); p.golds ??= {}; p.costume ??= 'none'; p.char ??= 'latte';
+  const p = (save.profiles[save.player] ??= { unlocked: 0, best: 0, done: false }); p.golds ??= {}; p.costume ??= 'none'; p.char ??= 'latte'; p.clears ??= {};
   if (p.done && p.unlocked < STORY1_END + 1) p.unlocked = STORY1_END + 1; // 3-3을 이미 깼다면 월드 4가 열려요
   if (p.done2 && p.unlocked < STORY2_END + 1) p.unlocked = STORY2_END + 1; // 5-3을 이미 깼다면 월드 6이 열려요
+  if (p.done3 && p.unlocked < STORY3_END + 1) p.unlocked = STORY3_END + 1; // 8-3을 이미 깼다면 월드 9가 열려요
   return p;
 };
 const coffeeOpen = () => profile().unlocked > STORY1_END;
 const espressoOpen = () => !!profile().done2;
-// 캐릭터: 라떼·팝콘공·드래곤은 어디서나, 커피는 3-3을 깬 뒤 월드 4부터, 에스프레소는 5-3을 깬 뒤 어디서나 (모카는 구해야 할 친구)
+const owlOpen = () => !!profile().done3;
+// 캐릭터: 라떼·팝콘공·드래곤은 어디서나, 커피는 3-3을 깬 뒤 월드 4부터, 에스프레소는 5-3·콜드브루는 8-3을 깬 뒤 어디서나 (모카는 구해야 할 친구)
 const CHARS = {
   latte: { name: '라떼', hud: 'LATTE', stand: 'latteStand', walk: 'latteWalk1', sprite: 'latte', big: 'big', btn: '멍!', cd: 150, sfx: 'bark', cx: 0, cy: 0 },
   turtle: { name: '팝콘공', hud: 'POPCON', stand: 'turtleStand', walk: 'turtleWalk1', sprite: 'turtle', big: 'bigTurtle', btn: '팝!', cd: 70, sfx: 'pop', cx: 4, cy: 2 },
   lizard: { name: '드래곤', hud: 'DRAGON', stand: 'lizardStand', walk: 'lizardWalk1', sprite: 'lizard', big: 'bigLizard', btn: '불!', cd: 80, sfx: 'fire', cx: 3, cy: 1 },
   coffee: { name: '커피', hud: 'COFFEE', stand: 'coffeeStand', walk: 'coffeeWalk1', sprite: 'coffee', big: 'bigCoffee', btn: '냥!', cd: 110, sfx: 'meow', cx: 1, cy: 0 },
   espresso: { name: '에스프레소', hud: 'ESPRE', stand: 'espStand', walk: 'espWalk1', sprite: 'esp', big: 'bigEsp', btn: '화!', cd: 90, sfx: 'roar', cx: 4, cy: 1 },
+  owl: { name: '콜드브루', hud: 'COLD', stand: 'owlPStand', walk: 'owlPWalk1', sprite: 'owlP', big: 'bigOwlP', btn: '꽁!', cd: 60, sfx: 'throw', cx: -3, cy: 1 },
 };
-const allChars = () => ['latte', 'turtle', 'lizard', ...(coffeeOpen() ? ['coffee'] : []), ...(espressoOpen() ? ['espresso'] : [])];
-const charsFor = index => ['latte', 'turtle', 'lizard', ...(index > STORY1_END && coffeeOpen() ? ['coffee'] : []), ...(espressoOpen() ? ['espresso'] : [])];
+const allChars = () => ['latte', 'turtle', 'lizard', ...(coffeeOpen() ? ['coffee'] : []), ...(espressoOpen() ? ['espresso'] : []), ...(owlOpen() ? ['owl'] : [])];
+const charsFor = index => ['latte', 'turtle', 'lizard', ...((index > STORY1_END || endless) && coffeeOpen() ? ['coffee'] : []), ...(espressoOpen() ? ['espresso'] : []), ...(owlOpen() ? ['owl'] : [])];
 const charFor = index => { const c = profile().char; return charsFor(index).includes(c) ? c : 'latte'; };
 // 황금 뼈다귀 수와 꾸미기
 const bitCount = n => { let c = 0; for (; n; n &= n - 1) c++; return c; };
@@ -82,6 +87,9 @@ const textW = (s, scale = 1) => String(s).length * 6 * scale - scale;
 
 // ── 색 ──────────────────────────────────────────────────────
 const CATEGORY = [
+  [/^(owlP|bigOwlP)/, 'owl'], [/^jelly/, 'jelly'], [/^gor/, 'gor'], [/^ghostFire/, 'ghostFire'], [/^ghost/, 'ghost'], [/^ufo/, 'ufo'], [/^raccoon/, 'raccoon'], [/^gummy/, 'gummy'],
+  [/^monkey/, 'monkey'], [/^boo/, 'boo'], [/^alien/, 'alien'], [/^coconut/, 'coconut'], [/^banana/, 'banana'], [/^lolly/, 'lolly'], [/^bomb/, 'bomb'], [/^meteor/, 'meteor'],
+  [/^spring/, 'spring'], [/^rainbow/, 'rainbow'], [/^(cushion|boneRain)/, 'cloudy'], [/^chick/, 'chick'],
   [/^(esp|bigEsp)/, 'dragon'], [/^scorp/, 'scorp'], [/^stinger/, 'scorp'], [/^crab/, 'crab'], [/^owl/, 'owl'], [/^penguin/, 'penguin'], [/^(icicle|shard|snowball)/, 'ice'], [/^bubble/, 'bubble'], [/^wave/, 'sea'],
   [/^(turtle|bigTurtle)/, 'turtle'], [/^(lizard|bigLizard)/, 'lizard'], [/^popcorn/, 'popcorn'],
   [/^(coffee|bigCoffee)/, 'coffee'], [/^(latte|big)/, 'latte'], [/^mocha/, 'mocha'], [/^dragon/, 'dragon'], [/^bat/, 'bat'], [/^(ember|fire)/, 'fire'], [/^dino/, 'dino'],
@@ -231,10 +239,13 @@ function hint(textKo) { hintEl.textContent = textKo; hintEl.hidden = false; hint
 
 // ── 게임 흐름 ───────────────────────────────────────────────
 let mode = 'title', run = null, stageIndex = 0, carry = null, checkpoint = null, modeT = 0, scene = null, lastScore = 0;
-const newCarry = () => ({ lives: save.easy ? 99 : 5, score: 0, bones: 0, big: false, power: null, shield: false, char: 'latte' });
+let endless = null; // 끝없는 모험 중이면 { n, L }
+const curL = () => endless ? (endless.L ??= endlessLevel(endless.n)) : LEVELS[stageIndex];
+const newCarry = () => ({ lives: diff().lives, score: 0, bones: 0, big: false, power: null, shield: false, char: 'latte' });
+const markClear = () => { if (endless) return; const p = profile(), id = LEVELS[stageIndex].id; p.clears[id] = Math.max(p.clears[id] || 0, DIFF_KEYS.indexOf(save.difficulty) + 1); };
 
 function toTitle() {
-  mode = 'title'; modeT = 0; run = null; closeMenu(); cardEl.hidden = true; theme = 'park'; syncUi();
+  mode = 'title'; modeT = 0; run = null; endless = null; closeMenu(); cardEl.hidden = true; theme = 'park'; syncUi();
   chip.play('title');
 }
 // 누르자마자 시작: 저장된 스테이지부터 이어서, 처음이면 짧은 이야기부터
@@ -244,6 +255,8 @@ function quickStart() {
   if (idx === STORY1_END + 1 && !p.story2) { p.story2 = true; persist(); closeMenu(); carry = newCarry(); return startEnding(1, true); }
   // 5-3을 깼는데 콜드브루 이야기를 아직 못 봤다면 먼저 보여 줘요
   if (idx === STORY2_END + 1 && !p.story3) { p.story3 = true; persist(); closeMenu(); carry = newCarry(); return startEnding(2, true, true); }
+  // 8-3을 깼는데 아포가토 이야기를 아직 못 봤다면 먼저 보여 줘요
+  if (idx === STORY3_END + 1 && !p.story4) { p.story4 = true; persist(); closeMenu(); carry = newCarry(); return startEnding(3, true, true); }
   startGame(idx, !p.story);
   if (!p.story) { p.story = true; persist(); }
 }
@@ -251,17 +264,30 @@ function titleMenu() {
   const p = profile(), next = Math.min(p.unlocked, LEVELS.length - 1);
   openMenu('', [
     { label: p.unlocked > 0 ? `이어하기 ${LEVELS[next].id}` : '모험 시작', small: p.unlocked > 0 ? LEVELS[next].name : '라떼가 모카를 구하러 가요', action: quickStart },
+    { label: '끝없는 모험', small: `스테이지가 끝없이 나와요 · 최고 ${p.endlessBest || 0}단계`, action: startEndless },
+    { label: `난이도: ${diff().name}`, small: DIFF_SMALL[save.difficulty], action: () => { save.difficulty = DIFF_KEYS[(DIFF_KEYS.indexOf(save.difficulty) + 1) % DIFF_KEYS.length]; persist(); chip.sfx('select'); titleMenu(); menu.index = 2; paintMenu(); } },
     { label: '꾸미기', small: `황금 뼈다귀 ${goldTotal()} / ${GOLD_MAX}개 모음`, action: costumeMenu },
-    { label: `캐릭터: ${CHARS[p.char]?.name || '라떼'}`, small: espressoOpen() ? '에스프레소도 어디서나! 커피는 월드 4부터' : coffeeOpen() ? '커피는 월드 4부터 · 5-3을 깨면 에스프레소도!' : '라떼·팝콘공(거북이)·드래곤(도마뱀) · 3-3을 깨면 커피도!', action: () => { const list = allChars(); p.char = list[(list.indexOf(p.char) + 1) % list.length]; persist(); chip.sfx(CHARS[p.char].sfx); titleMenu(); } },
+    { label: `캐릭터: ${CHARS[p.char]?.name || '라떼'}`, small: owlOpen() ? '콜드브루까지 모두 어디서나!' : espressoOpen() ? '에스프레소도 어디서나! 8-3을 깨면 콜드브루도!' : coffeeOpen() ? '커피는 월드 4부터 · 5-3을 깨면 에스프레소도!' : '라떼·팝콘공(거북이)·드래곤(도마뱀) · 3-3을 깨면 커피도!', action: () => { const list = allChars(); p.char = list[(list.indexOf(p.char) + 1) % list.length]; persist(); chip.sfx(CHARS[p.char].sfx); titleMenu(); } },
     { label: '스테이지 고르기', small: `${Math.min(p.unlocked + 1, LEVELS.length)} / ${LEVELS.length} 스테이지 열림`, action: stageSelect },
     { label: `플레이어: ${save.player}`, small: '플레이어마다 기록을 따로 저장해요', action: () => { save.player = PLAYERS[(PLAYERS.indexOf(save.player) + 1) % PLAYERS.length]; persist(); titleMenu(); } },
     { label: `화면 색: ${SCREEN_PALETTES[save.palette].name}`, small: '원조 초록 · 포켓 회색 · 컬러', action: () => { const ks = Object.keys(SCREEN_PALETTES); save.palette = ks[(ks.indexOf(save.palette) + 1) % ks.length]; persist(); syncScreenColor(); titleMenu(); } },
-    { label: `쉬운 모드: ${save.easy ? '켜짐' : '꺼짐'}`, small: save.easy ? '목숨 99개 · 시간 제한 없음' : '원작처럼 목숨 3개 · 시간 제한', action: () => { save.easy = !save.easy; persist(); titleMenu(); } },
     { label: `소리: ${save.muted ? '꺼짐' : '켜짐'}`, action: () => { save.muted = !save.muted; chip.setMuted(save.muted); persist(); if (!save.muted) chip.play('title'); titleMenu(); } },
   ], () => { closeMenu(); });
   const m = menu; m.index = 0; paintMenu();
 }
 
+const DIFF_SMALL = {
+  peace: '🌸 적에게 닿아도 안 아파요 · 구덩이도 구해 줘요',
+  easy: '🙂 목숨 99개 · 시간 제한 없음',
+  normal: '🎮 목숨 5개 · 시간 제한 있음',
+  hard: '🔥 목숨 3개 · 작게 출발 · 적이 빨라요 · 구덩이 조심',
+  impossible: '💀 목숨 1개 · 한 번만 닿아도 끝 · 소화전 없음 · 보스 체력 두 배',
+};
+// 끝없는 모험: 1단계부터 계속 이어서, 4단계마다 보스
+function startEndless() {
+  closeMenu(); carry = newCarry(); lastScore = 0; endless = { n: 1, L: null };
+  showCard(0);
+}
 function costumeMenu() {
   const have = goldTotal(), p = profile();
   openMenu(`꾸미기 · 황금 뼈다귀 ${have}개`, [
@@ -272,52 +298,60 @@ function costumeMenu() {
 function stageSelect() {
   const p = profile();
   openMenu('스테이지 고르기', [
-    ...LEVELS.map((L, i) => ({ label: `${L.id}  ${L.name}`, small: i > p.unlocked ? '🔒 앞 스테이지를 깨면 열려요' : `${WORLD_NAMES[+L.id[0] - 1]} · 황금 뼈다귀 ${'★'.repeat(bitCount(p.golds[L.id] || 0))}${'☆'.repeat(3 - bitCount(p.golds[L.id] || 0))}`, disabled: i > p.unlocked, action: () => startGame(i, false) })),
+    ...LEVELS.map((L, i) => ({ label: `${L.id}  ${L.name}`, small: i > p.unlocked ? '🔒 앞 스테이지를 깨면 열려요' : `${worldOf(L)} · 황금 뼈다귀 ${'★'.repeat(bitCount(p.golds[L.id] || 0))}${'☆'.repeat(3 - bitCount(p.golds[L.id] || 0))}${p.clears[L.id] ? ` · 🏅${DIFFICULTY[DIFF_KEYS[p.clears[L.id] - 1]].name}` : ''}`, disabled: i > p.unlocked, action: () => startGame(i, false) })),
     { label: '← 뒤로', action: titleMenu },
   ], titleMenu);
 }
 function startGame(index, withStory) {
-  closeMenu(); carry = newCarry(); lastScore = 0;
+  closeMenu(); carry = newCarry(); lastScore = 0; endless = null;
   if (withStory) return startStory(() => showCard(index));
   showCard(index);
 }
 function showCard(index) {
   stageIndex = index; checkpoint = null; mode = 'card'; modeT = 0; run = null; carry.char = charFor(index); hintEl.hidden = true; hintTimer = 0;
-  const L = LEVELS[index]; theme = L.theme; syncUi();
-  cardEl.hidden = false; cardEl.querySelector('b').textContent = `WORLD ${L.id}`; cardEl.querySelector('span').textContent = L.name;
+  const L = curL(); theme = L.theme; syncUi();
+  cardEl.hidden = false; cardEl.querySelector('b').textContent = endless ? `끝없는 모험 ${endless.n}단계` : `WORLD ${L.id}`; cardEl.querySelector('span').textContent = endless ? (L.boss ? '보스가 기다려요!' : worldOf(LEVELS.find(k => k.theme === L.theme) || L)) : L.name;
   chip.stop(); chip.jingle('course');
 }
 function beginRun() {
   cardEl.hidden = true;
-  const L = LEVELS[stageIndex]; theme = L.theme; syncUi();
+  const L = curL(); theme = L.theme; syncUi();
   carry.char = charFor(stageIndex);
-  carry.big = true; // 쉽게: 스테이지마다 크게 출발해서 한 번은 부딪혀도 괜찮아요
-  run = new Run(L, carry, hooks, { easy: save.easy, checkpoint, goldHave: profile().golds[L.id] || 0 });
+  if (diff().startBig) carry.big = true; // 쉽게: 스테이지마다 크게 출발해서 한 번은 부딪혀도 괜찮아요(어려움부터는 그대로)
+  run = new Run(L, carry, hooks, { difficulty: save.difficulty, checkpoint, goldHave: endless ? 0 : profile().golds[L.id] || 0 });
   mode = 'play'; modeT = 0;
 }
 const hooks = {
   sound: n => { if (n === 'die') chip.jingle('die'); else if (n === 'clear') chip.jingle('clear'); else chip.sfx(n); },
   music: n => { if (n) chip.play(n); else chip.stop(); },
-  hint: t => hint(run && run.char !== 'latte' ? t.replace('멍!(C)으로 기절시킨 뒤 밟아요.', { coffee: '냥! 대시(C)로 물리쳐요.', turtle: '팝!(C) 팝콘으로 물리쳐요.', lizard: '불!(C)로 태워서 물리쳐요.', espresso: '화!(C) 불덩이로 물리쳐요.' }[run.char]).replace('멍! 하면 잠깐 어지러워해요.', { coffee: '냥! 대시(C)로 부딪쳐도 돼요.', turtle: '팝콘(C)으로도 맞힐 수 있어요.', lizard: '불(C)로도 맞힐 수 있어요.', espresso: '불덩이(C)로도 맞힐 수 있어요.' }[run.char]).replace('테니스공으로', run.char === 'coffee' ? '털실 공으로' : '테니스공으로') : t),
+  hint: t => hint(run && run.char !== 'latte' ? t.replace('멍!(C)으로 기절시킨 뒤 밟아요.', { coffee: '냥! 대시(C)로 물리쳐요.', turtle: '팝!(C) 팝콘으로 물리쳐요.', lizard: '불!(C)로 태워서 물리쳐요.', espresso: '화!(C) 불덩이로 물리쳐요.', owl: '꽁!(C) 얼음으로 얼린 뒤 부딪쳐요.' }[run.char]).replace('멍! 하면 잠깐 어지러워해요.', { coffee: '냥! 대시(C)로 부딪쳐도 돼요.', turtle: '팝콘(C)으로도 맞힐 수 있어요.', lizard: '불(C)로도 맞힐 수 있어요.', espresso: '불덩이(C)로도 맞힐 수 있어요.', owl: '얼음(C)으로도 맞힐 수 있어요.' }[run.char]).replace('테니스공으로', run.char === 'coffee' ? '털실 공으로' : '테니스공으로') : t),
   say,
   dead: ({ checkpoint: cp }) => {
     checkpoint = cp;
-    if (!save.easy) carry.lives--;
+    if (diff().lives < 99) carry.lives--;
     if (carry.lives <= 0) return gameOver();
     mode = 'card'; modeT = 0; run = null;
-    const L = LEVELS[stageIndex];
-    cardEl.hidden = false; cardEl.querySelector('b').textContent = `WORLD ${L.id}`; cardEl.querySelector('span').textContent = cp !== null ? `${L.name} · 소화전부터` : L.name;
+    const L = curL();
+    cardEl.hidden = false; cardEl.querySelector('b').textContent = endless ? `끝없는 모험 ${endless.n}단계` : `WORLD ${L.id}`; cardEl.querySelector('span').textContent = cp !== null ? `${L.name} · 소화전부터` : L.name;
   },
   clear: () => {
     const p = profile();
+    if (endless) { // 다음 단계로! 보스를 이기면 바로, 아니면 보너스 룰렛부터
+      p.endlessBest = Math.max(p.endlessBest || 0, endless.n); p.best = Math.max(p.best, carry.score); persist();
+      const wasBoss = !!curL().boss; endless.n++; endless.L = null;
+      if (!wasBoss) { setTimeout(() => startBonus(0), 300); mode = 'wait'; return; }
+      setTimeout(() => showCard(0), 400); mode = 'wait'; return;
+    }
+    markClear();
     p.unlocked = Math.max(p.unlocked, stageIndex + 1); p.best = Math.max(p.best, carry.score); persist();
     const next = stageIndex + 1;
-    if (next >= LEVELS.length) return startEnding(3);
+    if (next >= LEVELS.length) return startEnding(4);
     if (!LEVELS[stageIndex].boss) { setTimeout(() => startBonus(next), 300); mode = 'wait'; return; }
     setTimeout(() => showCard(next), 400);
     mode = 'wait';
   },
   gold: i => {
+    if (endless) return;
     const p = profile(), id = LEVELS[stageIndex].id, before = goldTotal(), first = !p.golds[id] && before === 0;
     p.golds[id] = (p.golds[id] || 0) | (1 << i); persist();
     const now = goldTotal(), opened = COSTUMES.find(c => c.need > before && c.need <= now);
@@ -325,14 +359,15 @@ const hooks = {
     else if (first) hint('황금 뼈다귀! 스테이지마다 3개씩 숨어 있어요. 모으면 라떼를 꾸밀 수 있어요.');
   },
   ending: () => {
-    const p = profile(); p.best = Math.max(p.best, carry.score);
-    if (stageIndex >= LEVELS.length - 1) { p.done3 = true; persist(); startEnding(3); }
+    const p = profile(); p.best = Math.max(p.best, carry.score); markClear();
+    if (stageIndex >= LEVELS.length - 1) { p.done4 = true; persist(); startEnding(4); }
+    else if (stageIndex >= STORY3_END) { const first = !p.done3; p.done3 = true; p.story4 = true; p.unlocked = Math.max(p.unlocked, STORY3_END + 1); persist(); startEnding(3, false, first); }
     else if (stageIndex >= STORY2_END) { const first = !p.done2; p.done2 = true; p.story3 = true; p.unlocked = Math.max(p.unlocked, STORY2_END + 1); persist(); startEnding(2, false, first); }
     else { p.done = true; p.story2 = true; p.unlocked = Math.max(p.unlocked, STORY1_END + 1); persist(); startEnding(1); }
   },
 };
 // ── 보너스 룰렛(스테이지를 깨면) ───────────────────────────
-const PRIZES = [{ spr: 'heart', name: '목숨 하나 더!' }, { spr: 'meat', name: '커다랗게 출발!' }, { spr: 'ball', name: '던지기 파워!' }, { spr: 'wing', name: '날개 파워!' }, { spr: 'shield', name: '방울 방패!' }, { spr: 'bigBone', name: '뼈다귀 10개!' }];
+const PRIZES = [{ spr: 'heart', name: '목숨 하나 더!' }, { spr: 'meat', name: '커다랗게 출발!' }, { spr: 'ball', name: '던지기 파워!' }, { spr: 'wing', name: '날개 파워!' }, { spr: 'shield', name: '방울 방패!' }, { spr: 'spring', name: '스프링 신발!' }, { spr: 'chick', name: '병아리 친구!' }, { spr: 'bigBone', name: '뼈다귀 10개!' }];
 let bonus = null;
 function startBonus(next) {
   mode = 'bonus'; modeT = 0; run = null; theme = 'park'; syncUi();
@@ -352,10 +387,12 @@ function updateBonus() {
       else if (k.spr === 'ball') { carry.big = true; carry.power = 'ball'; }
       else if (k.spr === 'wing') { carry.big = true; carry.power = 'wing'; }
       else if (k.spr === 'shield') carry.shield = true;
+      else if (k.spr === 'spring') { carry.big = true; carry.power = 'spring'; }
+      else if (k.spr === 'chick') carry.buddy = true;
       else { carry.bones += 10; while (carry.bones >= 100) { carry.bones -= 100; carry.lives = Math.min(99, carry.lives + 1); } }
       hint(k.name);
     }
-  } else if (++b.doneT > 110 || (b.doneT > 30 && (pressed('a') || pressed('start')))) { bonus = null; showCard(b.next); }
+  } else if (++b.doneT > 110 || (b.doneT > 30 && (pressed('a') || pressed('start')))) { bonus = null; showCard(endless ? 0 : b.next); }
 }
 function renderBonus() {
   const c = bgColors(), b = bonus; if (!b) return;
@@ -364,19 +401,19 @@ function renderBonus() {
   text('BONUS GAME', 80 - textW('BONUS GAME') / 2, 26, c[3]);
   if (!b.done && (modeT >> 4) % 2) text('PRESS A!', 80 - textW('PRESS A!') / 2, 80, c[3]);
   PRIZES.forEach((k, i) => {
-    const x = 7 + i * 25, y = 46, on = i === b.idx, flash = b.done && on && (b.doneT >> 3) % 2;
-    g.fillStyle = on ? (isColor() ? '#ffcf3a' : c[2]) : c[3]; g.fillRect(x - 2, y - 2, 24, 24);
-    g.fillStyle = flash ? c[1] : (isColor() ? '#fff8ea' : c[0]); g.fillRect(x, y, 20, 20);
+    const x = 5 + i * 19, y = 46, on = i === b.idx, flash = b.done && on && (b.doneT >> 3) % 2;
+    g.fillStyle = on ? (isColor() ? '#ffcf3a' : c[2]) : c[3]; g.fillRect(x - 2, y - 2, 20, 20);
+    g.fillStyle = flash ? c[1] : (isColor() ? '#fff8ea' : c[0]); g.fillRect(x, y, 16, 16);
     const spr = k.spr === 'meat' && carry.char === 'coffee' ? 'fish' : k.spr === 'ball' && carry.char === 'coffee' ? 'yarn' : k.spr;
-    const s = spriteSize(SPRITES[spr]); draw(spr, x + 10 - s.w / 2, y + 10 - s.h / 2);
+    const s = spriteSize(SPRITES[spr]); draw(spr, x + 8 - s.w / 2, y + 8 - s.h / 2);
   });
-  const lx = 7 + b.idx * 25 + 2;
+  const lx = 5 + b.idx * 19;
   if (carry.char !== 'latte') draw((modeT >> 3) % 2 && !b.done ? CHARS[carry.char].walk : CHARS[carry.char].stand, lx, 106);
   else { draw(b.done ? 'latteBark' : (modeT >> 3) % 2 ? 'latteWalk1' : 'latteStand', lx, 104); drawCostume(lx, 104); }
 }
 function gameOver() {
   mode = 'gameover'; modeT = 0; run = null; chip.stop(); chip.jingle('gameover');
-  const p = profile(); p.best = Math.max(p.best, carry.score); persist();
+  const p = profile(); p.best = Math.max(p.best, carry.score); if (endless) p.endlessBest = Math.max(p.endlessBest || 0, endless.n - 1); persist();
 }
 function pauseMenu() {
   mode = 'pause'; chip.sfx('pause'); chip.musicBus && (chip.musicBus.gain.value = .15);
@@ -404,25 +441,41 @@ function updateStory() {
 // 엔딩: 1부(3-3 뒤)는 용이 모카를 데려가며 월드 4로, 2부(5-3 뒤)는 콜드브루가 햇볕 돌을 훔쳐 가며 월드 6으로, 3부(8-3 뒤)가 진짜 끝이에요
 function startEnding(part = 1, teaserOnly = false, newEspresso = false) {
   mode = 'ending'; modeT = 0; theme = 'park'; syncUi(); chip.play('ending');
-  const s = scene = { t: 0, phase: 0, part, mochaTaken: false, taken: 'mocha', dragonX: 210, dragonY: -30, lizX: 176, turX: 196, owlX: 190, owlY: 62, newEspresso };
+  const s = scene = { t: 0, phase: 0, part, mochaTaken: false, taken: 'mocha', dragonX: 210, dragonY: -30, lizX: 176, turX: 196, owlX: 190, owlY: 62, newEspresso, ufoX: 190, ufoY: -20, mochaY: 104 };
   const dragonCome = () => { s.phase = 2; s.t = 0; chip.stop(); chip.sfx('roar'); };
   const end1 = ['모카: 라떼, 구하러 와 줘서 정말 고마워!', '커피: 미안해... 이제 나도 친구 해도 돼냥?', '라떼: 멍멍! 우리 셋이 매일매일 같이 놀자!'];
   const end2 = ['모카: 라떼, 커피! 또 구하러 와 줘서 고마워!', '에스프레소: 크릉... 미안해. 혼자라서 너무 심심했어.', '커피: 그럼 너도 우리 친구 해라냥!', '라떼: 멍멍! 이제 넷이서 같이 놀자!'];
   const end3 = ['팝콘공: 바다가 다시 반짝반짝해!', '드래곤: 사막에도 해님이 돌아왔어! 이제 실컷 햇볕 쬘 수 있어!', '콜드브루: 미안해... 나도 친구 해도 될까? 부엉.', '에스프레소: 크릉! 추우면 내가 매일 따뜻하게 해 줄게!', '라떼: 멍멍! 이제 모두 모두 친구야!'];
+  const end4 = ['모카: 다들 또 구하러 와 줘서 고마워! 우주까지 오다니!', '아포가토: 미안해... 이제 간식은 훔치지 않고 나눠 먹을게.', '바닐라: 말랑! 그럼 사탕 파티 하자!', '콜드브루: 부엉! 다 같이 우주 소풍 가자!', '라떼: 멍멍! 친구가 이렇게 많아졌어! 모두 모두 고마워!'];
   const coldCome = () => { s.phase = 4; s.t = 0; chip.stop(); chip.play('ice'); };
+  const ufoCome = () => { s.phase = 2; s.t = 0; chip.stop(); chip.play('space'); };
   if (part === 1) setTimeout(() => teaserOnly ? dragonCome() : say(end1, dragonCome), 600);
   else if (part === 2) setTimeout(() => teaserOnly ? coldCome() : say(end2, coldCome), 600);
-  else setTimeout(() => say(end3, () => { s.phase = 1; }), 600);
+  else if (part === 3) setTimeout(() => teaserOnly ? ufoCome() : say(end3, ufoCome), 600);
+  else setTimeout(() => say(end4, () => { s.phase = 1; }), 600);
 }
 function updateEnding() {
   const s = scene; s.t++;
   if (s.part === 2) return updateColdStory(s);
+  if (s.part === 3) return updateUfoStory(s);
   if (s.part !== 1 || s.phase !== 2) return;
   const tx = 56;
   if (!s.mochaTaken) { s.dragonX += (tx - s.dragonX) * .035; s.dragonY += (76 - s.dragonY) * .05; if (Math.abs(s.dragonX - tx) < 3) { s.mochaTaken = true; chip.sfx('roar'); } }
   else {
     s.dragonX += 1.7; s.dragonY -= 1.2;
     if (s.dragonY < -40 && !s.talked) { s.talked = true; say(['모카: 꺄악! 도와줘~!', '커피: 저건... 전설의 용 에스프레소다냥!', '라떼: 멍! 커피, 같이 모카를 구하러 가자!', '커피: 좋아! 이제 나도 같이 싸울게냥!'], () => { s.phase = 3; s.t = 0; chip.play('volcano'); }); }
+  }
+}
+// 3부 끝: 너구리 해적 아포가토의 UFO가 나타나 모카를 광선으로 끌어 올려요
+function updateUfoStory(s) {
+  if (dialog) return;
+  if (s.phase === 2) { s.ufoX += (6 - s.ufoX) * .04; s.ufoY += (30 - s.ufoY) * .05; if (s.t === 110) { s.phase = 3; s.t = 0; chip.sfx('roar'); } }
+  else if (s.phase === 3) {
+    s.mochaY = Math.max(s.ufoY + 8, 104 - s.t * .7);
+    if (s.mochaY <= s.ufoY + 8 && !s.talked) { s.talked = true; s.mochaIn = true; say(['모카: 어? 이 빛은 뭐야?! 몸이 둥실둥실~!', '아포가토: 히히! 너구리 해적 아포가토님이시다! 모카는 내가 데려간다!', '아포가토: 세상의 달콤한 간식도 전부 내 거야! 우주로 출발~!', '모카: 꺄악! 또야~?! 라떼, 도와줘~!'], () => { s.phase = 4; s.t = 0; }); }
+  } else if (s.phase === 4) {
+    s.ufoX += 1.8; s.ufoY -= 1.1;
+    if (s.t === 80) say(['라떼: 멍멍! 모카를 또 데려가다니!', '콜드브루: 부엉! 이번엔 나도 같이 갈게. 하늘은 내가 잘 알아!', '에스프레소: 크릉! 우주까지 날아가 주마!', '드래곤: 먼저 사탕 과자 나라로! 우주선이 저쪽으로 날아갔어!'], () => { s.phase = 5; s.t = 0; chip.play('candy'); if (s.newEspresso) s.unlockHint = '이제 콜드브루로도 플레이할 수 있어요! 월드 카드에서 ←→로 골라요.'; });
   }
 }
 // 2부 끝: 눈이 내리고, 드래곤과 팝콘공이 달려오고, 얼음 부엉이 콜드브루가 햇볕 돌을 훔쳐 가요
@@ -436,7 +489,7 @@ function updateColdStory(s) {
     if (s.t === 80) say(['콜드브루: 부엉부엉! 세상의 햇볕 돌 세 개는 이제 다 내 거다!', '콜드브루: 사막도 바다도 온 세상을 꽁꽁 얼려 버리겠다! 부엉~!'], () => { s.phase = 6; s.t = 0; });
   } else if (s.phase === 6) {
     s.owlX -= 1.8; s.owlY -= .8;
-    if (s.t === 70) say(['에스프레소: 크릉! 내 불꽃으로 다 녹여 주겠어! 이번엔 나도 같이 간다!', '드래곤: 햇볕 돌을 되찾으러 가자! 먼저 우리 사막으로!', '라떼: 멍멍! 모두 같이 출발!'], () => { s.phase = 7; s.t = 0; chip.play('desert'); if (s.newEspresso) hint('이제 에스프레소로도 플레이할 수 있어요! 월드 카드에서 ←→로 골라요.'); });
+    if (s.t === 70) say(['에스프레소: 크릉! 내 불꽃으로 다 녹여 주겠어! 이번엔 나도 같이 간다!', '드래곤: 햇볕 돌을 되찾으러 가자! 먼저 우리 사막으로!', '라떼: 멍멍! 모두 같이 출발!'], () => { s.phase = 7; s.t = 0; chip.play('desert'); if (s.newEspresso) s.unlockHint = '이제 에스프레소로도 플레이할 수 있어요! 월드 카드에서 ←→로 골라요.'; });
   }
 }
 // ── 한 프레임 ───────────────────────────────────────────────
@@ -463,15 +516,16 @@ function step() {
   else if (mode === 'ending') {
     if (scene) updateEnding();
     const go = pressed('a') || pressed('start');
-    if (scene?.part === 3 && scene.phase === 1 && modeT > 120 && go) toTitle();
+    if (scene?.part === 4 && scene.phase === 1 && modeT > 120 && go) toTitle();
+    else if (scene?.part === 3 && scene.phase === 5 && scene.t > 40 && go) { const h = scene.unlockHint; scene = null; showCard(STORY3_END + 1); if (h) hint(h); }
     else if (scene?.part === 1 && scene.phase === 3 && scene.t > 40 && go) { scene = null; showCard(STORY1_END + 1); }
-    else if (scene?.part === 2 && scene.phase === 7 && scene.t > 40 && go) { scene = null; showCard(STORY2_END + 1); }
+    else if (scene?.part === 2 && scene.phase === 7 && scene.t > 40 && go) { const h = scene.unlockHint; scene = null; showCard(STORY2_END + 1); if (h) hint(h); }
   }
   else if (mode === 'bonus') { if (bonus) updateBonus(); }
   else if (mode === 'gameover') { if (modeT > 90 && (pressed('a') || pressed('start'))) toTitle(); }
   endStep();
   const barkBtn = $('bark'), bch = mode === 'play' && run ? run.char : 'latte';
-  if (barkBtn.dataset.ch !== bch) { barkBtn.dataset.ch = bch; for (const k of ['coffee', 'turtle', 'lizard', 'espresso']) barkBtn.classList.toggle('c-' + k, bch === k); barkBtn.querySelector('span').textContent = CHARS[bch].btn; }
+  if (barkBtn.dataset.ch !== bch) { barkBtn.dataset.ch = bch; for (const k of ['coffee', 'turtle', 'lizard', 'espresso', 'owl']) barkBtn.classList.toggle('c-' + k, bch === k); barkBtn.querySelector('span').textContent = CHARS[bch].btn; }
   if (run && mode === 'play') { const cd = run.player.barkCd; barkBtn.classList.toggle('ready', cd === 0); barkBtn.style.setProperty('--cd', (cd / CHARS[run.char].cd).toFixed(2)); }
   else { barkBtn.classList.add('ready'); barkBtn.style.setProperty('--cd', 0); }
 }
@@ -487,6 +541,7 @@ function tileSprite(c, tx, ty, r) {
     case '[': return 't_pipeTL'; case ']': return 't_pipeTR'; case '{': return 't_pipeBL'; case '}': return 't_pipeBR';
     case '=': return 't_plat'; case 'c': return 't_cloudPlat'; case '^': return 't_spike'; case '~': return (r.frame >> 4) % 2 ? 't_liquid1' : 't_liquid0';
     case 'C': return 't_castle';
+    case 'J': return 't_jelly';
   }
   return null;
 }
@@ -531,7 +586,7 @@ function renderRun(r) {
   for (const m of r.movers) for (let i = 0; i < m.w; i += T) draw(theme === 'sky' ? 't_cloudPlat' : 't_plat', m.x + i - cam, m.y + HUD);
   // 아이템
   for (const it of r.things) {
-    const name = it.kind === 'bonePop' ? 'bone' : it.kind === 'meat' && r.char === 'coffee' ? 'fish' : it.kind;
+    const name = it.kind === 'bonePop' || it.kind === 'fallBone' ? 'bone' : it.kind === 'meat' && r.char === 'coffee' ? 'fish' : it.kind;
     if (it.rise > 0) { g.save(); g.beginPath(); g.rect(0, HUD, W, Math.round(it.y + it.rise * .5 + 8) - 8 + HUD); g.clip(); drawOn(name, it, false, false, undefined, cam); g.restore(); }
     else drawOn(name, it, false, false, undefined, cam);
   }
@@ -539,14 +594,15 @@ function renderRun(r) {
   for (const e of r.enemies) {
     const walk = (e.t >> 3) % 2, flip = e.dir > 0;
     let name = { bean: walk ? 'beanStep' : 'bean', can: walk ? 'canStep' : 'can', hedgehog: walk ? 'hedgehogStep' : 'hedgehog', pigeon: (e.t >> 3) % 2 ? 'pigeonUp' : 'pigeon', cup: 'cup', bat: e.state === 'hang' ? 'bat' : (e.t >> 2) % 2 ? 'batUp' : 'bat', ember: (e.t >> 3) % 2 ? 'emberB' : 'ember', dino: e.breath > 0 ? 'dino' : walk ? 'dinoStep' : 'dino',
-      crabling: (e.t >> 2) % 2 ? 'crablingStep' : 'crabling', scorp: walk ? 'scorpStep' : 'scorp', penguin: walk ? 'penguinStep' : 'penguin', icicle: 'icicle' }[e.type];
-    if (e.type === 'icicle') { drawOn('icicle', e.state === 'shake' ? { ...e, x: e.x + ((e.t >> 1) % 2 ? .5 : -.5) } : e, false, false, undefined, cam); continue; }
+      crabling: (e.t >> 2) % 2 ? 'crablingStep' : 'crabling', scorp: walk ? 'scorpStep' : 'scorp', penguin: walk ? 'penguinStep' : 'penguin', icicle: 'icicle',
+      gummy: e.vy < 0 ? 'gummyJump' : 'gummy', monkey: e.breath > 0 || !walk ? 'monkey' : 'monkeyStep', boo: e.state === 'hide' ? 'booHide' : 'boo', alien: walk ? 'alienStep' : 'alien', coconut: 'coconut' }[e.type];
+    if (e.type === 'icicle' || e.type === 'coconut') { drawOn(name, e.state === 'shake' ? { ...e, x: e.x + ((e.t >> 1) % 2 ? .5 : -.5) } : e, false, false, undefined, cam); continue; }
     if (e.type === 'ember' && e.state === 'lava') continue;
     if (e.state === 'flat') name = 'beanFlat';
     if (e.state === 'shell') name = 'canShell';
-    const flipY = e.dead && e.state === 'fall' || e.stun > 0 && e.type !== 'pigeon';
+    const flipY = e.dead && e.state === 'fall' || e.stun > 0 && !e.frozen && e.type !== 'pigeon' && e.type !== 'boo';
     if (e.stun > 0 && e.stun < 50 && (e.t >> 2) % 2) continue;
-    drawOn(name, e, e.type === 'pigeon' || e.type === 'bat' || e.type === 'ember' ? false : flip, flipY || (e.type === 'bat' && e.state === 'hang' && false), undefined, cam);
+    drawOn(name, e, e.type === 'pigeon' || e.type === 'bat' || e.type === 'ember' ? false : e.type === 'boo' ? e.dir < 0 : flip, flipY, e.frozen && !SCREEN_PALETTES[save.palette].colors ? COLOR_PALETTES.ice : undefined, cam);
   }
   // 보스
   const b = r.boss;
@@ -557,15 +613,25 @@ function renderRun(r) {
       : b.kind === 'scorpion' ? (hurt ? 'scorpHurt' : b.state === 'walk' && flap ? 'scorpB' : 'scorpA')
       : b.kind === 'crab' ? (hurt ? 'crabHurt' : (b.state === 'walk' ? (b.t >> 2) % 2 : b.state === 'tired' ? 0 : flap) ? 'crabB' : 'crabA')
       : b.kind === 'owl' ? (hurt ? 'owlHurt' : b.state !== 'rest' && flap ? 'owlB' : 'owlA')
+      : b.kind === 'jelly' ? (hurt ? 'jellyHurt' : b.state === 'squish' || b.state === 'walk' && b.t2 > 12 ? 'jellyB' : 'jellyA')
+      : b.kind === 'gorilla' ? (hurt ? 'gorHurt' : b.state === 'ready' ? ((b.t >> 2) % 2 ? 'gorB' : 'gorA') : b.state === 'walk' || b.state === 'charge' ? (flap ? 'gorB' : 'gorA') : 'gorA')
+      : b.kind === 'ghost' ? (hurt ? 'ghostHurt' : flap ? 'ghostB' : 'ghostA')
+      : b.kind === 'ufo' ? (hurt ? 'ufoHurt' : (b.t >> 2) % 2 ? 'ufoB' : 'ufoA')
       : hurt ? 'coffeeHurt' : b.ground && Math.abs(b.vx) > .1 ? (flap ? 'coffeeB' : 'coffeeA') : 'coffeeA';
     if (b.kind === 'dragon' && b.state === 'rest' && !b.dead && (b.t >> 4) % 2) textSmall('ZZ', R(b.x - cam) + 4, R(b.y) + HUD - 6, bgColors()[3]);
     if (b.kind === 'scorpion' && b.state === 'dig') { g.save(); g.beginPath(); g.rect(0, 0, W, (ROWS - 3) * T + HUD); g.clip(); drawOn(name, b, b.dir > 0, false, undefined, cam); g.restore(); }
-    else drawOn(name, b, b.kind === 'owl' || b.kind === 'crab' ? false : b.dir > 0, false, undefined, cam);
+    else {
+      if (b.kind === 'ufo' && b.state === 'beam') { g.fillStyle = b.beam ? ((b.t >> 2) % 2 ? '#fff6a077' : '#fff6a055') : ((b.t >> 2) % 2 ? '#fff6a044' : '#fff6a000'); g.fillRect(R(b.x + 6 - cam), R(b.y + b.h + HUD), b.w - 12, (ROWS - 3) * T - b.y - b.h); }
+      drawOn(name, b, ['owl', 'crab', 'jelly', 'ghost', 'ufo', 'gorilla'].includes(b.kind) ? false : b.dir > 0, false, undefined, cam);
+    }
+    if (b.kind === 'ghost') for (const f of b.fakes) if ((b.t >> 1) % 5) drawOn(flap ? 'ghostB' : 'ghostFake', f, false, false, undefined, cam);
   }
-  const FOE = { drop: 'drop', fire: 'fire', yarn: 'yarn', sting: 'stinger', bubble: 'bubble', wave: 'wave', shard: 'shard', fallice: 'icicle', snow: 'snowball' };
-  for (const f of r.foes) drawOn(FOE[f.kind] || 'yarn', f.kind === 'fallice' && f.delay > 0 ? { ...f, x: f.x + ((r.frame >> 1) % 2 ? .5 : -.5) } : f, f.kind === 'wave' && f.vx > 0, false, undefined, cam);
-  for (const s of r.shots) { const spin = (r.frame >> 2) % 4; drawOn(s.kind === 'pop' ? 'popcorn' : s.kind === 'flame' ? (s.big || spin % 2 ? 'ember' : 'fire') : r.char === 'coffee' ? 'smallYarn' : 'smallBall', s, s.vx < 0, false, undefined, cam); }
+  const FOE = { drop: 'drop', fire: 'fire', yarn: 'yarn', sting: 'stinger', bubble: 'bubble', wave: 'wave', shard: 'shard', fallice: 'icicle', snow: 'snowball', banana: 'banana', lolly: 'lolly', bomb: 'bomb', gfire: 'ghostFire', meteor: 'meteor' };
+  for (const f of r.foes) { if (f.kind === 'bomb' && f.life < 230 && (r.frame >> 2) % 2) continue; drawOn(f.log ? 'meteor' : FOE[f.kind] || 'yarn', f.kind === 'fallice' && f.delay > 0 ? { ...f, x: f.x + ((r.frame >> 1) % 2 ? .5 : -.5) } : f, f.kind === 'wave' && f.vx > 0, false, undefined, cam); }
+  for (const s of r.shots) { const spin = (r.frame >> 2) % 4; drawOn(s.kind === 'pop' ? 'popcorn' : s.kind === 'ice' ? 'shard' : s.kind === 'flame' ? (s.big || spin % 2 ? 'ember' : 'fire') : r.char === 'coffee' ? 'smallYarn' : 'smallBall', s, s.vx < 0, false, undefined, cam); }
   drawPlayer(r, cam);
+  if (r.buddy) { const k = r.buddy; draw((r.frame >> 3) % 2 ? 'chickFly' : 'chick', R(k.x - cam), R(k.y + HUD), r.player.face < 0); }
+  if (carry.cushion && r.state === 'play' && !r.fly) { const pl = r.player; g.globalAlpha = .7; draw('cushion', R(pl.x + pl.w / 2 - 4 - cam), R(pl.y + pl.h + HUD - 2)); g.globalAlpha = 1; }
   // 모래 속 카라멜: 발밑으로 쫓아오는 모래 둔덕(주인공보다 앞에 그려서 잘 보여요)
   if (b?.kind === 'scorpion' && b.state === 'under') { const s = sprite('mound'), jig = b.warn ? ((b.t >> 1) % 2 ? 1 : -1) : 0; g.drawImage(s, R(b.moundX - s.width / 2 - cam + jig), R((ROWS - 3) * T - s.height + 1 + HUD)); if (b.warn && (b.t >> 2) % 2) draw('twinkle', b.moundX - cam - 2, (ROWS - 3) * T - 12 + HUD); }
   // 효과
@@ -585,6 +651,7 @@ function renderRun(r) {
   // 멍! 말풍선
   const p = r.player;
   if (p.barkT > 8 && !p.hidden && r.char === 'latte') { g.fillStyle = isColor() ? '#ffffff' : bg[0]; g.fillRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22), Math.round(p.y) + HUD - 11, 22, 10); g.strokeStyle = ink; g.strokeRect(Math.round(p.x - cam) + (p.face > 0 ? 10 : -22) + .5, Math.round(p.y) + HUD - 10.5, 21, 9); textSmall(r.char === 'coffee' ? 'OK!' : 'WOOF', Math.round(p.x - cam) + (p.face > 0 ? 12 : -20), Math.round(p.y) + HUD - 9, ink); }
+  if (theme === 'ghost' && isColor()) drawDark(r, cam);
   g.translate(0, -shake);
   renderHud(r);
 }
@@ -630,13 +697,15 @@ function renderHud(r) {
   draw('bone', 42, 8); text('x' + pad2(carry.bones), 50, 9, num);
   if (carry.power === 'ball') draw(cat ? 'yarn' : 'ball', 58, 0);
   else if (carry.power === 'wing') draw('wing', 58, 1);
+  else if (carry.power === 'spring') draw('spring', 58, 0);
+  if (carry.cushion) draw('cushion', 124, 9); if (r.buddy) draw('chick', 124, 1);
   if (carry.shield) draw('shield', 67, 0); else if (r.player.magnet > 0) draw('magnet', 68, 1);
   if (r.player.star > 0) draw('star', 74, 0);
   if (r.fly) for (let i = 0; i < 3; i++) if (i < r.player.flyHp) draw('heart', 58 + i * 7, 0);
   if (r.L.golds?.length) for (let i = 0; i < 3; i++) { const got = r.gold & (1 << i), old = r.goldHave & (1 << i), x = 68 + i * 4; g.fillStyle = got ? (col ? '#ffd23a' : ink) : old ? (col ? '#8a6a20' : c[2]) : (col ? '#ffffff44' : c[1]); g.fillRect(x, 10, 3, 5); }
   text('WORLD', 82, 1, ink); text(r.L.id, 88, 9, num);
   if (r.boss && !r.boss.dead) { text('BOSS', 130, 1, ink); if (r.boss.hp > 4) { draw('heart', 130, 8); text('x' + r.boss.hp, 139, 9, num); } else for (let i = 0; i < r.boss.hp; i++) draw('heart', 152 - i * 8, 8); }
-  else { text('TIME', 130, 1, ink); text(save.easy ? '---' : String(r.time).padStart(3, '0'), 136, 9, num); }
+  else { text('TIME', 130, 1, ink); text(r.easy ? '---' : String(r.time).padStart(3, '0'), 136, 9, num); }
 }
 function renderTitle() {
   const c = bgColors(), ink = c[3];
@@ -657,15 +726,16 @@ function renderTitle() {
   draw('mochaSit', 64, 104);
   draw('coffeeA', 124, 101 + (modeT % 120 < 60 ? 0 : 2), true);
   if (espressoOpen()) draw(bob ? 'espWalk1' : 'espStand', 98, 101, true);
+  if (owlOpen()) draw(bob ? 'owlPStand' : 'owlPWalk1', 146, 102);
   if ((modeT >> 5) % 2 === 0 && !menu) text('PRESS ANY BUTTON', 80 - textW('PRESS ANY BUTTON') / 2, 71, ink);
   if (!menu) text('SELECT: MENU', 80 - textW('SELECT: MENU') / 2, 81, c[2]);
   text("(C)2026 JUNWOO'S", 80 - textW("(C)2026 JUNWOO'S") / 2, 93, c[2]);
 }
 function renderCard() {
-  const c = bgColors(), ink = c[3], L = LEVELS[stageIndex];
+  const c = bgColors(), ink = c[3], L = curL();
   g.fillStyle = c[0]; g.fillRect(0, 0, W, H);
-  text('WORLD ' + L.id, 80 - textW('WORLD ' + L.id) / 2, 40, ink);
-  const list = charsFor(stageIndex), bob = (modeT >> 3) % 2, xs = list.length === 5 ? [10, 40, 70, 100, 130] : list.length === 4 ? [22, 58, 94, 130] : [34, 72, 110];
+  const head = endless ? 'ENDLESS ' + endless.n : 'WORLD ' + L.id; text(head, 80 - textW(head) / 2, 40, ink);
+  const list = charsFor(stageIndex), bob = (modeT >> 3) % 2, xs = list.length >= 5 ? list.map((_, i) => 10 + i * Math.floor(140 / list.length)) : list.length === 4 ? [22, 58, 94, 130] : [34, 72, 110];
   list.forEach((ch, i) => {
     const on = ch === carry.char, x = xs[i], y = 72 - (on && bob ? 2 : 0) + (16 - spriteSize(SPRITES[CHARS[ch].stand]).h);
     if (on) { g.fillStyle = isColor() ? '#ffcf3a' : c[2]; g.fillRect(x - 4, 90, 24, 2); }
@@ -673,10 +743,10 @@ function renderCard() {
     draw(CHARS[ch].stand, x, y); drawCostume(x, y, 1, false, ch);
     g.globalAlpha = 1;
   });
-  text('<', list.length === 5 ? 2 : 8, 76, ink); text('>', list.length === 5 ? 154 : 148, 76, ink);
+  text('<', list.length >= 5 ? 2 : 8, 76, ink); text('>', list.length >= 5 ? 154 : 148, 76, ink);
   text(CHARS[carry.char].hud, 80 - textW(CHARS[carry.char].hud) / 2, 98, ink);
   text('x ' + String(carry.lives).padStart(2, '0'), 80 - textW('x 00') / 2, 108, c[2]);
-  if (save.easy) text('EASY', 80 - textW('EASY') / 2, 122, c[2]);
+  const dn = diff().en; text(dn, 80 - textW(dn) / 2, 122, save.difficulty === 'impossible' && isColor() ? '#e0402a' : c[2]);
 }
 function renderStory() {
   theme = 'park'; const c = bgColors();
@@ -693,17 +763,26 @@ function renderStory() {
   }
 }
 function renderEnding() {
-  const s = scene, cold = s?.part === 2 && s.phase >= 4;
-  theme = cold ? 'ice' : 'park'; const c = bgColors();
+  const s = scene, cold = s?.part === 2 && s.phase >= 4, night = s?.part === 3 && s.phase >= 2;
+  theme = cold ? 'ice' : night ? 'space' : 'park'; const c = bgColors();
   g.fillStyle = c[0]; g.fillRect(0, 0, W, H); if (isColor()) drawBackdrop(0);
-  if (!cold) { draw('cloud', 16, 14); draw('cloud', 112, 26); draw('hill', 110, 104); draw('tree', 8, 84); }
+  if (!cold && !night) { draw('cloud', 16, 14); draw('cloud', 112, 26); draw('hill', 110, 104); draw('tree', 8, 84); }
   for (let x = 0; x < W; x += 8) { draw('t_top', x, 120); draw('t_dirt', x, 128); draw('t_dirt', x, 136); }
-  const t = modeT, calm = !s || s.phase < 2 || s.part === 3, hop = k => calm ? (Math.floor((t + k * 20) / 16) % 2) * -2 : 0;
+  const t = modeT, calm = !s || s.phase < 2 || s.part === 4, hop = k => calm ? (Math.floor((t + k * 20) / 16) % 2) * -2 : 0;
   const stand = (name, x, k, flip = false) => { const h = SPRITES[name].length; draw(name, x, 120 - h + hop(k), flip); };
-  if (s?.part === 3) {
+  if (s?.part === 4) {
     stand('latteStand', 2, 0); drawCostume(2, 104 + hop(0));
-    stand('mochaWave', 20, 1); stand('coffeeStand', 34, 2, true); stand('lizardStand', 50, 3); stand('turtleStand', 70, 4); stand('espStand', 89, 5); stand('owlA', 112, 6);
-    for (let i = 0; i < 3; i++) draw('sunStone', 52 + i * 22, 8 + Math.round(Math.sin((t + i * 25) / 14) * 2));
+    stand('mochaWave', 20, 1); stand('coffeeStand', 33, 2, true); stand('lizardStand', 49, 3); stand('turtleStand', 69, 4); stand('espStand', 87, 5); stand('owlPStand', 108, 6); stand('raccoon', 126, 7);
+    for (let i = 0; i < 3; i++) draw('sunStone', 44 + i * 26, 6 + Math.round(Math.sin((t + i * 25) / 14) * 2));
+    draw('ufoA', 128, 52 + Math.round(Math.sin(t / 20) * 3));
+  } else if (s?.part === 3) {
+    stand('latteStand', 2, 0); drawCostume(2, 104 + hop(0));
+    if (!s.mochaIn) { if (s.phase === 3) draw('mochaWave', 20, s.mochaY); else stand('mochaWave', 20, 1); } stand('coffeeStand', 34, 2, true); stand('lizardStand', 50, 3); stand('turtleStand', 70, 4); stand('espStand', 89, 5); stand('owlA', 112, 6);
+    if (!night) for (let i = 0; i < 3; i++) draw('sunStone', 52 + i * 22, 8 + Math.round(Math.sin((t + i * 25) / 14) * 2));
+    if (night) {
+      if (s.phase === 3) { g.fillStyle = (t >> 2) % 2 ? '#fff6a066' : '#fff6a044'; g.fillRect(s.ufoX + 9, s.ufoY + 14, 12, 120 - s.ufoY - 14); }
+      draw((t >> 3) % 2 ? 'ufoB' : 'ufoA', s.ufoX, s.ufoY);
+    }
   } else if (s?.part === 2) {
     stand('latteStand', 6, 0); drawCostume(6, 104 + hop(0)); stand('mochaWave', 26, 1); stand('coffeeStand', 42, 2, true); stand('dragonA', 62, 3);
     if (cold) { stand((t >> 3) % 2 && s.lizX > 96 ? 'lizardWalk1' : 'lizardStand', s.lizX, 4, true); stand((t >> 3) % 2 && s.turX > 118 ? 'turtleWalk1' : 'turtleStand', s.turX, 5, true); }
@@ -715,7 +794,7 @@ function renderEnding() {
     if (!gone('mocha')) draw('mochaWave', 62, 104 + hop(1));
     draw('coffeeA', 86, 101 + hop(2));
   }
-  if (calm && s?.part !== 2) for (let i = 0; i < 5; i++) { const y = 96 - ((t * .4 + i * 23) % 70); draw('heart', 30 + i * 22 + Math.sin((t + i * 30) / 15) * 3, y); }
+  if (calm && s?.part !== 2 && !night) for (let i = 0; i < 5; i++) { const y = 96 - ((t * .4 + i * 23) % 70); draw('heart', 30 + i * 22 + Math.sin((t + i * 30) / 15) * 3, y); }
   if (s?.part === 1 && s.phase >= 2 && s.phase < 3) {
     const flying = (s.t >> 3) % 2 ? 'dragonB' : 'dragonA';
     draw(flying, s.dragonX - 8, s.dragonY, s.mochaTaken);
@@ -729,7 +808,8 @@ function renderEnding() {
   };
   if (s?.part === 1 && s.phase === 3) tbc('WORLD 4');
   if (s?.part === 2 && s.phase === 7) tbc('WORLD 6');
-  if (s?.part === 3 && s.phase === 1) {
+  if (s?.part === 3 && s.phase === 5) tbc('WORLD 9');
+  if (s?.part === 4 && s.phase === 1) {
     text('THE END', 80 - textW('THE END', 2) / 2, 30, c[3], 2);
     text('ALL CLEAR!', 80 - textW('ALL CLEAR!') / 2, 50, isColor() ? '#d4502a' : c[3]);
     text('SCORE ' + String(carry?.score ?? 0).padStart(6, '0'), 80 - textW('SCORE 000000') / 2, 62, c[2]);
@@ -742,6 +822,13 @@ function renderGameOver() {
   text('GAME OVER', 80 - textW('GAME OVER') / 2, 56, c[3]);
   draw('latteJump', 72, 76, false, true);
   text('SCORE ' + String(carry?.score ?? 0).padStart(6, '0'), 80 - textW('SCORE 000000') / 2, 100, c[2]);
+}
+// 유령의 집: 깜깜한 밤, 주인공 둘레만 환해요(보스 방은 조금 더 넓게)
+function drawDark(r, cam) {
+  const p = r.player, cx = R(p.x + p.w / 2 - cam), cy = R(p.y + p.h / 2 + HUD), rad = r.bossStarted ? 120 : 62;
+  const grad = g.createRadialGradient(cx, cy, rad * .45, cx, cy, rad);
+  grad.addColorStop(0, 'rgba(12,8,28,0)'); grad.addColorStop(1, 'rgba(12,8,28,.82)');
+  g.fillStyle = grad; g.fillRect(0, HUD, W, H - HUD);
 }
 // 컬러 모드의 먼 배경(천천히 따라 움직여요)
 const hash = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
@@ -769,6 +856,19 @@ function drawBackdrop(cam) {
     for (let i = Math.floor(off / 90) - 1; i < off / 90 + 3; i++) { const x = i * 90 - off + 45, h = 26 + hash(i) * 22; g.fillStyle = '#e8b070'; g.beginPath(); g.moveTo(x - h, ground); g.lineTo(x, ground - h); g.lineTo(x + h, ground); g.fill(); g.fillStyle = '#d09858'; g.beginPath(); g.moveTo(x, ground - h); g.lineTo(x + h, ground); g.lineTo(x + h * .35, ground); g.fill(); }
     const o2 = cam * .4; g.fillStyle = k.far;
     for (let i = Math.floor(o2 / 50) - 1; i < o2 / 50 + 5; i++) { const r = 24 + hash(i + 3) * 16; g.beginPath(); g.ellipse(i * 50 - o2 + 25, ground + 4, r, r * .45, 0, Math.PI, Math.PI * 2); g.fill(); }
+  } else if (theme === 'candy') { // 분홍 사탕 언덕과 줄무늬 막대사탕
+    const off = cam * .25;
+    for (let i = Math.floor(off / 40) - 1; i < off / 40 + 6; i++) { const r = 18 + hash(i) * 14, x = i * 40 - off + 20; g.fillStyle = hash(i + 5) > .5 ? k.far : '#ffd0e4'; g.beginPath(); g.ellipse(x, ground, r, r * .8, 0, Math.PI, Math.PI * 2); g.fill(); g.fillStyle = '#ffffff88'; g.fillRect(x - 3, ground - r * .8 + 3, 6, 2); }
+    const o2 = cam * .1; g.fillStyle = '#ffffff'; for (let i = Math.floor(o2 / 70) - 1; i < o2 / 70 + 4; i++) { const x = i * 70 - o2, y = HUD + 12 + hash(i + 2) * 20; g.beginPath(); g.ellipse(x, y, 14, 5, 0, 0, Math.PI * 2); g.ellipse(x + 8, y - 3, 8, 5, 0, 0, Math.PI * 2); g.fill(); }
+  } else if (theme === 'jungle') { // 겹겹이 초록 나무
+    for (const [sp, col, base] of [[.15, '#9ad880', 30], [.35, k.far, 16]]) { const off = cam * sp; g.fillStyle = col; for (let i = Math.floor(off / 26) - 1; i < off / 26 + 8; i++) { const x = i * 26 - off, h = base + hash(i + sp * 100) * 30; g.beginPath(); g.ellipse(x, ground - h, 16, 12, 0, 0, Math.PI * 2); g.fill(); g.fillRect(x - 2, ground - h, 4, h); } }
+  } else if (theme === 'ghost') { // 보름달과 삐뚤빼뚤 집 그림자
+    g.fillStyle = '#fff6c8'; g.beginPath(); g.arc(124 - cam * .02, HUD + 22, 11, 0, Math.PI * 2); g.fill();
+    const off = cam * .3; g.fillStyle = k.far;
+    for (let i = Math.floor(off / 56) - 1; i < off / 56 + 4; i++) { const x = i * 56 - off, h = 34 + hash(i) * 26; g.fillRect(x + 8, ground - h, 22, h); g.beginPath(); g.moveTo(x + 4, ground - h); g.lineTo(x + 19, ground - h - 14); g.lineTo(x + 34, ground - h); g.fill(); g.fillStyle = (modeT + i * 30) % 90 < 50 ? '#ffe070' : '#5a4a20'; g.fillRect(x + 16, ground - h + 8, 3, 4); g.fillStyle = k.far; }
+  } else if (theme === 'space') { // 반짝이는 별과 파란 지구
+    for (let i = 0; i < 40; i++) { const x = ((hash(i) * 200 - cam * (.05 + hash(i + 3) * .1)) % 170 + 170) % 170 - 5, y = HUD + hash(i + 80) * 110; g.fillStyle = (modeT + i * 11) % 60 < 8 ? '#ffffff' : '#9aa4e0'; g.fillRect(x, y, 1, 1); }
+    const ex = 130 - cam * .03; g.fillStyle = '#3a78d0'; g.beginPath(); g.arc(ex, HUD + 30, 13, 0, Math.PI * 2); g.fill(); g.fillStyle = '#5ac060'; g.fillRect(ex - 6, HUD + 24, 6, 4); g.fillRect(ex + 2, HUD + 32, 5, 5);
   } else if (theme === 'beach') { // 수평선 바다와 반짝이는 물결
     const off = cam * .15, sea = HUD + 70;
     g.fillStyle = '#ffffff'; for (let i = Math.floor(off / 60) - 1; i < off / 60 + 4; i++) { const x = i * 60 - off, y = HUD + 14 + hash(i) * 26; g.beginPath(); g.ellipse(x, y, 14, 4, 0, 0, Math.PI * 2); g.fill(); }

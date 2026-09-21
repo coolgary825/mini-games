@@ -117,6 +117,7 @@ button { font: inherit; color: inherit; }
 .bark.c-coffee { background: #e0663a; box-shadow: 0 4px 0 #8a2e14, 0 1px 0 #ffb08a inset; }
 .bark.c-turtle { background: #58b84a; box-shadow: 0 4px 0 #2a6a22, 0 1px 0 #b8f0a0 inset; }
 .bark.c-lizard { background: #d9a040; box-shadow: 0 4px 0 #7a5018, 0 1px 0 #ffe0a0 inset; }
+.bark.c-owl { background: #7ab0e8; box-shadow: 0 4px 0 #2a4a8a, 0 1px 0 #d8ecff inset; }
 .bark.c-espresso { background: #4a6ab0; box-shadow: 0 4px 0 #22345e, 0 1px 0 #a8c0f0 inset; }
 .bark[class*="c-"] span { text-shadow: 0 1px 0 #0006; font-size: 12px; }
 .bark span { white-space: nowrap; }
