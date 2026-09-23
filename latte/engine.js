@@ -12,7 +12,7 @@ const SIZES = {
 };
 // 난이도: 평화로움(다치지 않아요) → 불가능(한 번만 닿아도 끝)
 export const DIFFICULTY = {
-  peace: { name: '평화로움', en: 'PEACE', lives: 99, timer: false, startBig: true, harmless: true, pit: 'always', speed: .75, bossHp: .6 },
+  peace: { name: '평화로움', en: 'PEACE', lives: 99, timer: false, startBig: true, harmless: true, pit: 'always', speed: .75, bossHp: .5, bossRest: 2.2, bossCool: 1.8, bossOpen: .5 },
   easy: { name: '쉬움', en: 'EASY', lives: 99, timer: false, startBig: true, pit: 'big', speed: 1, bossHp: 1 },
   normal: { name: '보통', en: 'NORMAL', lives: 5, timer: true, startBig: true, pit: 'big', speed: 1, bossHp: 1 },
   hard: { name: '어려움', en: 'HARD', lives: 3, timer: true, startBig: false, pit: 'none', speed: 1.3, bossHp: 1.5, timeMul: .8 },
@@ -407,6 +407,11 @@ export class Run {
     this.hooks.sound('item');
   }
 
+  // 난이도에 따라 보스가 쉬는 시간(bRest)·공격 사이(bCool)·기회가 오기까지(bOpen)를 늘이고 줄여요
+  bRest(v) { return Math.round(v * (this.diff.bossRest || 1)); }
+  bCool(v) { return Math.round(v * (this.diff.bossCool || 1)); }
+  bOpen(v) { return Math.round(v * (this.diff.bossOpen || 1)); }
+
   // ── 적 ─────────────────────────────────────────────────────
   spawnEnemies() {
     const right = this.cam + VIEW_W + 24;
@@ -757,8 +762,8 @@ export class Run {
     this.boss = {
       kind, state: flier ? (kind === 'ghost' ? 'float' : 'fly') : 'walk', fireT: 90, diveT: 200, restT: 0, x: B.tx * T, y: (ROWS - 3) * T - h, w, h, vx: 0, vy: 0, dir: -1, hp, maxHp: hp,
       hurt: 0, stun: 0, chip: 0, jumpT: 120, throwT: 80, t: 0, t2: 0, dead: false, final: B.final, ground: false,
-      hops: 0, poundT: 200, chargeT: 320, fakes: [], cycle: 0, bombT: 120, beamT: 330, landT: 480, alienT: 260,
-      stingT: 100, burrowT: 260, blowT: 140, slamT: 230, shardT: 90, iceT: 200, snowT: 120, blinkT: 420, swoopT: 240, homeX: B.tx * T, moundX: 0,
+      hops: 0, poundT: 200, chargeT: this.bOpen(320), fakes: [], cycle: 0, bombT: 120, beamT: 330, landT: this.bOpen(480), alienT: 260,
+      stingT: 100, burrowT: this.bOpen(260), blowT: 140, slamT: this.bOpen(230), shardT: 90, iceT: 200, snowT: 120, blinkT: 420, swoopT: this.bOpen(240), homeX: B.tx * T, moundX: 0,
     };
     this.hooks.music(null); this.hooks.sound(kind === 'coffee' ? 'meow' : 'roar');
     this.state = 'bossTalk';
@@ -804,9 +809,9 @@ export class Run {
       const dx = p.x - b.x;
       if (Math.abs(dx) > 20 || b.t % 90 === 0) b.dir = Math.sign(dx) || -1;
       b.vx = b.dir * speed;
-      if (--b.jumpT <= 0) { b.vy = -4.2; b.vx = b.dir * (1.1 + speed * .5); b.jumpT = 170 + (b.t * 7) % 60; this.hooks.sound('bossJump'); }
+      if (--b.jumpT <= 0) { b.vy = -4.2; b.vx = b.dir * (1.1 + speed * .5); b.jumpT = this.bCool(170 + (b.t * 7) % 60); this.hooks.sound('bossJump'); }
       if (--b.throwT <= 0) {
-        b.throwT = Math.max(80, 140 - (b.maxHp - b.hp) * 12);
+        b.throwT = this.bCool(Math.max(80, 140 - (b.maxHp - b.hp) * 12));
         this.foes.push({ kind: 'yarn', x: b.x + (b.dir < 0 ? -4 : b.w - 4), y: b.y + 4, w: 8, h: 8, vx: b.dir * (1.2 + (b.maxHp - b.hp) * .15), vy: -1.8, life: 360 });
         this.hooks.sound('throw');
       }
@@ -828,7 +833,7 @@ export class Run {
       b.x += (targetX - b.x) * .03; b.y += ((2.5 * T + Math.sin(b.t / 16) * 6) - b.y) * .08;
       b.dir = p.x < b.x ? -1 : 1;
       if (--b.fireT <= 0) {
-        b.fireT = Math.max(70, (fin ? 120 : 150) - rage * 50);
+        b.fireT = this.bCool(Math.max(70, (fin ? 120 : 150) - rage * 50));
         const n = fin ? 3 + Math.round(rage * 2) : 3, cx = b.x + (b.dir < 0 ? 2 : b.w - 2), cy = b.y + 12, a0 = Math.atan2(p.y + p.h / 2 - cy, p.x + p.w / 2 - cx);
         for (let i = 0; i < n; i++) { const a = a0 + (i - (n - 1) / 2) * .28; this.foes.push({ kind: 'fire', x: cx, y: cy, w: 5, h: 5, vx: Math.cos(a) * 1.6, vy: Math.sin(a) * 1.6, g: 0, life: 200 }); }
         this.hooks.sound('fire');
@@ -836,13 +841,13 @@ export class Run {
       if (--b.diveT <= 0) { b.state = 'dive'; b.diveX = clamp(p.x - b.w / 2, arena + T, arena + 18 * T - b.w); this.hooks.sound('roar'); }
     } else if (b.state === 'dive') {
       b.x += clamp(b.diveX - b.x, -2.2, 2.2); b.y += 2.2 + rage;
-      if (b.y >= groundY) { b.y = groundY; b.state = 'rest'; b.restT = fin ? 120 - rage * 20 : 140; this.shake = 8; this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + b.h, life: 14 }); }
+      if (b.y >= groundY) { b.y = groundY; b.state = 'rest'; b.restT = this.bRest(fin ? 120 - rage * 20 : 140); this.shake = 8; this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + b.h, life: 14 }); }
     } else if (b.state === 'rest') {
       if (b.y < groundY) { b.y = Math.min(groundY, b.y + 2.5); }
       if (b.stun > 0) b.stun--;
       if (--b.restT <= 0 && b.stun <= 0) { b.state = 'rise'; }
     } else if (b.state === 'rise') {
-      b.y -= 1.8; if (b.y <= 2.5 * T) { b.state = 'fly'; b.diveT = Math.max(110, (fin ? 170 : 220) - rage * 70); }
+      b.y -= 1.8; if (b.y <= 2.5 * T) { b.state = 'fly'; b.diveT = this.bOpen(Math.max(110, (fin ? 170 : 220) - rage * 70)); }
     }
     b.ground = b.state === 'rest';
     b.x = clamp(b.x, arena + T, arena + 19 * T - b.w);
@@ -859,7 +864,7 @@ export class Run {
       if (Math.abs(dx) > 12) b.dir = Math.sign(dx);
       b.x = clamp(b.x + b.dir * (.45 + rage * .55), lo, hi);
       if (--b.stingT <= 0) {
-        b.stingT = Math.round(125 - rage * 45);
+        b.stingT = this.bCool(125 - rage * 45);
         const n = 3 + Math.round(rage * 2), sx = b.dir < 0 ? b.x + b.w - 6 : b.x + 2, s = Math.sign(dx) || b.dir;
         for (let i = 0; i < n; i++) this.foes.push({ kind: 'sting', x: sx, y: b.y - 2, w: 4, h: 4, vx: s * (.55 + i * .5), vy: -3.4, g: .13, life: 220 });
         this.hooks.sound('spit');
@@ -880,10 +885,10 @@ export class Run {
       }
     } else if (b.state === 'erupt') {
       b.vy += .28; b.y += b.vy;
-      if (b.y >= groundY && b.vy > 0) { b.y = groundY; b.state = 'dizzy'; b.restT = Math.round(95 - rage * 25); this.shake = 6; this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + b.h, life: 14 }); }
+      if (b.y >= groundY && b.vy > 0) { b.y = groundY; b.state = 'dizzy'; b.restT = this.bRest(95 - rage * 25); this.shake = 6; this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + b.h, life: 14 }); }
     } else if (b.state === 'dizzy') {
       if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 6, life: 20 });
-      if (--b.restT <= 0) { b.state = 'walk'; b.burrowT = Math.round(260 - rage * 90); }
+      if (--b.restT <= 0) { b.state = 'walk'; b.burrowT = this.bOpen(260 - rage * 90); }
     }
     b.hidden = b.state === 'under' || b.state === 'dig' && b.t2 > 12;
     b.safe = b.state === 'dizzy'; b.ground = b.state !== 'erupt';
@@ -904,17 +909,17 @@ export class Run {
       b.t2++;
       const n = 2 + Math.round(rage * 2), s = Math.sign(p.x - b.x) || -1;
       if (b.t2 % 14 === 0 && b.t2 <= 14 * n) { this.foes.push({ kind: 'bubble', x: b.x + b.w / 2 - 3, y: b.y - 2, w: 5, h: 5, vx: s * (.5 + (b.t2 / 14 % 3) * .2), vy: -.28, life: 340 }); this.hooks.sound('spit'); }
-      if (b.t2 > 14 * n + 20) { b.state = 'walk'; b.blowT = Math.round(210 - rage * 70); }
+      if (b.t2 > 14 * n + 20) { b.state = 'walk'; b.blowT = this.bCool(210 - rage * 70); }
     } else if (b.state === 'leap') {
       b.vy += .26; b.y += b.vy; b.x += clamp(b.leapX - b.x, -2, 2);
       if (b.y >= groundY && b.vy > 0) {
-        b.y = groundY; b.state = 'tired'; b.restT = Math.round(115 - rage * 30); this.shake = 12; this.hooks.sound('crumble');
+        b.y = groundY; b.state = 'tired'; b.restT = this.bRest(115 - rage * 30); this.shake = 12; this.hooks.sound('crumble');
         const sp = 1.7 + rage * .6, wy = (ROWS - 3) * T - 5;
         this.foes.push({ kind: 'wave', x: b.x - 8, y: wy, w: 8, h: 5, vx: -sp, vy: 0, life: 240 }, { kind: 'wave', x: b.x + b.w, y: wy, w: 8, h: 5, vx: sp, vy: 0, life: 240 });
       }
     } else if (b.state === 'tired') {
       if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 6, life: 20 });
-      if (--b.restT <= 0) { b.state = 'walk'; b.slamT = Math.round(230 - rage * 80); }
+      if (--b.restT <= 0) { b.state = 'walk'; b.slamT = this.bOpen(230 - rage * 80); }
     }
     b.armored = b.state !== 'tired'; b.safe = b.state === 'tired'; b.ground = b.state !== 'leap';
   }
@@ -930,22 +935,22 @@ export class Run {
       if (b.t % 150 === 0) b.homeX = clamp(p.x + (p.x < arena + 10 * T ? 5 : -5) * T, lo, hi);
       b.dir = p.x < b.x ? -1 : 1;
       if (--b.shardT <= 0) {
-        b.shardT = angry ? 80 : 115;
+        b.shardT = this.bCool(angry ? 80 : 115);
         const n = angry ? 5 : 3, cx = b.x + b.w / 2, cy = b.y + 12, a0 = Math.atan2(p.y + p.h / 2 - cy, p.x + p.w / 2 - cx);
         for (let i = 0; i < n; i++) { const a = a0 + (i - (n - 1) / 2) * .3; this.foes.push({ kind: 'shard', x: cx - 2, y: cy, w: 5, h: 5, vx: Math.cos(a) * 1.6, vy: Math.sin(a) * 1.6, g: 0, life: 200 }); }
         this.hooks.sound('throw');
       }
       if (--b.iceT <= 0) { // 고드름 비: 위에서 달달 떨다 떨어져요
-        b.iceT = angry ? 210 : 300;
+        b.iceT = this.bCool(angry ? 210 : 300);
         for (const k of [-1, 0, 1]) this.foes.push({ kind: 'fallice', x: clamp(p.x + k * 30, lo, hi + b.w - 8), y: 2 * T, w: 6, h: 8, vx: 0, vy: 0, delay: 40 + (k + 1) * 12, life: 400 });
         this.hooks.sound('crumble');
       }
       if (angry && --b.snowT <= 0) { // 눈덩이 굴리기
-        b.snowT = 240;
+        b.snowT = this.bCool(240);
         const fromRight = p.x < arena + 10 * T;
         this.foes.push({ kind: 'snow', x: fromRight ? arena + 18 * T - 9 : arena + T + 1, y: (ROWS - 3) * T - 8, w: 8, h: 8, vx: fromRight ? -1.3 : 1.3, vy: 0, life: 400 });
       }
-      if (--b.blinkT <= 0) { b.state = 'blink'; b.t2 = 0; b.blinkT = angry ? 330 : 480; }
+      if (--b.blinkT <= 0) { b.state = 'blink'; b.t2 = 0; b.blinkT = this.bCool(angry ? 330 : 480); }
       else if (--b.swoopT <= 0) { b.state = 'swoop'; b.swoopX = clamp(p.x + p.w / 2 - b.w / 2, lo, hi); this.hooks.sound('roar'); }
     } else if (b.state === 'blink') { // 순간이동: 깜빡이다 사라져 반대편에 나타나요
       b.t2++;
@@ -953,14 +958,14 @@ export class Run {
       if (b.t2 >= 55) b.state = 'fly';
     } else if (b.state === 'swoop') {
       b.x += clamp(b.swoopX - b.x, -2.4, 2.4); b.y += angry ? 3.2 : 2.6;
-      if (b.y >= groundY) { b.y = groundY; b.state = 'rest'; b.restT = angry ? 100 : 125; this.shake = 8; this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + b.h, life: 14 }); }
+      if (b.y >= groundY) { b.y = groundY; b.state = 'rest'; b.restT = this.bRest(angry ? 100 : 125); this.shake = 8; this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + b.h, life: 14 }); }
     } else if (b.state === 'fall') {
-      b.y = Math.min(groundY, b.y + 2.5); if (b.y >= groundY) { b.state = 'rest'; b.restT = 100; }
+      b.y = Math.min(groundY, b.y + 2.5); if (b.y >= groundY) { b.state = 'rest'; b.restT = this.bRest(100); }
     } else if (b.state === 'rest') {
       if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 6, life: 20 });
       if (--b.restT <= 0) b.state = 'rise';
     } else if (b.state === 'rise') {
-      b.y -= 1.8; if (b.y <= 2.2 * T) { b.state = 'fly'; b.swoopT = angry ? 160 : 230; }
+      b.y -= 1.8; if (b.y <= 2.2 * T) { b.state = 'fly'; b.swoopT = this.bOpen(angry ? 160 : 230); }
     }
     b.hidden = b.state === 'blink' && b.t2 >= 20 && b.t2 < 40;
     b.safe = b.state === 'rest'; b.ground = b.state === 'rest';
@@ -974,13 +979,13 @@ export class Run {
     if (b.stun > 0) { if (b.state === 'walk') { b.state = 'squish'; b.restT = b.stun; } b.stun = 0; }
     if (b.state === 'walk') { // 땅에서 잠깐 웅크렸다가 폴짝
       b.y = groundY; b.t2++;
-      if (b.t2 > 26 - rage * 10) { b.state = 'hop'; b.t2 = 0; b.vy = -5.4 - rage; b.vx = clamp((p.x - b.x) / 60, -1.6, 1.6) * this.spd; b.dir = Math.sign(b.vx) || b.dir; this.hooks.sound('boing'); }
+      if (b.t2 > this.bCool(26 - rage * 10)) { b.state = 'hop'; b.t2 = 0; b.vy = -5.4 - rage; b.vx = clamp((p.x - b.x) / 60, -1.6, 1.6) * this.spd; b.dir = Math.sign(b.vx) || b.dir; this.hooks.sound('boing'); }
     } else if (b.state === 'hop') {
       b.vy += .22; b.y += b.vy; b.x = clamp(b.x + b.vx, lo, hi);
       if (b.vy > -.2 && b.vy < .02 && b.hops % 2 === 0) { const s = Math.sign(p.x - b.x) || 1; for (const v of [.8, 1.5]) this.foes.push({ kind: 'lolly', x: b.x + b.w / 2, y: b.y + 4, w: 5, h: 5, vx: s * v, vy: -1.5, g: .12, life: 200 }); this.hooks.sound('throw'); }
       if (b.y >= groundY && b.vy > 0) {
         b.y = groundY; b.hops++; this.shake = 6; this.hooks.sound('crumble');
-        if (b.hops % 3 === 0) { b.state = 'squish'; b.restT = Math.round(110 - rage * 30); } else { b.state = 'walk'; b.t2 = 0; }
+        if (b.hops % 3 === 0) { b.state = 'squish'; b.restT = this.bRest(110 - rage * 30); } else { b.state = 'walk'; b.t2 = 0; }
       }
     } else if (b.state === 'squish') {
       if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 6, life: 20 });
@@ -997,7 +1002,7 @@ export class Run {
       b.y = groundY;
       const dx = p.x - b.x; if (Math.abs(dx) > 10) b.dir = Math.sign(dx);
       b.x = clamp(b.x + b.dir * (.5 + rage * .4) * this.spd, lo, hi);
-      if (--b.throwT <= 0) { b.throwT = Math.round(150 - rage * 50); this.foes.push({ kind: 'snow', log: true, x: b.dir < 0 ? b.x - 8 : b.x + b.w, y: groundY + b.h - 8, w: 8, h: 8, vx: b.dir * (1.3 + rage * .5), vy: 0, life: 400 }); this.hooks.sound('throw'); }
+      if (--b.throwT <= 0) { b.throwT = this.bCool(150 - rage * 50); this.foes.push({ kind: 'snow', log: true, x: b.dir < 0 ? b.x - 8 : b.x + b.w, y: groundY + b.h - 8, w: 8, h: 8, vx: b.dir * (1.3 + rage * .5), vy: 0, life: 400 }); this.hooks.sound('throw'); }
       if (--b.poundT <= 0) { b.state = 'pound'; b.t2 = 0; b.vy = -4.5; this.hooks.sound('roar'); }
       else if (--b.chargeT <= 0) { b.state = 'ready'; b.t2 = 0; b.dir = Math.sign(p.x - b.x) || 1; this.hooks.sound('roar'); }
     } else if (b.state === 'pound') { // 뛰어올라 쿵! 땅에 서 있으면 흔들림에 아파요
@@ -1006,17 +1011,17 @@ export class Run {
         b.y = groundY; this.shake = 14; this.hooks.sound('crumble'); b.t2++;
         if (p.ground && !this.diff.harmless) this.hurt();
         this.foes.push({ kind: 'wave', x: b.x - 8, y: (ROWS - 3) * T - 5, w: 8, h: 5, vx: -2, vy: 0, life: 200 }, { kind: 'wave', x: b.x + b.w, y: (ROWS - 3) * T - 5, w: 8, h: 5, vx: 2, vy: 0, life: 200 });
-        if (b.t2 < (rage > .5 ? 3 : 2)) b.vy = -4.5; else { b.state = 'walk'; b.poundT = Math.round(260 - rage * 80); }
+        if (b.t2 < (rage > .5 ? 3 : 2)) b.vy = -4.5; else { b.state = 'walk'; b.poundT = this.bCool(260 - rage * 80); }
       }
     } else if (b.state === 'ready') { // 가슴 두드리기(곧 돌진해요)
       b.t2++; if (b.t2 % 10 === 0) this.hooks.sound('bump');
       if (b.t2 > 40) b.state = 'charge';
     } else if (b.state === 'charge') {
       b.x += b.dir * (2.6 + rage) * this.spd;
-      if (b.x <= lo || b.x >= hi) { b.x = clamp(b.x, lo, hi); b.state = 'dizzy'; b.restT = Math.round(115 - rage * 30); this.shake = 12; this.hooks.sound('bossJump'); this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + 6, life: 14 }); }
+      if (b.x <= lo || b.x >= hi) { b.x = clamp(b.x, lo, hi); b.state = 'dizzy'; b.restT = this.bRest(115 - rage * 30); this.shake = 12; this.hooks.sound('bossJump'); this.fx.push({ kind: 'ring', x: b.x + b.w / 2, y: b.y + 6, life: 14 }); }
     } else if (b.state === 'dizzy') {
       if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 6, life: 20 });
-      if (--b.restT <= 0) { b.state = 'walk'; b.chargeT = Math.round(300 - rage * 90); }
+      if (--b.restT <= 0) { b.state = 'walk'; b.chargeT = this.bOpen(300 - rage * 90); }
     }
     b.armored = b.state === 'charge'; b.safe = b.state === 'dizzy'; b.ground = b.state !== 'pound';
   }
@@ -1030,7 +1035,7 @@ export class Run {
       const tx = clamp(p.x + p.w / 2 - b.w / 2 + Math.sin(b.t / 40) * 30, lo, hi);
       b.x += (tx - b.x) * .02 * this.spd; b.y += (hover + Math.sin(b.t / 18) * 10 - b.y) * .05;
       b.dir = p.x < b.x ? -1 : 1;
-      if (b.t2 % Math.round(110 - rage * 40) === 0) { const cx = b.x + b.w / 2, cy = b.y + 10, a = Math.atan2(p.y + p.h / 2 - cy, p.x + p.w / 2 - cx); this.foes.push({ kind: 'gfire', x: cx - 3, y: cy, w: 6, h: 6, vx: Math.cos(a) * 1.3, vy: Math.sin(a) * 1.3, g: 0, life: 220 }); this.hooks.sound('spit'); }
+      if (b.t2 % this.bCool(110 - rage * 40) === 0) { const cx = b.x + b.w / 2, cy = b.y + 10, a = Math.atan2(p.y + p.h / 2 - cy, p.x + p.w / 2 - cx); this.foes.push({ kind: 'gfire', x: cx - 3, y: cy, w: 6, h: 6, vx: Math.cos(a) * 1.3, vy: Math.sin(a) * 1.3, g: 0, life: 220 }); this.hooks.sound('spit'); }
       if (b.t2 > 240 - rage * 60) { b.cycle++; b.t2 = 0; b.state = b.cycle % 2 ? 'vanish' : 'split'; }
     } else if (b.state === 'vanish') { // 사라졌다가 주인공 반대편에 나타나요
       if (b.t2 === 30) { b.x = p.x < arena + 10 * T ? hi - T : lo + T; b.y = hover; }
@@ -1062,8 +1067,8 @@ export class Run {
     if (b.state === 'fly') {
       const tx = clamp(p.x + p.w / 2 - b.w / 2 + Math.sin(b.t / 50) * 40, lo, hi);
       b.x += (tx - b.x) * .025 * this.spd; b.y += (sky + Math.sin(b.t / 20) * 4 - b.y) * .08;
-      if (--b.bombT <= 0) { b.bombT = Math.round((angry ? 90 : 130) / this.spd); this.foes.push({ kind: 'bomb', x: b.x + b.w / 2 - 4, y: b.y + b.h, w: 8, h: 8, vx: (p.x > b.x ? .6 : -.6), vy: 0, life: 290 }); this.hooks.sound('spit'); }
-      if (--b.alienT <= 0) { b.alienT = 320; this.enemies.push({ type: 'alien', x: b.x + b.w / 2 - 5, y: b.y + b.h, w: 10, h: 10, vx: 0, vy: 0, dir: p.x < b.x ? -1 : 1, t: 0, stun: 0, state: 'walk', dead: false, gone: false }); }
+      if (--b.bombT <= 0) { b.bombT = this.bCool(Math.round((angry ? 90 : 130) / this.spd)); this.foes.push({ kind: 'bomb', x: b.x + b.w / 2 - 4, y: b.y + b.h, w: 8, h: 8, vx: (p.x > b.x ? .6 : -.6), vy: 0, life: 290 }); this.hooks.sound('spit'); }
+      if (--b.alienT <= 0) { b.alienT = this.bCool(320); this.enemies.push({ type: 'alien', x: b.x + b.w / 2 - 5, y: b.y + b.h, w: 10, h: 10, vx: 0, vy: 0, dir: p.x < b.x ? -1 : 1, t: 0, stun: 0, state: 'walk', dead: false, gone: false }); }
       if (angry && b.t % 70 === 0) this.foes.push({ kind: 'meteor', x: lo + (b.t * 37 % (18 * T)), y: -8, w: 7, h: 7, vx: -.3, vy: 1.4, g: .02, life: 300 });
       if (--b.beamT <= 0) { b.state = 'beam'; b.t2 = 0; this.hooks.sound('roar'); }
       else if (--b.landT <= 0) { b.state = 'land'; }
@@ -1071,15 +1076,15 @@ export class Run {
       b.t2++; b.x += clamp(p.x + p.w / 2 - b.w / 2 - b.x, -.5, .5);
       b.beam = b.t2 > 30; // 처음 30프레임은 깜빡이는 예고
       if (b.beam && p.x + p.w > b.x + 6 && p.x < b.x + b.w - 6 && !this.diff.harmless) { p.vy = Math.max(p.vy - .5, -2.4); p.ground = false; }
-      if (b.t2 > 120) { b.state = 'fly'; b.beamT = Math.round(330 - rage * 100); }
+      if (b.t2 > 120) { b.state = 'fly'; b.beamT = this.bCool(330 - rage * 100); }
     } else if (b.state === 'land') { // 연료 넣기: 내려와서 한참 쉬어요
       b.y = Math.min(groundY, b.y + 1.6);
-      if (b.y >= groundY) { b.state = 'rest'; b.restT = angry ? 110 : 140; this.shake = 6; }
+      if (b.y >= groundY) { b.state = 'rest'; b.restT = this.bRest(angry ? 110 : 140); this.shake = 6; }
     } else if (b.state === 'rest') {
       if (b.t % 20 === 0) this.fx.push({ kind: 'stars', x: b.x + b.w / 2, y: b.y - 8, life: 20 });
       if (--b.restT <= 0) b.state = 'rise';
     } else if (b.state === 'rise') {
-      b.y -= 1.5; if (b.y <= sky) { b.state = 'fly'; b.landT = Math.round(480 - rage * 120); }
+      b.y -= 1.5; if (b.y <= sky) { b.state = 'fly'; b.landT = this.bOpen(480 - rage * 120); }
     }
     b.safe = b.state === 'rest'; b.ground = b.state === 'rest';
     b.x = clamp(b.x, lo, hi);

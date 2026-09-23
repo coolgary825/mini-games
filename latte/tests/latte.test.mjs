@@ -464,3 +464,19 @@ test('끝없는 모험: 번호마다 같은 스테이지, 4단계마다 보스, 
     assert.ok(['clear', 'ending'].includes(r.result), `${n}: ${JSON.stringify(r)}`);
   }
 });
+
+test('평화로움에서는 보스가 더 자주·더 오래 쉬어요(콜드브루도 이길 만해요)', () => {
+  const watch = difficulty => {
+    const L = byId('8-3'), r = new Run(L, { ...carry(), big: true }, talk, { difficulty });
+    r.god = true; r.player.x = (L.boss.arena + 3) * T; r.player.y = r.groundBelow(r.player.x, 0) - r.player.h;
+    r.update(idle); r.update(idle);
+    const b = r.boss; let rest = 0, first = null, shards = 0;
+    for (let i = 0; i < 1800; i++) { r.update(idle); if (b.state === 'rest') { rest++; first ??= i; } if (r.foes.some(f => f.kind === 'shard' && f.life > 198)) shards++; }
+    return { hp: b.maxHp, rest, first, shards };
+  };
+  const peace = watch('peace'), normal = watch('normal');
+  assert.ok(peace.hp < normal.hp, '체력이 적어요');
+  assert.ok(peace.first < normal.first, '더 빨리 내려와 쉬어요');
+  assert.ok(peace.rest > normal.rest * 1.5, '더 오래 쉬어요');
+  assert.ok(peace.shards < normal.shards, '얼음 조각도 덜 쏴요');
+});
