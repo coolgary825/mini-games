@@ -54,11 +54,15 @@ function drawCostume(x, y, face = 1, big = false, pose = '') {
   draw(c.spr, face > 0 ? x + ox : x + 16 - ox - w, y + oy, face < 0);
 }
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch {} };
-// 준우는 5-3을 아직 못 깬 것으로 되돌려요(한 번만, 사용자가 부탁했어요)
-if (!save.junwooReset) {
+// 준우는 8-3을 아직 못 깬 것으로 되돌려요(한 번만, 사용자가 부탁했어요). 월드 6~8과 에스프레소는 그대로예요.
+if (!save.junwooTo83) {
   const p = save.profiles['준우'];
-  if (p) { p.unlocked = Math.min(p.unlocked ?? 0, STORY2_END); p.done2 = p.done3 = p.done4 = false; p.story3 = p.story4 = false; if (p.char === 'espresso' || p.char === 'owl') p.char = 'latte'; }
-  save.junwooReset = true;
+  if (p) {
+    p.unlocked = STORY3_END; p.done = p.done2 = true; p.story = p.story2 = p.story3 = true;
+    p.done3 = p.done4 = p.story4 = false;
+    if (p.char === 'owl') p.char = 'latte';
+  }
+  save.junwooTo83 = true;
 }
 persist();
 chip.setMuted(!!save.muted);
