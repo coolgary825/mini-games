@@ -1,0 +1,6 @@
+import {fresh,buy,merge,start,step,nextWave} from '../engine.mjs';
+import {HEROES} from '../data.mjs';
+export function pairs(g){for(const u of g.units){if(u.tier>=5)continue;const other=g.units.find(b=>b.id!==u.id&&b.type===u.type&&b.tier===u.tier);if(other)return [u.id,other.id];}return null;}
+export function prepare(g,variant=0){while(true){const pair=pairs(g);if(pair){merge(g,pair);continue;}const values={melee:0,ranged:0};for(const u of g.units)values[u.type]+=2**(u.tier-1);const type=values.melee<values.ranged+(variant?4:0)?'melee':'ranged';if(g.coins<HEROES[type].cost||g.units.length>=12)break;buy(g,type);}for(const u of g.units)if(u.slot===null){const free=[0,1,2,3,4,5].find(s=>!g.units.some(u=>u.slot===s));if(free!==undefined)u.slot=free;}}
+export function fight(g){start(g);let t=0;while(g.phase==='battle'&&t<300){step(g,1/30);t+=1/30;}return t;}
+if(import.meta.url===`file://${process.argv[1]}`){for(const variant of [0,1]){const g=fresh();for(let i=1;i<=20;i++){prepare(g,variant);const t=fight(g);console.log(variant,i,g.phase,'hp',g.crystal,'coins',g.coins,'gems',g.gems,'time',Math.round(t),g.units.map(u=>u.type[0]+u.tier).join(','));if(!['reward','won'].includes(g.phase))break;nextWave(g);}console.log('codex',g.discovered.length);}}
