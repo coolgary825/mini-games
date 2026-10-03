@@ -1,5 +1,5 @@
 export const W=1000,H=570,SAVE_KEY='junwoo-merge-heroes-v1',MAX_TIER=7,CAPACITY=12;
-export const HEROES={melee:{name:'근거리',cost:50,range:92,speed:58,delay:1.02,color:'#ef9364'},ranged:{name:'원거리',cost:60,range:290,speed:42,delay:1.2,color:'#77bca3'}};
+export const HEROES={melee:{name:'근거리',cost:50,range:92,speed:58,delay:1.02,color:'#ef9364'},ranged:{name:'원거리',cost:60,range:780,speed:0,delay:1.2,color:'#77bca3'}};
 // Stable role/tier keys preserve all existing armies, currencies and discoveries.
 const buddies={
  melee:[

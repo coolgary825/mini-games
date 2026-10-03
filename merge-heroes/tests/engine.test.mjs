@@ -47,3 +47,30 @@ test('saving coins and using discovered partners legitimately reaches seven star
 test('legacy five-star saves retain currencies, slots, discoveries and progress',()=>{
  const old={...fresh(['melee-5','ranged-5']),wave:17,coins:456,gems:789,units:[{id:1,type:'melee',tier:5,slot:0},{id:2,type:'ranged',tier:5,slot:5}],nextId:3};const restored=restore(JSON.stringify(old));for(const k of ['wave','coins','gems','units','discovered'])assert.deepEqual(restored[k],old[k]);
 });
+
+test('all seven ranged tiers stay planted and hit entrance enemies from every slot at both speeds',()=>{
+ for(const speed of [1,2])for(let tier=1;tier<=MAX_TIER;tier++)for(let slot=0;slot<SLOTS.length;slot++){
+  const g=fresh();g.speed=speed;g.units[0]={id:1,type:'ranged',tier,slot};start(g);
+  const u=g.run.units[0],origin={x:u.x,y:u.y};let fired=false,hit=false;
+  for(let n=0;n<150&&g.phase==='battle';n++){
+   step(g,1/30);assert.equal(u.x,origin.x);assert.equal(u.y,origin.y);
+   if(g.run.shots.length){fired=true;assert.equal(g.run.shots[0].weapon,stats(u).weapon);}
+   if(g.run.enemies.some(e=>e.hp<e.maxHp)||g.run.kills>0)hit=true;
+  }
+  assert.ok(fired,`tier ${tier}, slot ${slot}, speed ${speed} must shoot`);
+  assert.ok(hit,`tier ${tier}, slot ${slot}, speed ${speed} must hit`);
+ }
+});
+test('out-of-range enemies never make ranged heroes creep forward',()=>{
+ const g=fresh();g.units[0].type='ranged';start(g);const u=g.run.units[0],origin={x:u.x,y:u.y};g.run.spawned=999;g.run.spawnIn=999;
+ g.run.enemies=[{id:1,type:'tank',hp:100000,maxHp:100000,x:2000,y:u.y,cd:999,flash:0,anim:0}];
+ for(let n=0;n<600;n++){step(g,1/30);assert.equal(u.x,origin.x);assert.equal(u.y,origin.y);assert.equal(g.run.shots.length,0);}
+});
+test('overlapping melee allies yield to stationary shooters in either array order',()=>{
+ for(const rangedFirst of [true,false]){
+  const g=fresh();g.units=[{id:1,type:'ranged',tier:1,slot:0},{id:2,type:'melee',tier:1,slot:3}];g.nextId=3;if(!rangedFirst)g.units.reverse();start(g);
+  const u=g.run.units.find(u=>u.type==='ranged'),ally=g.run.units.find(u=>u.type==='melee'),origin={x:u.x,y:u.y};ally.x=u.x;ally.y=u.y;g.run.spawned=999;g.run.spawnIn=999;
+  for(let n=0;n<120;n++){step(g,1/30);assert.equal(u.x,origin.x);assert.equal(u.y,origin.y);}
+  assert.ok(Math.hypot(ally.x-u.x,ally.y-u.y)>38);
+ }
+});
