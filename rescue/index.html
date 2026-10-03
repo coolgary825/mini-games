@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f7f6ee">
+  <meta name="description" content="준우·은우·리우와 함께 라떼, 모카, 커피, 여름, 가을을 집으로 안내하는 포근한 가족 퍼즐 게임.">
+  <title>집으로 가는 길 · 우리집 구조대</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a href="../" class="brand"><span class="brand-mark" data-icon="paw"></span><span>준우네 게임천국<span class="brand-divider">/</span><b>우리집 구조대</b></span></a>
+    <div class="header-actions"><span class="header-note">작은 발걸음, 커다란 모험</span><button id="sound" class="icon-button" aria-label="소리 켜기" title="소리 켜기" aria-pressed="false"></button><button id="help" class="icon-button" aria-label="게임 방법 보기" title="게임 방법 보기" data-icon="help"></button></div>
+  </header>
+  <main>
+    <section class="page-intro" aria-labelledby="page-title">
+      <div><p class="eyebrow"><span></span> OUR LITTLE RESCUE CLUB</p><h1 id="page-title">집으로 가는 길<span class="title-dot">.</span></h1><p class="intro-copy">준우, 은우, 리우와 함께 만드는 다섯 친구의 행복한 귀가.</p></div>
+      <div class="family-sign"><div class="family-faces" id="family-faces"></div><div><strong>우리가 함께 구할 거야!</strong><span>준우 · 은우 · 리우 구조대</span></div></div>
+    </section>
+    <div class="game-layout">
+      <aside class="journal">
+        <div class="journal-top"><span class="eyebrow">OUR ADVENTURE</span><span class="tiny-flower">✳</span></div>
+        <h2>우리의 구조 일지</h2><p class="journal-description">한 걸음씩, 함께 집으로.</p>
+        <nav id="level-list" aria-label="스테이지 선택"></nav>
+        <div class="journal-progress"><span id="journey-label">열 개의 작은 모험</span><strong id="journey-count">0 / 10</strong><div class="progress-track"><span id="journey-bar"></span></div></div>
+        <div class="journal-note"><span data-icon="heart"></span><p>서두르지 않아도 괜찮아.<br>함께라면 도착할 수 있어.</p></div>
+      </aside>
+      <section class="play-card" aria-labelledby="level-title">
+        <div class="level-header"><div><div class="level-kicker"><span id="level-number">STAGE 01</span><span class="small-separator"></span><span id="level-place"></span></div><h2 id="level-title"></h2></div><div class="rescue-counter"><span data-icon="paw"></span><div><strong id="rescue-count">0 / 1</strong><span>구조 완료</span></div></div></div>
+        <div class="scene-shell">
+          <div class="scene-topline"><span class="scene-label"><span></span><span id="scene-status">길을 준비해요</span></span><span class="scene-soft-note">오늘도 무사히, 우리 집으로</span><span class="mobile-map-tip">옆으로 밀어 보기 ↔</span></div>
+          <div class="scene-viewport" id="scene-viewport" tabindex="0" role="region" aria-label="구조 지도. 작은 화면에서는 옆으로 밀어 살펴볼 수 있어요.">
+            <div class="scene-world" id="scene-world"><svg id="scene" viewBox="0 0 960 540" role="img" aria-label="초원 위 동물들을 집으로 안내하는 게임 지도"></svg><div id="slots" class="slots"></div><div class="start-label" id="start-label"></div></div>
+          </div>
+          <div class="scene-bottomline"><span id="level-caption"></span><button id="follow" class="follow-button" aria-pressed="true">동물 따라가기</button></div>
+          <div class="toast" id="toast" role="status" aria-live="polite"></div>
+        </div>
+        <div class="guide-strip"><div class="guide-avatar" id="guide-avatar"></div><div><strong id="guide-name"></strong><p id="guide-text"></p></div><button id="hint" class="hint-button">힌트<span data-icon="help"></span></button></div>
+        <div class="tool-area"><div class="tool-heading"><span><b>구조 가방</b><span class="tool-instruction">도구를 고르고, 점선을 콕!</span></span><span class="keyboard-note">단축키 1 · 2 · 3 · 4 · 5</span></div><div class="tool-buttons" id="tool-buttons"></div></div>
+        <div class="play-controls"><div class="secondary-controls"><button id="undo" class="secondary-button" disabled><span data-icon="undo"></span><span>되돌리기</span></button><button id="restart" class="secondary-button"><span data-icon="reset"></span><span>다시 시작</span></button></div><div class="primary-controls"><button id="speed" class="speed-button" aria-label="이동 속도 1배. 누르면 2배" title="이동 속도 바꾸기">1×</button><button id="play" class="play-button"><span data-icon="play"></span><span id="play-label">출발!</span></button></div></div>
+      </section>
+    </div>
+    <section class="friends-section" aria-labelledby="friends-title"><div class="friends-heading"><span class="eyebrow">MEET OUR FAMILY</span><h2 id="friends-title">함께 돌아갈 소중한 친구들</h2><p>다섯 개의 이름, 다섯 배의 행복.</p></div><div class="pet-roster" id="pet-roster"></div></section>
+    <footer><span>우리 가족을 위한, 작은 사랑이 담긴 게임.</span><span>급할 것 없이 · 실패 걱정 없이 · 함께</span></footer>
+  </main>
+  <dialog id="help-dialog" aria-labelledby="help-title"><button class="dialog-close" id="close-help" aria-label="게임 방법 닫기">×</button><span class="dialog-eyebrow">WELCOME TO THE CLUB</span><h2 id="help-title">작은 구조대, 준비됐나요?</h2><p>친구들은 스스로 걸어가요.<br>우리는 안전한 길을 만들어 주면 돼요.</p><div class="help-steps"><div><b>1</b><span><strong>도구를 골라요</strong>다리, 표지판, 쿠션을 골라요. 6단계부터 계단, 7단계부터 바닥 뚫기도 생겨요.</span></div><div><b>2</b><span><strong>점선을 콕 눌러요</strong>같은 모양의 점선에 도구를 놓아요.</span></div><div><b>3</b><span><strong>함께 출발해요</strong>출발을 누르면 친구들이 집으로 걸어가요.</span></div></div><div class="help-note">계단은 높은 길을 이어 줘요. 바닥 뚫기는 아래로 구멍을 열어요. 구멍 아래에 땅과 쿠션이 있는지 먼저 살펴보세요. 잘못 뚫었다면 되돌리기로 복구할 수 있어요. 걷는 중에도 도구를 놓을 수 있어요. 잠깐 멈추거나 되돌려도 괜찮아요. 길을 놓치면 출발점으로 안전하게 돌아와요.</div><p class="help-keyboard">PC: 1·2·3·4·5 도구 선택 / Space 출발·멈춤 / Ctrl·⌘+Z 되돌리기<br>휴대폰: 지도는 옆으로 밀어서 살펴봐요.</p><button id="help-ready" class="play-button">좋아, 해 볼까? <span data-icon="arrow"></span></button></dialog>
+  <dialog id="win-dialog" aria-labelledby="win-title"><span class="dialog-eyebrow" id="win-eyebrow">A LITTLE HAPPY ENDING</span><div id="win-art" class="win-art"></div><div class="win-stars">✦ <span>✦</span> ✦</div><h2 id="win-title">무사히 집에 도착했어요!</h2><p id="win-copy"></p><div class="win-actions"><button id="replay" class="secondary-button">한 번 더</button><button id="next-level" class="play-button">다음 모험 <span data-icon="arrow"></span></button></div><button id="close-win" class="text-button">지도 살펴보기</button></dialog>
+  <noscript>이 게임을 즐기려면 브라우저에서 JavaScript를 켜 주세요.</noscript>
+  <script type="module" src="./game.mjs"></script>
+</body>
+</html>
