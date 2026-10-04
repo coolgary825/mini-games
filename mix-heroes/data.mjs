@@ -18,16 +18,16 @@ export const RECIPES=[['sword','sword','sword2'],['hammer','hammer','hammer2'],[
 export function recipe(a,b){return RECIPES.find(r=>(r[0]===a&&r[1]===b)||(r[0]===b&&r[1]===a))?.[2]||null;}
 export const SLOTS=[{x:225,y:222,row:'뒷줄'},{x:225,y:335,row:'뒷줄'},{x:225,y:448,row:'뒷줄'},{x:383,y:222,row:'앞줄'},{x:383,y:335,row:'앞줄'},{x:383,y:448,row:'앞줄'}];
 export const WAVES=[
- {name:'숲속의 첫 만남',tip:'가디언은 앞줄, 레인저는 뒷줄에 두어요.',types:['slime','slime','slime','slime'],gap:3.3,mult:1},
- {name:'통통, 버섯 친구들',tip:'코인으로 친구를 한 명 더 불러 보세요.',types:['slime','slime','tank','slime','slime'],gap:3.1,mult:1.05},
- {name:'쌩쌩 달리는 도토리',tip:'빠른 친구는 얼음활로 느리게 만들어요.',types:['fast','slime','fast','slime','fast','slime'],gap:2.9,mult:1.12},
- {name:'든든한 우리 팀',tip:'앞줄에 가디언이 있으면 레인저가 안전해요.',types:['tank','slime','fast','tank','slime','fast','slime'],gap:2.7,mult:1.2},
- {name:'반짝이는 합성의 힘',tip:'불꽃검과 번개망치의 힘을 시험해 보세요.',types:['tank','fast','slime','tank','fast','slime','tank','slime'],gap:2.5,mult:1.3},
- {name:'작은 친구들의 행진',tip:'바람활은 뒤에 있는 적까지 관통해요.',types:['fast','slime','slime','fast','tank','slime','fast','slime','tank'],gap:2.3,mult:1.4},
- {name:'숲의 깊은 곳으로',tip:'빈자리를 채우고 무기를 합성해 보세요.',types:['tank','fast','tank','slime','fast','tank','slime','fast','tank','slime'],gap:2.2,mult:1.5},
- {name:'우리가 지켜 줄게',tip:'가디언의 번개는 모여 있는 적에게 좋아요.',types:['tank','tank','fast','slime','tank','fast','slime','tank','fast','tank','slime'],gap:2.1,mult:1.65},
- {name:'보석을 지키는 마음',tip:'합성 무기를 모두 장착했는지 살펴보세요.',types:['tank','fast','tank','fast','slime','tank','fast','tank','slime','tank','fast','tank'],gap:2,mult:1.8},
- {name:'큰 버섯 왕의 등장',tip:'버섯 왕이 왔어요! 우리 팀의 힘을 모아요.',types:['slime','tank','fast','tank','boss','fast','tank','slime','fast','tank'],gap:2.7,mult:1.9}
+ {name:'성문 방어선',tip:'가디언은 앞줄, 레인저는 뒷줄에 두어요.',types:['slime','slime','slime','slime'],gap:3.3,mult:1},
+ {name:'돌격대의 습격',tip:'코인으로 친구를 한 명 더 불러 보세요.',types:['slime','slime','tank','slime','slime'],gap:3.1,mult:1.05},
+ {name:'빠른 정찰병',tip:'빠른 친구는 얼음활로 느리게 만들어요.',types:['fast','slime','fast','slime','fast','slime'],gap:2.9,mult:1.12},
+ {name:'전선 유지',tip:'앞줄에 가디언이 있으면 레인저가 안전해요.',types:['tank','slime','fast','tank','slime','fast','slime'],gap:2.7,mult:1.2},
+ {name:'속성 무기의 힘',tip:'불꽃검과 번개망치의 힘을 시험해 보세요.',types:['tank','fast','slime','tank','fast','slime','tank','slime'],gap:2.5,mult:1.3},
+ {name:'몰려오는 적',tip:'바람활은 뒤에 있는 적까지 관통해요.',types:['fast','slime','slime','fast','tank','slime','fast','slime','tank'],gap:2.3,mult:1.4},
+ {name:'무너진 성벽',tip:'빈자리를 채우고 무기를 합성해 보세요.',types:['tank','fast','tank','slime','fast','tank','slime','fast','tank','slime'],gap:2.2,mult:1.5},
+ {name:'최후 방어선',tip:'가디언의 번개는 모여 있는 적에게 좋아요.',types:['tank','tank','fast','slime','tank','fast','slime','tank','fast','tank','slime'],gap:2.1,mult:1.65},
+ {name:'코어 사수',tip:'합성 무기를 모두 장착했는지 살펴보세요.',types:['tank','fast','tank','fast','slime','tank','fast','tank','slime','tank','fast','tank'],gap:2,mult:1.8},
+ {name:'골렘 왕의 습격',tip:'골렘 왕이 왔어요! 우리 팀의 힘을 모아요.',types:['slime','tank','fast','tank','boss','fast','tank','slime','fast','tank'],gap:2.7,mult:1.9}
 ];
-export const ENEMIES={slime:{name:'말랑이',hp:64,speed:26,damage:8,delay:1.5,color:'#a9c67f',coins:4},fast:{name:'도토리',hp:49,speed:48,damage:7,delay:1.2,color:'#d1a56f',coins:4},tank:{name:'버섯이',hp:135,speed:20,damage:13,delay:1.7,color:'#c79bc4',coins:6},boss:{name:'큰 버섯 왕',hp:1050,speed:13,damage:20,delay:1.6,color:'#ef947c',coins:30}};
+export const ENEMIES={slime:{name:'수정 골렘',hp:64,speed:26,damage:8,delay:1.5,color:'#a9c67f',coins:4},fast:{name:'정찰병',hp:49,speed:48,damage:7,delay:1.2,color:'#d1a56f',coins:4},tank:{name:'중장 골렘',hp:135,speed:20,damage:13,delay:1.7,color:'#c79bc4',coins:6},boss:{name:'큰 골렘 왕',hp:1050,speed:13,damage:20,delay:1.6,color:'#ef947c',coins:30}};
 export const clone=x=>JSON.parse(JSON.stringify(x));
