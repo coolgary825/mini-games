@@ -20,3 +20,12 @@ test('ice projectiles slow their target, projectiles take time to arrive',()=>{c
 test('wind projectile pierces a second enemy, does not hit a third',()=>{const g=combat('wind','ranged');g.run.enemies.push(enemy(3,495,330));step(g,.01);g.run.units[0].cd=99;for(let i=0;i<12;i++)step(g,.05);assert.ok(g.run.enemies[0].hp<1000);assert.ok(g.run.enemies[1].hp<1000);assert.equal(g.run.enemies[2].hp,1000);});
 test('corrupt and impossible saved state resets safely; valid progress survives',()=>{for(const raw of ['null','bad','{}',JSON.stringify({...fresh(),coins:-1}),JSON.stringify({...fresh(),units:[]}),JSON.stringify({...fresh(),phase:'battle'}),JSON.stringify({...fresh(),nextId:1}),JSON.stringify({...fresh(),bag:[{id:2,kind:'bad'}]})])assert.deepEqual(restore(raw),fresh());const g=fresh();buyHero(g,'ranged');assert.equal(restore(serialize(g)).units.length,2);});
 test('weapon bag limit and shop constraints never consume coins on failure',()=>{const g=fresh();g.coins=1000;while(g.bag.length<20)buyWeapon(g,'sword');const money=g.coins;assert.equal(buyWeapon(g,'sword').ok,false);assert.equal(buyWeapon(g,'fire').ok,false);assert.equal(g.coins,money);});
+test('completed saved campaign permits individual equipment swaps without restarting or duplicating rewards',()=>{
+ const g=fresh();const second=buyHero(g,'melee').id;g.wave=10;g.phase='won';
+ const saved=restore(serialize(g)),money=saved.coins;const weapon=mix(saved,[2,3]);assert.equal(weapon.ok,true);
+ assert.equal(equip(saved,second,weapon.id).ok,true);
+ assert.equal(saved.units[0].weapon,'sword');assert.equal(saved.units[1].weapon,'fire');assert.equal(saved.bag[0].kind,'sword');assert.equal(saved.coins,money);
+ const reloaded=restore(serialize(saved));assert.deepEqual(reloaded.units,saved.units);assert.deepEqual(reloaded.bag,saved.bag);assert.equal(reloaded.phase,'won');
+ const before=serialize(reloaded);assert.equal(start(reloaded).ok,false);assert.equal(nextWave(reloaded),false);assert.equal(retry(reloaded),false);step(reloaded,1);assert.equal(serialize(reloaded),before);
+ assert.equal(buyWeapon(reloaded,'hammer').ok,true);assert.equal(reloaded.coins,money-20);
+});

@@ -1,6 +1,6 @@
-import {HEROES,WEAPONS,ENEMIES,WAVES,SLOTS,recipe,clone} from './data.mjs';
+import {HEROES,WEAPONS,ENEMIES,WAVES,SLOTS,recipe,clone} from './data.mjs?v=20261005-equip2';
 export function fresh(){return {version:1,wave:1,phase:'prep',coins:145,crystal:100,units:[{id:1,type:'melee',slot:4,weapon:'sword'}],bag:[{id:2,kind:'sword'},{id:3,kind:'staff'}],nextId:4,tutorial:0,muted:true,speed:1,checkpoint:null,run:null};}
-export function canEdit(g){return g.phase==='prep';}
+export function canEdit(g){return g.phase==='prep'||g.phase==='won';}
 function fail(message){return {ok:false,message};}function ok(message,extra={}){return {ok:true,message,...extra};}
 export function buyHero(g,type){if(!canEdit(g))return fail('전투가 끝나면 친구를 부를 수 있어요.');const d=HEROES[type];if(!d)return fail('친구를 골라 주세요.');if(g.units.length>=6)return fail('여섯 자리가 모두 찼어요.');if(g.coins<d.cost)return fail(`코인이 ${d.cost-g.coins}개 더 필요해요.`);const order=type==='melee'?[4,3,5,1,0,2]:[1,0,2,4,3,5],slot=order.find(n=>!g.units.some(u=>u.slot===n));const u={id:g.nextId++,type,slot,weapon:type==='melee'?'sword':'bow'};g.coins-=d.cost;g.units.push(u);g.tutorial=Math.max(1,g.tutorial);return ok(`${d.name} 등장! 기본 무기도 함께 왔어요.`,{id:u.id});}
 export function buyWeapon(g,kind){if(!canEdit(g))return fail('전투가 끝나면 무기를 살 수 있어요.');if(!WEAPONS[kind]?.base)return fail('기본 무기를 골라 주세요.');if(g.bag.length>=20)return fail('가방이 가득해요. 합성하거나 장착해 보세요.');if(g.coins<20)return fail(`코인이 ${20-g.coins}개 더 필요해요.`);g.coins-=20;const id=g.nextId++;g.bag.push({id,kind});return ok(`${WEAPONS[kind].name}을 가방에 넣었어요.`,{id});}

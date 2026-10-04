@@ -5,3 +5,5 @@
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
 .equip-target small{font-size:9px;line-height:1.4;color:#aebfbe;white-space:nowrap}.equip-target.selected small{color:#f3d29a}
+
+#change-equipment{margin:10px 0 5px}#equipment-status:empty{display:none}#equipment-options{display:grid;gap:8px}.equipment-option{display:flex;align-items:center;gap:12px;padding:12px;min-height:66px;text-align:left;background:#30413f;border-color:#728e77}.equipment-option>svg{width:43px;height:43px}.equipment-option span{flex:1}.equipment-option b{display:block;font-size:14px}.equipment-option small{display:block;font-size:11px;margin-top:4px;color:#bccdc7}.equipment-option strong{font-size:12px;color:#f2d39d}
