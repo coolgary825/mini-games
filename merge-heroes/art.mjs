@@ -1,6 +1,6 @@
-import {icon} from './ui-art.mjs';
+import {icon} from './ui-art.mjs?v=20261005-ops1';
 import {petArt} from '../rescue/art.mjs';
-import {CHARACTERS,stats} from './data.mjs';
+import {CHARACTERS,stats} from './data.mjs?v=20261005-ops1';
 export {icon};
 const wrap=(body,s)=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" data-buddy="${s.buddy}" data-variant="${s.variant||'base'}" fill="none">${body}</svg>`;
 function sparkle(x,y,size,color){return `<path d="m${x} ${y-size} ${size*.3} ${size*.7} ${size*.7} ${size*.3}-${size*.7} ${size*.3}-${size*.3} ${size*.7}-${size*.3}-${size*.7}-${size*.7}-${size*.3} ${size*.7}-${size*.3}Z" fill="${color}"/>`;}
@@ -43,9 +43,19 @@ function equipment(s){
  '<g transform="rotate(-8 43 45)"><path d="m36 46-2 10h8l3-10" fill="#6a789c" stroke="#354365"/><rect x="33" y="36" width="24" height="12" rx="5" fill="#afc4e1" stroke="#556a90" stroke-width="1.3"/><rect x="53" y="39" width="9" height="7" rx="2" fill="#ffd279"/><rect x="39" y="39" width="9" height="5" rx="2" fill="#70ecfa"/><circle cx="39" cy="36" r="2" fill="#d6a6f3"/></g>';
  if(s.variant==='electric')return '<path d="m29 34-7 11h7l-3 10 12-16h-8l6-5Z" fill="#eaff95" stroke="#7c9755"/><path d="m5 24 6-7-1 6h6l-7 9 1-8Z" fill="#f4fdac"/>';
  if(s.variant==='solar')return '<circle cx="48" cy="44" r="13" fill="#ffd078" stroke="#fff0bd" stroke-width="2"/><path d="m48 33 3 7 7 1-5 5 1 8-6-4-6 4 1-8-5-5 7-1Z" fill="#fff5cd"/><path d="m22 13-2-9 8 5 6-8 6 8 7-5-1 10Z" fill="#ffd67f" stroke="#bc8d4f"/>';
- return '';
+ return '<path d="M9 35 18 32 25 36 23 51 17 56 10 50Z" fill="#47616b" stroke="#bfd1c4" stroke-width="1.4"/><path d="M17 37v13m-5-8h10" stroke="#ddc382" stroke-width="2"/><path d="m45 43 11-23 4 9-11 17Z" fill="#e0e7da" stroke="#778995"/><path d="m42 42 12 5m-9-2-4 9" stroke="#d7b178" stroke-width="3" stroke-linecap="round"/>';
 }
-export function heroArt(type,tier=1){const s=CHARACTERS[`${type}-${tier}`];const halo=s.tier>=6?`<circle cx="32" cy="32" r="29" fill="${s.color}22" stroke="${s.color}" stroke-width="1" stroke-dasharray="2 4"/>`:'';return wrap(halo+(s.buddy==='popcorn'?popcorn():s.buddy==='dragon'?dragon(['moon','galaxy'].includes(s.variant)):pet(s))+equipment(s),s);}
+export function heroArt(type,tier=1){const s=CHARACTERS[`${type}-${tier}`];const halo=s.tier>=6?`<circle cx="32" cy="32" r="29" fill="${s.color}22" stroke="${s.color}" stroke-width="1" stroke-dasharray="2 4"/>`:'';return wrap(halo+(s.buddy==='popcorn'?popcorn():s.buddy==='dragon'?dragon(['moon','galaxy'].includes(s.variant)):pet(s))+`<path d="m21 40 11 3 11-3-2 10-9 6-10-6Z" fill="${s.type==='melee'?'#647879':'#466677'}" stroke="#bccbc2" stroke-width="1"/><path d="m27 45 5-1 5 1-5 6Z" fill="${s.color}"/>`+equipment(s),s);}
 export function portrait(u){const s=stats(u);return heroArt(s.type,s.tier);}
 
-export function enemyArt(type){const boss=type==='boss',fast=type==='fast',tank=type==='tank';const color=boss?'#ec89c8':fast?'#ffcf68':tank?'#ac96e4':'#77d8bf',dark=boss?'#a75197':fast?'#b48b36':tank?'#735bb0':'#398e83';return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><ellipse cx="32" cy="57" rx="22" ry="5" fill="#050b2b44"/><path d="M9 42C4 20 14 11 31 11c19-2 31 11 26 31l-2 11-9-4-9 6-9-4-10 4-9-4Z" fill="${color}" stroke="${dark}" stroke-width="2"/><ellipse cx="24" cy="20" rx="8" ry="4" fill="#ffffff55"/><rect x="15" y="28" width="36" height="15" rx="7" fill="#293459"/><rect x="22" y="32" width="5" height="6" rx="2" fill="#d5fcff"/><rect x="38" y="32" width="5" height="6" rx="2" fill="#d5fcff"/><path d="m28 47 5 2 5-2" stroke="${dark}" stroke-width="2" stroke-linecap="round"/>${boss?'<path d="m17 15-3-12 12 6 7-8 8 8 10-6-2 12Z" fill="#ffe699" stroke="#bda347" stroke-width="1.5"/><path d="m30 10 3-4 4 4-4 4Z" fill="#b99cea"/>':fast?'<path d="m36 4-12 17h10l-5 10 17-17H35l7-10Z" fill="#fff1bb" stroke="#cd9a3e" stroke-width="1"/>':tank?'<path d="M9 24H4v18h7m44-18h5v18h-7" fill="#d6cafa" stroke="#8871b7" stroke-width="1.4"/>':'<path d="M31 11V4m-4 0h8" stroke="#88e2cb" stroke-width="3" stroke-linecap="round"/>'}</svg>`;}
+export function enemyArt(type){
+ const boss=type==='boss',fast=type==='fast',tank=type==='tank',gun=type==='artillery';
+ const base=boss?'#805546':fast?'#8a7351':tank?'#596777':gun?'#755e70':'#547a78',light=boss?'#e5aa7a':fast?'#f6cd80':tank?'#b9cad7':gun?'#e7b0bc':'#aae2d2',eye=boss?'#ffcf70':gun?'#fdb2b2':'#9ef4eb';
+ return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><defs><linearGradient id="metal-${type}" x2="1" y2="1"><stop stop-color="${light}"/><stop offset=".38" stop-color="${base}"/><stop offset="1" stop-color="#293945"/></linearGradient></defs><ellipse cx="32" cy="58" rx="24" ry="4" fill="#030d1680"/>
+ <path d="m16 42-5 12 12 2 5-13m9 0 4 13 12-2-5-13" fill="#324450" stroke="${light}" stroke-width="1.3"/>
+ <path d="m12 21 9-12 23 1 10 14-5 24-16 6-20-8Z" fill="url(#metal-${type})" stroke="${light}" stroke-width="1.6"/>
+ <path d="m12 21 20 5 22-2M32 26l1 28" stroke="${light}" stroke-opacity=".3"/>
+ <path d="m19 23 26 0-3 15-20 0Z" fill="#162b37" stroke="#b6d4d355"/><path d="m23 28 7 3-7 3m18-6-7 3 7 3" stroke="${eye}" stroke-width="2.4"/>
+ <path d="m24 42 9 3 9-3" stroke="${light}" stroke-width="2"/>
+ ${tank?`<path d="m4 23 12-5 8 9-2 21-10 8-9-14Z" fill="#51667c" stroke="${light}" stroke-width="2"/><path d="m11 25 5 4-1 15-4 3Z" fill="#9ae8e4"/>`:boss?`<path d="M8 19 2 22v19l10 3m42-25 8 3v19l-10 3" fill="${base}" stroke="${light}" stroke-width="2"/><path d="m18 12-4-9 10 5 8-6 8 6 10-5-4 10Z" fill="${light}"/><path d="m26 9 6 4 7-4" stroke="#7d5843" stroke-width="2"/>`:gun?`<path d="M5 24h17v13H5z" fill="#425564" stroke="${light}"/><path d="M2 26h11v9H2z" fill="#243744" stroke="${light}"/><circle cx="7" cy="30" r="3" fill="${eye}"/>`:fast?`<path d="m15 14-7-6 4 13m36-7 8-7-4 15M10 47l-7 5m50-5 8 5" stroke="${light}" stroke-width="3"/><path d="m30 12-4 9h6l-1 5 9-11h-7l3-5" fill="#ffe3a6"/>`:`<path d="M8 28 3 35l7 8m46-15 5 7-7 9M32 9V3" stroke="${light}" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="3" r="2" fill="${eye}"/>`}</svg>`;
+}
