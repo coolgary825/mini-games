@@ -65,3 +65,5 @@ node mix-heroes/tests/browser.mjs
 장착 회귀 검사: `PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node mix-heroes/tests/equipment.browser.mjs`. 가디언 두 명의 개별 합성·장착·교체·저장 유지를 PC와 모바일에서 확인합니다.
 
 클리어 저장 장착 검사: `PLAYWRIGHT_MODULE=/absolute/path/to/playwright/index.mjs node mix-heroes/tests/equipment-completed.browser.mjs`. 10단계 완료 상태·재료 두 개 선택 상태에서 가디언을 지정해 직접 교체하고, 역할 제한·가방 반환·재접속·빈 가방 안내·다음 준비 시 잠금 해제를 PC와 터치에서 확인합니다.
+
+활·지팡이는 레인저, 검·망치는 가디언 전용입니다. 가방에서 무기 하나를 선택했을 때 현재 용사의 역할과 맞지 않으면 보유한 같은 역할의 용사를 선택합니다. 레인저가 없으면 모집 화면으로 안내합니다. 역할별 여섯 원거리 무기는 `tests/equipment-roles.browser.mjs`에서 검사합니다.

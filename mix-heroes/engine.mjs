@@ -1,4 +1,4 @@
-import {HEROES,WEAPONS,ENEMIES,WAVES,SLOTS,recipe,clone} from './data.mjs?v=20261005-equip2';
+import {HEROES,WEAPONS,ENEMIES,WAVES,SLOTS,recipe,clone} from './data.mjs?v=20261005-equip3';
 export function fresh(){return {version:1,wave:1,phase:'prep',coins:145,crystal:100,units:[{id:1,type:'melee',slot:4,weapon:'sword'}],bag:[{id:2,kind:'sword'},{id:3,kind:'staff'}],nextId:4,tutorial:0,muted:true,speed:1,checkpoint:null,run:null};}
 export function canEdit(g){return g.phase==='prep'||g.phase==='won';}
 function fail(message){return {ok:false,message};}function ok(message,extra={}){return {ok:true,message,...extra};}
