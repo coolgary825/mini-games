@@ -1,6 +1,6 @@
-import { SPECIES } from "./data.mjs";
-import { getPortraits } from "./render.mjs";
-import { raidStats } from "./battle.mjs";
+import { SPECIES } from "./data.mjs?v=discovery2";
+import { getPortraits } from "./render.mjs?v=discovery2";
+import { raidStats } from "./battle.mjs?v=discovery2";
 export function createMap(host, { onSelect, onError = () => {} }) {
   let map,
     ready = false,
@@ -173,10 +173,10 @@ export function createMap(host, { onSelect, onError = () => {} }) {
             '<span class="stop-crystal"></span><small>보급소</small>';
           el.setAttribute("aria-label", "보급소 · 기본볼 받기");
         } else if (e.kind === "raid") {
-          el.innerHTML = `<span class="raid-stars">${"★".repeat(e.tier)}</span><img src="${portraits.get(e.speciesId) || ""}" alt=""><span class="arena-plinth"></span><small>${d.name} 레이드</small><em>CP ${raidStats(e.tier).cp.toLocaleString()}</em>`;
+          el.innerHTML = `<span class="raid-stars">${"★".repeat(e.tier)}</span><img src="${portraits.get(e.shiny ? `${e.speciesId}:shiny` : e.speciesId) || ""}" alt=""><span class="arena-plinth"></span><small>${e.shiny ? "✦ " : ""}${d.name} 레이드</small><em>CP ${raidStats(e.tier).cp.toLocaleString()}</em>`;
           el.setAttribute("aria-label", `${d.name} ${e.tier}성 레이드`);
         } else {
-          el.innerHTML = `<img src="${portraits.get(e.speciesId) || ""}" alt=""><span class="spawn-ring"></span><small>${d.name}</small>`;
+          el.innerHTML = `<img src="${portraits.get(e.shiny ? `${e.speciesId}:shiny` : e.speciesId) || ""}" alt=""><span class="spawn-ring"></span><small>${e.shiny ? "✦ " : ""}${d.name}</small>`;
           el.setAttribute("aria-label", `${d.name} 포획`);
         }
         el.onclick = () => onSelect(e);

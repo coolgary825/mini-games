@@ -1,5 +1,5 @@
-import { THREE, createPetModel, animatePet, disposeGroup } from "./models.mjs";
-import { SPECIES } from "./data.mjs";
+import { THREE, createPetModel, animatePet, disposeGroup } from "./models.mjs?v=discovery2";
+import { SPECIES, modelKind } from "./data.mjs?v=discovery2";
 const thumbs = new Map();
 export function getPortraits() {
   if (thumbs.size) return thumbs;
@@ -22,15 +22,19 @@ export function getPortraits() {
     const sun = new THREE.DirectionalLight(0xfff2da, 4);
     sun.position.set(3, 6, 4);
     scene.add(sun);
-    for (const id of Object.keys(SPECIES)) {
-      const pet = createPetModel(id);
-      if (id === "dragon") pet.scale.setScalar(0.58);
-      scene.add(pet);
-      renderer.render(scene, camera);
-      thumbs.set(id, renderer.domElement.toDataURL());
-      scene.remove(pet);
-      disposeGroup(pet);
-    }
+    for (const id of Object.keys(SPECIES))
+      for (const shiny of [false, true]) {
+        const pet = createPetModel(id, shiny);
+        const kind = modelKind(id);
+        if (kind === "dragon") pet.scale.setScalar(0.58);
+        else if (kind === "bird") pet.scale.setScalar(0.72);
+        else if (kind === "rabbit") pet.scale.setScalar(0.86);
+        scene.add(pet);
+        renderer.render(scene, camera);
+        thumbs.set(shiny ? `${id}:shiny` : id, renderer.domElement.toDataURL());
+        scene.remove(pet);
+        disposeGroup(pet);
+      }
     renderer.dispose();
     renderer.forceContextLoss();
   } catch {
@@ -244,9 +248,9 @@ export function createScene(
       mode = "capture";
       environment(false);
     }
-    pet = createPetModel(p.speciesId);
+    pet = createPetModel(p.speciesId, p.shiny);
     pet.rotation.y = -0.12;
-    if (p.speciesId === "dragon") pet.scale.setScalar(0.72);
+    if (modelKind(p.speciesId) === "dragon") pet.scale.setScalar(0.72);
     actors.add(pet);
     camera.position.set(2.25, 2.15, 6.9);
     camera.lookAt(0, 0.9, 0);
@@ -259,9 +263,15 @@ export function createScene(
       resetActors();
     }
     if (!pet) {
-      pet = createPetModel(b.raid.speciesId);
+      pet = createPetModel(b.raid.speciesId, b.raid.shiny);
       pet.position.set(0, 0, -2.1);
-      pet.scale.setScalar(b.raid.speciesId === "dragon" ? 1 : 1.4);
+      pet.scale.setScalar(
+        modelKind(b.raid.speciesId) === "dragon"
+          ? 1
+          : modelKind(b.raid.speciesId) === "bird"
+            ? 1.1
+            : 1.4,
+      );
       actors.add(pet);
     }
     if (b.active !== battleActive) {
@@ -269,7 +279,10 @@ export function createScene(
         actors.remove(friend);
         disposeGroup(friend);
       }
-      friend = createPetModel(b.roster[b.active].pet.speciesId);
+      friend = createPetModel(
+        b.roster[b.active].pet.speciesId,
+        b.roster[b.active].pet.shiny,
+      );
       friend.position.set(-1, 0, 2.1);
       friend.rotation.y = Math.PI;
       friend.scale.setScalar(0.85);
@@ -320,7 +333,7 @@ export function createScene(
     if (pet) {
       animatePet(pet, t, mode === "battle");
       if (mode === "capture") {
-        const scale = pet.userData.speciesId === "dragon" ? 0.72 : 1;
+        const scale = modelKind(pet.userData.speciesId) === "dragon" ? 0.72 : 1;
         pet.scale.setScalar(
           eventType === "caught" && age < 1
             ? scale * Math.max(0, 1 - age)

@@ -1,4 +1,4 @@
-import { QUESTS, copy, fail, success } from "./data.mjs";
+import { QUESTS, copy, fail, success } from "./data.mjs?v=discovery2";
 const dayKey = (now) => {
   const d = new Date(now);
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;

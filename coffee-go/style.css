@@ -1739,3 +1739,173 @@ a {
     padding: 6px 12px;
   }
 }
+
+/* Discovery update: gold identifies a rare variant; mint identifies type advantage. */
+.shiny-badge {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 700;
+  color: #6f4c15;
+  background: #f7df9a;
+  border: 1px solid #bc9751;
+  border-radius: 12px;
+  padding: 2px 8px;
+}
+.pet-card .shiny-badge {
+  font-size: 9px;
+  margin-top: 4px;
+}
+.encounter-title .shiny-badge {
+  display: block;
+  width: max-content;
+  margin: 6px auto 0;
+  color: #6f4c15;
+  font-size: 11px;
+}
+.matchup {
+  display: block;
+  font-size: 10px;
+  margin-top: 6px;
+  color: #667e78;
+}
+.matchup.effective,
+.weakness-line {
+  color: #167557;
+  font-weight: 700;
+}
+.matchup.resisted {
+  color: #965942;
+}
+.battle-matchup {
+  text-align: center;
+  font-size: 11px;
+  margin-bottom: 8px;
+  color: #e5e8e7;
+  text-shadow: 0 1px 3px #15283a;
+}
+.battle-matchup.effective {
+  color: #abf4c0;
+}
+.berry-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  position: relative;
+  border-radius: 50% 50% 45% 45%;
+  background:
+    radial-gradient(circle at 32% 28%, #fff9 0, transparent 22%), var(--berry);
+  box-shadow:
+    inset -6px -5px 0 #26344726,
+    0 2px 4px #203c4020;
+}
+.berry-icon:before,
+.berry-icon:after {
+  content: "";
+  position: absolute;
+  width: 17px;
+  height: 23px;
+  top: -9px;
+  left: 10px;
+  border-radius: 100% 0 100% 0;
+  background: #548e62;
+  transform: rotate(15deg);
+}
+.berry-icon:after {
+  left: 20px;
+  top: -7px;
+  transform: rotate(80deg);
+  background: #77a868;
+}
+.berry-button .berry-icon {
+  width: 27px;
+  height: 27px;
+  margin-top: 8px;
+}
+.berry-button .berry-icon:before,
+.berry-button .berry-icon:after {
+  width: 12px;
+  height: 16px;
+}
+.berry-button .berry-icon:after {
+  left: 14px;
+}
+.item-row > .berry-icon {
+  margin: 10px 20px;
+}
+.berry-options {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0;
+}
+.berry-option {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  text-align: left;
+  padding: 18px;
+  border: 1px solid #bed1c8;
+  background: #f2f8f3;
+  border-radius: 16px;
+  min-height: 86px;
+}
+.berry-option span:last-child {
+  display: grid;
+  gap: 6px;
+}
+.berry-option small {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.berry-status {
+  display: block;
+  margin-top: 5px;
+  color: #fff2b2;
+  font-weight: 700;
+}
+.section-title {
+  font-size: 18px;
+  margin: 28px 0 16px;
+}
+.type-table {
+  display: grid;
+  gap: 0;
+  margin: 18px 0;
+}
+.type-table > div {
+  display: grid;
+  grid-template-columns: 65px 1fr;
+  border-bottom: 1px solid #d6e2da;
+  padding: 9px 4px;
+  font-size: 13px;
+}
+.capture-tip {
+  white-space: normal;
+  text-align: center;
+  max-width: 85%;
+  width: max-content;
+}
+.modal {
+  max-height: 85dvh;
+  overflow-y: auto;
+}
+@media (max-height: 450px) and (orientation: landscape) {
+  .battle-matchup {
+    margin-bottom: 4px;
+    font-size: 10px;
+  }
+  .party-dots {
+    margin-bottom: 4px;
+  }
+  .capture-tip {
+    top: 35%;
+  }
+  .encounter-title .shiny-badge {
+    margin-top: 2px;
+    font-size: 9px;
+  }
+  .berry-status {
+    margin-top: 2px;
+  }
+}

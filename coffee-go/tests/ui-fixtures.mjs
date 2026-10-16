@@ -1,7 +1,8 @@
-import { createApp } from "../app.mjs";
-import { newProgress, chooseStarter } from "../engine.mjs";
-import { refreshResearch } from "../research.mjs";
-import { KEY } from "../storage.mjs";
+import { createApp } from "../app.mjs?v=discovery2";
+import { newProgress, chooseStarter, beginEncounter } from "../engine.mjs?v=discovery2";
+import { refreshResearch } from "../research.mjs?v=discovery2";
+import { SPECIES } from "../data.mjs?v=discovery2";
+import { KEY } from "../storage.mjs?v=discovery2";
 const mode = new URLSearchParams(location.search).get("case") || "fresh";
 let timeOffset = 0;
 const now = () => Date.now() + timeOffset;
@@ -40,6 +41,30 @@ if (mode !== "fresh") {
   }
   if (mode === "denied") errorCode = 1;
   if (mode === "inaccurate") accuracy = 100;
+}
+if (["discovery", "shiny", "legacy"].includes(mode)) {
+  state.pets = Object.keys(SPECIES).map((id, i) => ({
+    id: `fixture-${i}`,
+    speciesId: id,
+    level: 8,
+    iv: { attack: 10, defense: 10, stamina: 10 },
+    shiny: id === "mint",
+  }));
+  state.discovered = Object.keys(SPECIES);
+  if (mode === "shiny")
+    state = beginEncounter(state, {
+      id: "shiny-wild",
+      speciesId: "icewolf",
+      level: 5,
+      iv: { attack: 10, defense: 10, stamina: 10 },
+      shiny: true,
+    }).state;
+  if (mode === "legacy") {
+    state.version = 1;
+    delete state.berries;
+    state.balls.master = 1;
+    state.research.claims.special = "life";
+  }
 }
 const fixtureKey =
   "coffee-go-test-" +

@@ -1,5 +1,12 @@
-import { copy, fail, success, clamp } from "./data.mjs";
-import { stats } from "./engine.mjs";
+import {
+  copy,
+  fail,
+  success,
+  clamp,
+  SPECIES,
+  typeMultiplier,
+} from "./data.mjs?v=discovery2";
+import { stats } from "./engine.mjs?v=discovery2";
 export function raidStats(tier) {
   const [attack, defense, hp] = {
     1: [120, 42, 1488],
@@ -16,6 +23,7 @@ export function raidStats(tier) {
 export function createBattle(state, raid, petIds, now) {
   if (
     raid.kind !== "raid" ||
+    !SPECIES[raid.speciesId] ||
     !Number.isInteger(raid.tier) ||
     raid.tier < 1 ||
     raid.tier > 3 ||
@@ -69,7 +77,14 @@ export function stepBattle(input, dt, action = "none") {
         heavy = Math.round(b.nextBoss / 3) % 3 === 0;
       const hit = Math.max(
         2,
-        Math.floor((b.boss.attack / p.stats.defense) * (heavy ? 22 : 13)),
+        Math.floor(
+          (b.boss.attack / p.stats.defense) *
+            (heavy ? 22 : 13) *
+            typeMultiplier(
+              SPECIES[b.raid.speciesId].type,
+              SPECIES[p.pet.speciesId].type,
+            ),
+        ),
       );
       p.hp = Math.max(
         0,
@@ -96,7 +111,14 @@ export function stepBattle(input, dt, action = "none") {
     if (action === "attack" && b.elapsed - b.lastAttack >= 0.499) {
       const hit = Math.max(
         1,
-        Math.floor((p.stats.attack / b.boss.defense) * 9),
+        Math.floor(
+          (p.stats.attack / b.boss.defense) *
+            9 *
+            typeMultiplier(
+              SPECIES[p.pet.speciesId].type,
+              SPECIES[b.raid.speciesId].type,
+            ),
+        ),
       );
       b.bossHp = Math.max(0, b.bossHp - hit);
       b.damage += hit;
@@ -110,7 +132,14 @@ export function stepBattle(input, dt, action = "none") {
     ) {
       const hit = Math.max(
         1,
-        Math.floor((p.stats.attack / b.boss.defense) * 70),
+        Math.floor(
+          (p.stats.attack / b.boss.defense) *
+            70 *
+            typeMultiplier(
+              SPECIES[p.pet.speciesId].type,
+              SPECIES[b.raid.speciesId].type,
+            ),
+        ),
       );
       b.bossHp = Math.max(0, b.bossHp - hit);
       b.damage += hit;
@@ -142,9 +171,24 @@ export function finishRaid(state, battle, id) {
     pet: {
       id,
       speciesId: battle.raid.speciesId,
+      shiny: !!battle.raid.shiny,
       level: 5 + tier * 2,
       iv: { attack: 12, defense: 12, stamina: 12 },
     },
   };
   return success(s, { dust: tier * 500 });
+}
+
+export function raidScore(pet, raid) {
+  const s = stats(pet);
+  return (
+    (s.cp *
+      typeMultiplier(
+        SPECIES[pet.speciesId].type,
+        SPECIES[raid.speciesId].type,
+      )) /
+    Math.sqrt(
+      typeMultiplier(SPECIES[raid.speciesId].type, SPECIES[pet.speciesId].type),
+    )
+  );
 }

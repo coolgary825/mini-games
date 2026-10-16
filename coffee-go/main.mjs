@@ -1,4 +1,4 @@
-import { createApp } from "./app.mjs";
+import { createApp } from "./app.mjs?v=discovery2";
 createApp({
   document,
   storage: {

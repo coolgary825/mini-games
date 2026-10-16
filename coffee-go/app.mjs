@@ -1,4 +1,14 @@
-import { SPECIES, BALLS, copy } from "./data.mjs";
+import {
+  SPECIES,
+  SPECIES_COUNT,
+  BALLS,
+  BERRIES,
+  TYPE_CHART,
+  combatType,
+  typeMultiplier,
+  weaknesses,
+  copy,
+} from "./data.mjs?v=discovery2";
 import {
   newProgress,
   chooseStarter,
@@ -10,20 +20,27 @@ import {
   upgradeCost,
   upgradePet,
   collectSupply,
-} from "./engine.mjs";
-import { loadProgress, saveProgress, KEY } from "./storage.mjs";
+  feedBerry,
+} from "./engine.mjs?v=discovery2";
+import { loadProgress, saveProgress, KEY } from "./storage.mjs?v=discovery2";
 import {
   watchLocation,
   canInteract,
   GEO_MESSAGES,
   distanceMeters,
-} from "./geo.mjs";
-import { nearbyEntities } from "./spawns.mjs";
-import { createBattle, stepBattle, finishRaid, raidStats } from "./battle.mjs";
-import { refreshResearch, questProgress, claimQuest } from "./research.mjs";
-import { createMap } from "./map.mjs";
-import { createScene, getPortraits } from "./render.mjs";
-import { gradeThrow } from "./gestures.mjs";
+} from "./geo.mjs?v=discovery2";
+import { nearbyEntities } from "./spawns.mjs?v=discovery2";
+import {
+  createBattle,
+  stepBattle,
+  finishRaid,
+  raidStats,
+  raidScore,
+} from "./battle.mjs?v=discovery2";
+import { refreshResearch, questProgress, claimQuest } from "./research.mjs?v=discovery2";
+import { createMap } from "./map.mjs?v=discovery2";
+import { createScene, getPortraits } from "./render.mjs?v=discovery2";
+import { gradeThrow } from "./gestures.mjs?v=discovery2";
 const format = (n) => Math.floor(n).toLocaleString("ko-KR");
 const escape = (s) =>
   String(s).replace(
@@ -88,8 +105,22 @@ export function createApp({
     nearbySignature = "",
     researchSignature = "";
   const portraits = getPortraits();
-  const portrait = (id, cls = "") =>
-    `<img class="${cls}" src="${portraits.get(id) || ""}" alt="${escape(SPECIES[id]?.name || "캐릭터")}">`;
+  const portrait = (pet, cls = "") => {
+    const id = typeof pet === "string" ? pet : pet.speciesId;
+    const shiny = typeof pet === "object" && pet.shiny;
+    return `<img class="${cls}" src="${portraits.get(shiny ? `${id}:shiny` : id) || ""}" alt="${shiny ? "색이 다른 " : ""}${escape(SPECIES[id]?.name || "캐릭터")}">`;
+  };
+  const shinyBadge = (p) =>
+    p.shiny ? '<span class="shiny-badge">✦ 색이 다른 개체</span>' : "";
+  const berryIcon = (id) =>
+    `<span class="berry-icon" style="--berry:${BERRIES[id].color}" aria-hidden="true"><i></i></span>`;
+  function matchup(p) {
+    const factor = typeMultiplier(
+      SPECIES[p.speciesId].type,
+      SPECIES[selectedRaid.speciesId].type,
+    );
+    return `<span class="matchup ${factor > 1 ? "effective" : factor < 1 ? "resisted" : ""}">${factor > 1 ? "효과 굉장 · ×1.6" : factor < 1 ? "효과 약함 · ×0.625" : "보통 효과"}</span>`;
+  }
   function toast(text) {
     clearTimeout(toastTimer);
     $("#toast").textContent = text;
@@ -223,7 +254,7 @@ export function createApp({
   }
   function renderWelcome() {
     scene.setEncounter({ speciesId: "coffee" });
-    screenEl.innerHTML = `<div class="screen-shade"></div><div class="welcome-brand"><strong>COFFEE</strong><strong class="go">GO</strong><p>우리 동네의 새로운 모험</p></div><section class="welcome-bottom"><h1>가까이에서, 새로운 만남.</h1><p>커피와 친구들을 발견하고<br>여섯 동료와 함께 레이드에 도전하세요.</p><button class="primary wide" data-action="begin">${state?.starterChosen ? "위치 연결하고 이어하기" : "모험 시작하기"}</button><p class="fine">실제 GPS로 탐험해요 · 주변을 살피며 걸어 주세요</p><a class="text-button" href="../">게임천국으로</a></section>`;
+    screenEl.innerHTML = `<div class="screen-shade"></div><div class="welcome-brand"><strong>COFFEE</strong><strong class="go">GO</strong><p>우리 동네의 새로운 모험</p></div><section class="welcome-bottom"><h1>가까이에서, 새로운 만남.</h1><p>18종의 동료와 색이 다른 희귀 개체를 찾아요.<br>열매로 포획하고, 약점을 공략하는 레이드!</p><button class="primary wide" data-action="begin">${state?.starterChosen ? "위치 연결하고 이어하기" : "모험 시작하기"}</button><p class="fine">실제 GPS로 탐험해요 · 주변을 살피며 걸어 주세요</p><a class="text-button" href="../">게임천국으로</a></section>`;
   }
   function renderStarter() {
     scene.setEncounter({ speciesId: selectedStarter });
@@ -256,13 +287,13 @@ export function createApp({
       if (control.dataset.species !== key) {
         control.dataset.species = key;
         control.innerHTML = near.length
-          ? near.map((e) => portrait(e.speciesId)).join("")
+          ? near.map((e) => portrait(e)).join("")
           : "주변 탐색";
       }
       return;
     }
     const near = entities.filter((e) => e.kind === "wild").slice(0, 3);
-    screenEl.innerHTML = `<div class="top-bar"><div class="location-pill ${good ? "" : "bad"}"><i></i><span id="gps-label">${escape(gpsText())}</span></div><button class="circle" data-action="view" data-view="research" aria-label="퀘스트 연구">▤</button></div><div class="map-tools"><button class="circle" data-action="recenter" aria-label="내 위치로">⌖</button><button class="circle" data-action="gps" aria-label="GPS 다시 연결">↻</button></div>${!good ? `<section class="gps-card"><div class="gps-symbol">⌖</div><h2>${geo.status === "requesting" ? "주변을 찾는 중…" : "위치를 연결해 주세요"}</h2><p>${escape(gpsText())}</p><button class="primary wide" data-action="gps" ${geo.status === "requesting" ? "disabled" : ""}>GPS 연결하기</button><p class="mini-note">위치 권한을 허용하면 실제 동네가 표시돼요.</p></section>` : ""}<button class="map-info" data-action="view" data-view="nearby">${good ? `주변 ${entities.filter((e) => e.kind === "wild").length}마리 · 레이드 ${entities.filter((e) => e.kind === "raid").length}개` : "도감과 가방은 위치 없이도 열 수 있어요"}</button><div class="map-bottom"><button class="profile-control" data-action="view" data-view="collection" aria-label="내 동료 보관함"><span class="avatar">${portrait(state.pets[0]?.speciesId || "coffee")}</span><b>${1 + Math.floor(state.xp / 1000)}</b><span>트레이너</span></button><button class="menu-ball" data-action="view" data-view="menu" aria-label="메인 메뉴"></button><button class="nearby-control" data-action="view" data-view="nearby" aria-label="주변 캐릭터와 레이드">${near.length ? near.map((e) => portrait(e.speciesId)).join("") : "주변 탐색"}</button></div>`;
+    screenEl.innerHTML = `<div class="top-bar"><div class="location-pill ${good ? "" : "bad"}"><i></i><span id="gps-label">${escape(gpsText())}</span></div><button class="circle" data-action="view" data-view="research" aria-label="퀘스트 연구">▤</button></div><div class="map-tools"><button class="circle" data-action="recenter" aria-label="내 위치로">⌖</button><button class="circle" data-action="gps" aria-label="GPS 다시 연결">↻</button></div>${!good ? `<section class="gps-card"><div class="gps-symbol">⌖</div><h2>${geo.status === "requesting" ? "주변을 찾는 중…" : "위치를 연결해 주세요"}</h2><p>${escape(gpsText())}</p><button class="primary wide" data-action="gps" ${geo.status === "requesting" ? "disabled" : ""}>GPS 연결하기</button><p class="mini-note">위치 권한을 허용하면 실제 동네가 표시돼요.</p></section>` : ""}<button class="map-info" data-action="view" data-view="nearby">${good ? `주변 ${entities.filter((e) => e.kind === "wild").length}마리 · 레이드 ${entities.filter((e) => e.kind === "raid").length}개` : "도감과 가방은 위치 없이도 열 수 있어요"}</button><div class="map-bottom"><button class="profile-control" data-action="view" data-view="collection" aria-label="내 동료 보관함"><span class="avatar">${portrait(state.pets[0]?.speciesId || "coffee")}</span><b>${1 + Math.floor(state.xp / 1000)}</b><span>트레이너</span></button><button class="menu-ball" data-action="view" data-view="menu" aria-label="메인 메뉴"></button><button class="nearby-control" data-action="view" data-view="nearby" aria-label="주변 캐릭터와 레이드">${near.length ? near.map((e) => portrait(e)).join("") : "주변 탐색"}</button></div>`;
   }
   function renderMenu() {
     sheet(
@@ -280,24 +311,28 @@ export function createApp({
         )
         .join(
           "",
-        )}</div><div class="sheet-footer">발견한 종류 ${state.discovered.length} / 9 · 모은 동료 ${state.pets.length}마리<br>진행 기록은 이 브라우저에 자동 저장돼요.<br>지도를 조회하면 지도 제공자에게 조회 지역이 전달돼요.<br><a href="../">게임천국으로 돌아가기</a></div>`,
+        )}</div><button class="secondary wide" data-action="type-help">속성 상성 알아보기</button><div class="sheet-footer">발견한 종류 ${state.discovered.length} / ${SPECIES_COUNT} · 모은 동료 ${state.pets.length}마리<br>진행 기록은 이 브라우저에 자동 저장돼요.<br>지도를 조회하면 지도 제공자에게 조회 지역이 전달돼요.<br><a href="../">게임천국으로 돌아가기</a></div>`,
     );
   }
   function petCard(p, { selectable = false, lockedCard = false } = {}) {
     const d = SPECIES[p.speciesId];
-    return `<button class="pet-card ${selection.includes(p.id) && selectable ? "selected" : ""} ${lockedCard ? "locked" : ""}" data-action="${selectable ? "team-toggle" : lockedCard ? "locked" : "detail"}" data-id="${p.id}" ${lockedCard ? "disabled" : ""}><span class="cp">${lockedCard ? "미발견" : `<small>CP</small> ${format(stats(p).cp)}`}</span>${portrait(p.speciesId)}<span class="pet-name">${lockedCard ? "???" : d.name}</span><span class="pet-type">${lockedCard ? "발견해서 도감을 채워요" : `${d.type} · Lv.${p.level}`}</span></button>`;
+    return `<button class="pet-card ${selection.includes(p.id) && selectable ? "selected" : ""} ${lockedCard ? "locked" : ""}" data-action="${selectable ? "team-toggle" : lockedCard ? "locked" : "detail"}" data-id="${p.id}" ${lockedCard ? "disabled" : ""}><span class="cp">${lockedCard ? "미발견" : `<small>CP</small> ${format(stats(p).cp)}`}</span>${portrait(p)}<span class="pet-name">${lockedCard ? "???" : d.name}</span>${!lockedCard && p.shiny ? shinyBadge(p) : ""}<span class="pet-type">${lockedCard ? "발견해서 도감을 채워요" : `${d.type} · Lv.${p.level}`}</span>${selectable ? matchup(p) : ""}</button>`;
   }
   function renderCollection() {
     const codex = screen === "codex";
     let pets = state.pets
-      .filter((p) => filter === "all" || p.speciesId === filter)
+      .filter(
+        (p) =>
+          filter === "all" ||
+          (filter === "shiny" ? p.shiny : p.speciesId === filter),
+      )
       .slice()
       .sort((a, b) => stats(b).cp - stats(a).cp);
     sheet(
-      `${header(codex ? "도감" : `동료 보관함 <small>${state.pets.length}</small>`, codex ? `${state.discovered.length} / 9종 발견` : "CP가 높은 동료부터 보여요")}<div class="toolbar"><span>${codex ? "새로운 만남을 기록해요" : "강한 동료를 찾아보세요"}</span>${
+      `${header(codex ? "도감" : `동료 보관함 <small>${state.pets.length}</small>`, codex ? `${state.discovered.length} / ${SPECIES_COUNT}종 발견` : "CP가 높은 동료부터 보여요")}<div class="toolbar"><span>${codex ? "새로운 만남을 기록해요" : "강한 동료를 찾아보세요"}</span>${
         codex
           ? ""
-          : `<select id="species-filter" aria-label="캐릭터 종류"><option value="all">모든 종류</option>${Object.entries(
+          : `<select id="species-filter" aria-label="캐릭터 종류"><option value="all">모든 종류</option><option value="shiny" ${filter === "shiny" ? "selected" : ""}>✦ 색이 다른 개체</option>${Object.entries(
               SPECIES,
             )
               .map(
@@ -336,7 +371,7 @@ export function createApp({
       s = stats(p),
       next = stats({ ...p, level: Math.min(40, p.level + 1) });
     scene.setEncounter(p);
-    screenEl.innerHTML = `<div class="top-bar"><button class="circle" data-action="view" data-view="collection" aria-label="보관함으로">‹</button><span class="type-badge">${d.kind}</span></div><div class="detail-arc"></div><div class="cp-head"><small>CP</small> ${format(s.cp)}</div><section class="panel"><h1>${d.name}</h1><span class="type-badge">${d.type}</span><div class="hp-line"></div><small>HP ${s.hp} / ${s.hp}</small><div class="stats-row"><div><strong>${s.attack}</strong><span>공격력</span></div><div><strong>${s.defense}</strong><span>방어력</span></div><div><strong>${p.level}</strong><span>레벨</span></div></div><p>${d.fast} / ${d.charged}</p><button class="primary wide" data-action="upgrade" data-id="${p.id}" ${state.dust < upgradeCost(p) || p.level >= 40 ? "disabled" : ""}>${p.level >= 40 ? "최고 레벨 달성" : `강화 · 별가루 ${format(upgradeCost(p))}`}</button><p class="mini-note">${p.level < 40 ? `다음 CP ${format(next.cp)} · ` : ""}보유 별가루 ${format(state.dust)}</p></section>`;
+    screenEl.innerHTML = `<div class="top-bar"><button class="circle" data-action="view" data-view="collection" aria-label="보관함으로">‹</button><span class="type-badge">${d.kind}</span></div><div class="detail-arc"></div><div class="cp-head"><small>CP</small> ${format(s.cp)}</div><section class="panel"><h1>${d.name}</h1>${shinyBadge(p)}<span class="type-badge">${d.type}</span><div class="hp-line"></div><small>HP ${s.hp} / ${s.hp}</small><div class="stats-row"><div><strong>${s.attack}</strong><span>공격력</span></div><div><strong>${s.defense}</strong><span>방어력</span></div><div><strong>${p.level}</strong><span>레벨</span></div></div><p>${d.fast} / ${d.charged}</p><button class="primary wide" data-action="upgrade" data-id="${p.id}" ${state.dust < upgradeCost(p) || p.level >= 40 ? "disabled" : ""}>${p.level >= 40 ? "최고 레벨 달성" : `강화 · 별가루 ${format(upgradeCost(p))}`}</button><p class="mini-note">${p.level < 40 ? `다음 CP ${format(next.cp)} · ` : ""}보유 별가루 ${format(state.dust)}</p></section>`;
   }
   function renderBag() {
     sheet(
@@ -345,9 +380,16 @@ export function createApp({
           ([key, b]) =>
             `<div class="item-row">${ballOrb(key)}<div><h2>${b.name}</h2><p>${{ basic: "보급소에서 받을 수 있는 기본 포획 도구", super: "기본볼보다 높은 포획 확률 · 정밀 연구 보상", hyper: "높은 포획 확률 · 고급 연구에서만 소량 지급", master: "반드시 포획 · 특별 연구 완료 시 단 한 개" }[key]}</p></div><b>${state.balls[key]}</b></div>`,
         )
+        .join("")}<h2 class="section-title">포획 열매</h2>${Object.entries(
+        BERRIES,
+      )
+        .map(
+          ([id, b]) =>
+            `<div class="item-row">${berryIcon(id)}<div><h2>${b.name}</h2><p>${b.description}</p></div><b>${state.berries[id]}</b></div>`,
+        )
         .join(
           "",
-        )}<p class="mini-note">기본볼이 없어도 주변 보급소에서 무료로 받을 수 있어요.<br>하이퍼볼과 마스터볼은 일반 보급소에서 나오지 않아요.</p><button class="secondary wide" data-action="view" data-view="research">퀘스트와 보상 보기</button>`,
+        )}<p class="mini-note">열매는 포획 화면에서 먹여요. 보급소에서 각 1개씩 얻을 수 있어요.</p><p class="mini-note">기본볼이 없어도 주변 보급소에서 무료로 받을 수 있어요.<br>하이퍼볼과 마스터볼은 일반 보급소에서 나오지 않아요.</p><button class="secondary wide" data-action="view" data-view="research">퀘스트와 보상 보기</button>`,
     );
   }
   function preserveSheet(render) {
@@ -419,7 +461,7 @@ export function createApp({
       );
     preserveSheet(() =>
       sheet(
-        `${header("주변 탐색", geo.fix ? "80m 안의 캐릭터와 레이드에 참여할 수 있어요" : "먼저 GPS 위치를 연결해 주세요")}<div class="nearby-list">${list.map((e) => `<button data-action="entity" data-id="${e.id}">${e.kind === "supply" ? '<span class="menu-symbol" style="width:65px;height:65px;flex-shrink:0">◇</span>' : portrait(e.speciesId)}<div><h2>${e.kind === "supply" ? "보급소" : SPECIES[e.speciesId].name + (e.kind === "raid" ? " 레이드" : "")}</h2><p>${e.kind === "raid" ? `${"★".repeat(e.tier)} · CP ${format(raidStats(e.tier).cp)} · ${Math.max(0, Math.ceil((e.expiresAt - now()) / 60000))}분 남음` : e.kind === "supply" ? "기본볼 5개 · 5분마다 보급" : `야생 · CP ${format(stats({ ...e, id: e.id }).cp)}`}</p></div><em>${Math.round(distanceMeters(geo.fix, e))}m</em></button>`).join("")}</div>${list.length ? "" : '<div class="empty-state">실제 위치를 찾으면 주변의 새로운 만남이 표시돼요.<br><button class="primary" data-action="gps">위치 연결하기</button></div>'}`,
+        `${header("주변 탐색", geo.fix ? "80m 안의 캐릭터와 레이드에 참여할 수 있어요" : "먼저 GPS 위치를 연결해 주세요")}<div class="nearby-list">${list.map((e) => `<button data-action="entity" data-id="${e.id}">${e.kind === "supply" ? '<span class="menu-symbol" style="width:65px;height:65px;flex-shrink:0">◇</span>' : portrait(e)}<div><h2>${e.kind === "supply" ? "보급소" : SPECIES[e.speciesId].name + (e.kind === "raid" ? " 레이드" : "")}</h2><p>${e.kind === "raid" ? `${"★".repeat(e.tier)} · CP ${format(raidStats(e.tier).cp)} · ${Math.max(0, Math.ceil((e.expiresAt - now()) / 60000))}분 남음` : e.kind === "supply" ? "기본볼 5개 + 열매 2개 · 5분마다 보급" : `야생 · CP ${format(stats({ ...e, id: e.id }).cp)}`}</p></div><em>${Math.round(distanceMeters(geo.fix, e))}m</em></button>`).join("")}</div>${list.length ? "" : '<div class="empty-state">실제 위치를 찾으면 주변의 새로운 만남이 표시돼요.<br><button class="primary" data-action="gps">위치 연결하기</button></div>'}`,
       ),
     );
   }
@@ -441,14 +483,14 @@ export function createApp({
     }
     if (e.kind === "supply") {
       const r = command((s) => collectSupply(s, e, now()));
-      if (r.ok) toast("기본볼 5개를 받았어요!");
+      if (r.ok) toast("기본볼 5개와 향기·평온열매를 1개씩 받았어요!");
       return;
     }
     if (e.kind === "raid") {
       selectedRaid = e;
       selection = state.pets
         .slice()
-        .sort((a, b) => stats(b).cp - stats(a).cp)
+        .sort((a, b) => raidScore(b, selectedRaid) - raidScore(a, selectedRaid))
         .slice(0, 6)
         .map((p) => p.id);
       show("raid");
@@ -468,7 +510,7 @@ export function createApp({
       selectedBall =
         Object.keys(BALLS).find((k) => state.balls[k] > 0) || "basic";
     scene.setEncounter(p);
-    screenEl.innerHTML = `<div class="screen-shade"></div><div class="top-bar light"><button class="circle" data-action="leave-capture" aria-label="포획 나가기">‹</button><span>${e.boss ? "레이드 보스 포획" : "야생의 만남"}</span></div><div class="encounter-title"><h1>${d.name}</h1><span><small>CP</small>${format(stats(p).cp)}</span></div><div class="capture-tip">${state.balls[selectedBall] ? `기본 명중 시 ${Math.round(captureChance(p, selectedBall) * 100)}% · 원이 작을 때 던져요` : "볼이 없어요 · 지도의 보급소를 방문해 주세요"}</div><div class="aim" id="aim"><div class="aim-ring" id="aim-ring"></div></div><div class="throw-grade" id="throw-grade"></div><div class="capture-controls"><div class="side"><button class="circle" data-action="throw-help" aria-label="던지기 도움말">?</button><small>던지는 방법</small></div><button class="ball-button" id="throw-ball" aria-label="${BALLS[selectedBall].name} 던지기. 위로 밀거나 Enter를 누르세요." ${state.balls[selectedBall] ? "" : "disabled"}>${ballOrb(selectedBall)}<strong>${BALLS[selectedBall].name} × ${state.balls[selectedBall]}</strong></button><div class="side"><button class="circle" data-action="balls" aria-label="볼 바꾸기">◉</button><small>볼 바꾸기</small></div></div>`;
+    screenEl.innerHTML = `<div class="screen-shade"></div><div class="top-bar light"><button class="circle" data-action="leave-capture" aria-label="포획 나가기">‹</button><span>${e.boss ? "레이드 보스 포획" : "야생의 만남"}</span><button class="circle" data-action="throw-help" aria-label="던지기 도움말">?</button></div><div class="encounter-title"><h1>${d.name}</h1><span><small>CP</small>${format(stats(p).cp)}</span>${shinyBadge(p)}</div><div class="capture-tip">${state.balls[selectedBall] ? `기본 명중 시 ${Math.round(captureChance(p, selectedBall, "normal", e.berry) * 100)}% · 원이 작을 때 던져요` : "볼이 없어요 · 지도의 보급소를 방문해 주세요"}${e.berry ? `<span class="berry-status">${BERRIES[e.berry].name} 효과 적용 중</span>` : ""}</div><div class="aim" id="aim"><div class="aim-ring" id="aim-ring"></div></div><div class="throw-grade" id="throw-grade"></div><div class="capture-controls"><div class="side"><button class="circle berry-button" data-action="berries" aria-label="열매 먹이기">${berryIcon(e.berry || "catch")}</button><small>${e.berry ? "효과 적용 중" : "열매 먹이기"}</small></div><button class="ball-button" id="throw-ball" aria-label="${BALLS[selectedBall].name} 던지기. 위로 밀거나 Enter를 누르세요." ${state.balls[selectedBall] ? "" : "disabled"}>${ballOrb(selectedBall)}<strong>${BALLS[selectedBall].name} × ${state.balls[selectedBall]}</strong></button><div class="side"><button class="circle" data-action="balls" aria-label="볼 바꾸기">◉</button><small>볼 바꾸기</small></div></div>`;
     bindThrow();
   }
   function bindThrow() {
@@ -597,7 +639,7 @@ export function createApp({
   function renderRaid() {
     const d = SPECIES[selectedRaid.speciesId];
     sheet(
-      `${header("레이드 준비", "내 동료 여섯 마리로 강력한 보스에 도전하세요")}<div class="raid-header"><span class="stars">${"★".repeat(selectedRaid.tier)}</span><div>${portrait(selectedRaid.speciesId)}</div><h2>${d.name}</h2><div class="boss-cp"><small>CP</small> ${format(raidStats(selectedRaid.tier).cp)}</div><p id="raid-expiry">${Math.max(0, Math.ceil((selectedRaid.expiresAt - now()) / 60000))}분 남음 · 전투 제한 180초</p></div><div class="raid-slots">${Array.from({ length: 6 }, (_, i) => `<span>${selection[i] ? portrait(state.pets.find((p) => p.id === selection[i]).speciesId) : i + 1}</span>`).join("")}</div><div class="toolbar"><strong>${selection.length} / 6마리 선택</strong><button class="text-button" data-action="recommend">CP 높은 순 추천</button></div>${state.pets.length < 6 ? `<p class="mini-note">동료 ${6 - state.pets.length}마리를 더 모으면 입장할 수 있어요.</p>` : ""}<div class="pet-grid">${state.pets
+      `${header("레이드 준비", "내 동료 여섯 마리로 강력한 보스에 도전하세요")}<div class="raid-header"><span class="stars">${"★".repeat(selectedRaid.tier)}</span><div>${portrait(selectedRaid)}</div><h2>${d.name}</h2>${shinyBadge(selectedRaid)}<span class="type-badge">${d.type}</span><div class="boss-cp"><small>CP</small> ${format(raidStats(selectedRaid.tier).cp)}</div><p id="raid-expiry">${Math.max(0, Math.ceil((selectedRaid.expiresAt - now()) / 60000))}분 남음 · 전투 제한 180초</p><p class="weakness-line">약점: ${weaknesses(d.type).join(" · ")}</p><button class="text-button" data-action="type-help">상성표 보기</button></div><div class="raid-slots">${Array.from({ length: 6 }, (_, i) => `<span>${selection[i] ? portrait(state.pets.find((p) => p.id === selection[i])) : i + 1}</span>`).join("")}</div><div class="toolbar"><strong>${selection.length} / 6마리 선택</strong><button class="text-button" data-action="recommend">상성·CP 추천</button></div>${state.pets.length < 6 ? `<p class="mini-note">동료 ${6 - state.pets.length}마리를 더 모으면 입장할 수 있어요.</p>` : ""}<div class="pet-grid">${state.pets
         .slice()
         .sort((a, b) => stats(b).cp - stats(a).cp)
         .map((p) => petCard(p, { selectable: true }))
@@ -623,7 +665,7 @@ export function createApp({
   }
   function renderBattle() {
     scene.setBattle(battle);
-    screenEl.innerHTML = `<div class="screen-shade"></div><div class="battle-top"><div class="battle-top-row"><button class="circle" data-action="flee-raid" aria-label="레이드 나가기">‹</button><div class="boss-heading"><h1>${SPECIES[battle.raid.speciesId].name}</h1><p>CP ${format(battle.boss.cp)}</p></div><div class="timer" id="battle-timer">180</div></div><div class="health"><i id="boss-health"></i></div></div><div class="attack-warning" id="attack-warning" hidden>공격이 온다! 좌우로 피하세요</div><button class="full-attack-zone" id="attack-zone" aria-label="보스를 탭해 공격">공격</button><div class="battle-bottom"><div class="ally-name"><strong id="ally-name"></strong><span id="ally-cp"></span></div><div class="health"><i id="ally-health"></i></div><div class="party-dots" id="party-dots"></div><div class="battle-actions"><button class="battle-action" data-action="dodge"><span>↔</span>회피</button><button class="battle-action main" data-action="attack"><span>ϟ</span>공격</button><button class="battle-action charge" id="charged-attack" data-action="charged"><span>✦</span><b id="charge-count">0%</b></button></div></div>`;
+    screenEl.innerHTML = `<div class="screen-shade"></div><div class="battle-top"><div class="battle-top-row"><button class="circle" data-action="flee-raid" aria-label="레이드 나가기">‹</button><div class="boss-heading"><h1>${SPECIES[battle.raid.speciesId].name}</h1><p>CP ${format(battle.boss.cp)} · ${SPECIES[battle.raid.speciesId].type}</p></div><div class="timer" id="battle-timer">180</div></div><div class="health"><i id="boss-health"></i></div></div><div class="attack-warning" id="attack-warning" hidden>공격이 온다! 좌우로 피하세요</div><button class="full-attack-zone" id="attack-zone" aria-label="보스를 탭해 공격">공격</button><div class="battle-bottom"><div class="ally-name"><strong id="ally-name"></strong><span id="ally-cp"></span></div><div class="health"><i id="ally-health"></i></div><div class="party-dots" id="party-dots"></div><div id="battle-matchup" class="battle-matchup"></div><div class="battle-actions"><button class="battle-action" data-action="dodge"><span>↔</span>회피</button><button class="battle-action main" data-action="attack"><span>ϟ</span>공격</button><button class="battle-action charge" id="charged-attack" data-action="charged"><span>✦</span><b id="charge-count">0%</b></button></div></div>`;
     let down = null;
     const zone = $("#attack-zone");
     zone.onpointerdown = (e) => {
@@ -671,6 +713,17 @@ export function createApp({
       `${(battle.bossHp / battle.boss.hp) * 100}%`;
     $("#ally-health").style.width = `${(p.hp / p.stats.hp) * 100}%`;
     $("#ally-name").textContent = SPECIES[p.pet.speciesId].name;
+    const factor = typeMultiplier(
+      SPECIES[p.pet.speciesId].type,
+      SPECIES[battle.raid.speciesId].type,
+    );
+    $("#battle-matchup").textContent =
+      factor > 1
+        ? "효과가 굉장해요! 공격 ×1.6"
+        : factor < 1
+          ? "효과가 약해요 · 공격 ×0.625"
+          : "보통 효과 · 약점에 맞는 동료를 골라 보세요";
+    $("#battle-matchup").classList.toggle("effective", factor > 1);
     $("#ally-cp").textContent = `CP ${p.stats.cp} · HP ${p.hp}/${p.stats.hp}`;
     $("#party-dots").innerHTML = battle.roster
       .map(
@@ -705,8 +758,10 @@ export function createApp({
       return;
     }
     const id = r.pet?.speciesId || r.speciesId;
-    scene.setEncounter({ speciesId: id });
-    screenEl.innerHTML = `<div class="screen-shade"></div><section class="panel result-panel"><div class="result-badge">${r.kind === "lost" ? "↻" : "✦"}</div><h1>${r.kind === "caught" ? `${SPECIES[id].name}, 포획 성공!` : r.kind === "won" ? "레이드 승리!" : "다시 도전해 보세요"}</h1>${r.kind === "caught" ? `<div class="stats-row"><div><strong>${format(stats(r.pet).cp)}</strong><span>CP</span></div><div><strong>+100</strong><span>별가루</span></div></div><button class="primary wide" data-action="detail" data-id="${r.pet.id}">동료 살펴보기</button><button class="secondary wide" data-action="view" data-view="map">계속 탐험하기</button>` : r.kind === "won" ? `<p>별가루 +${format(r.dust)}<br>이제 ${SPECIES[id].name}를 잡을 기회예요.</p><button class="primary wide" data-action="view" data-view="capture">보스 포획하러 가기</button>` : `<p>동료들은 모두 회복했어요.<br>CP를 강화하고 필살기와 회피를 활용해 보세요.</p><button class="primary wide" data-action="retry-raid">다시 준비하기</button><button class="secondary wide" data-action="view" data-view="collection">동료 강화하기</button>`}</section>`;
+    scene.setEncounter(
+      r.pet || { speciesId: id, shiny: state.pendingEncounter?.pet.shiny },
+    );
+    screenEl.innerHTML = `<div class="screen-shade"></div><section class="panel result-panel"><div class="result-badge">${r.kind === "lost" ? "↻" : "✦"}</div>${shinyBadge(r.pet || {})}<h1>${r.kind === "caught" ? `${SPECIES[id].name}, 포획 성공!` : r.kind === "won" ? "레이드 승리!" : "다시 도전해 보세요"}</h1>${r.kind === "caught" ? `<div class="stats-row"><div><strong>${format(stats(r.pet).cp)}</strong><span>CP</span></div><div><strong>+100</strong><span>별가루</span></div></div><button class="primary wide" data-action="detail" data-id="${r.pet.id}">동료 살펴보기</button><button class="secondary wide" data-action="view" data-view="map">계속 탐험하기</button>` : r.kind === "won" ? `<p>별가루 +${format(r.dust)}<br>이제 ${SPECIES[id].name}를 잡을 기회예요.</p><button class="primary wide" data-action="view" data-view="capture">보스 포획하러 가기</button>` : `<p>동료들은 모두 회복했어요.<br>CP를 강화하고 필살기와 회피를 활용해 보세요.</p><button class="primary wide" data-action="retry-raid">다시 준비하기</button><button class="secondary wide" data-action="view" data-view="collection">동료 강화하기</button>`}</section>`;
   }
   function renderCorrupt() {
     sheet(
@@ -744,6 +799,35 @@ export function createApp({
         .join(
           "",
         )}</div><button class="secondary wide" data-action="close-modal">닫기</button>`,
+    );
+  }
+  function berryDialog() {
+    const active = state.pendingEncounter?.berry;
+    openDialog(
+      `<h2>포획을 도와주는 열매</h2><p>${active ? `${BERRIES[active].name} 효과가 적용 중이에요.` : "한 번에 하나만 먹일 수 있어요. 빗나가면 효과가 유지되고, 다음 명중까지 적용돼요."}</p><div class="berry-options">${Object.entries(
+        BERRIES,
+      )
+        .map(
+          ([id, b]) =>
+            `<button class="berry-option" data-action="feed-berry" data-id="${id}" ${active || !state.berries[id] ? "disabled" : ""}>${berryIcon(id)}<span><strong>${b.name} × ${state.berries[id]}</strong><small>${b.description}</small></span></button>`,
+        )
+        .join(
+          "",
+        )}</div><button class="secondary wide" data-action="close-modal">닫기</button>`,
+    );
+  }
+  function typeDialog() {
+    openDialog(
+      `<h2>보스의 약점을 공략하세요</h2><p>유리한 공격은 1.6배, 불리한 공격은 0.625배예요. 보스가 동료를 공격할 때도 적용돼요.</p><div class="type-table">${Object.entries(
+        TYPE_CHART,
+      )
+        .map(
+          ([type, targets]) =>
+            `<div><strong>${type}</strong><span>→ ${targets.join(" · ")}</span></div>`,
+        )
+        .join(
+          "",
+        )}</div><p class="mini-note">밤·그림자는 어둠, 태양·폭발은 불꽃 상성을 사용해요. 같은 속성끼리는 약한 효과이며 드래곤끼리는 강한 효과예요.</p><button class="secondary wide" data-action="close-modal">닫기</button>`,
     );
   }
   function click(e) {
@@ -816,6 +900,14 @@ export function createApp({
         command(leaveEncounter);
         show("map");
       }
+    } else if (a === "berries") berryDialog();
+    else if (a === "type-help") typeDialog();
+    else if (a === "feed-berry") {
+      if (command((s) => feedBerry(s, id)).ok) {
+        closeDialog();
+        renderCapture();
+        toast(`${BERRIES[id].name}를 먹였어요!`);
+      }
     } else if (a === "balls") ballDialog();
     else if (a === "ball-pick") {
       selectedBall = id;
@@ -829,7 +921,7 @@ export function createApp({
     else if (a === "recommend") {
       selection = state.pets
         .slice()
-        .sort((a, b) => stats(b).cp - stats(a).cp)
+        .sort((a, b) => raidScore(b, selectedRaid) - raidScore(a, selectedRaid))
         .slice(0, 6)
         .map((p) => p.id);
       renderRaid();

@@ -125,6 +125,141 @@ export const SPECIES = {
     fast: "전광석화",
     charged: "에스프레소 러시",
   },
+  pudding: {
+    name: "푸딩",
+    kind: "카라멜 토끼",
+    model: "rabbit",
+    color: 0xc99855,
+    light: 0xffdf9a,
+    eye: 0x765337,
+    rarity: 0,
+    attack: 110,
+    defense: 124,
+    hp: 130,
+    type: "빛",
+    fast: "달빛 도약",
+    charged: "카라멜 파동",
+  },
+  cookie: {
+    name: "쿠키",
+    kind: "숲의 여우",
+    model: "fox",
+    color: 0xa36c37,
+    light: 0xe8c998,
+    eye: 0x6d9e42,
+    rarity: 0,
+    attack: 126,
+    defense: 104,
+    hp: 118,
+    type: "풀",
+    fast: "덩굴 발톱",
+    charged: "숲의 맹습",
+  },
+  brownSugar: {
+    name: "흑당",
+    kind: "갈색 곰",
+    model: "bear",
+    color: 0x463025,
+    light: 0xa7835f,
+    eye: 0xd8a55c,
+    rarity: 1,
+    attack: 132,
+    defense: 152,
+    hp: 162,
+    type: "대지",
+    fast: "대지 강타",
+    charged: "흑당 지진",
+  },
+  mint: {
+    name: "민트",
+    kind: "청록 수달",
+    model: "otter",
+    color: 0x478d8b,
+    light: 0xb4e4cf,
+    eye: 0xdaa644,
+    rarity: 0,
+    attack: 118,
+    defense: 120,
+    hp: 126,
+    type: "물",
+    fast: "물결 베기",
+    charged: "민트 해일",
+  },
+  cocoa: {
+    name: "코코아",
+    kind: "초콜릿 늑대",
+    model: "wolf",
+    color: 0x664138,
+    light: 0xc49976,
+    eye: 0xcaa052,
+    rarity: 1,
+    attack: 148,
+    defense: 118,
+    hp: 134,
+    type: "어둠",
+    fast: "밤의 송곳니",
+    charged: "코코아 그림자",
+  },
+  icewolf: {
+    name: "얼음늑대",
+    kind: "빙하 늑대",
+    model: "wolf",
+    color: 0x729bad,
+    light: 0xd8edf4,
+    eye: 0x5be1f4,
+    rarity: 2,
+    attack: 158,
+    defense: 136,
+    hp: 148,
+    type: "얼음",
+    fast: "서리 송곳니",
+    charged: "빙하의 포효",
+  },
+  phoenix: {
+    name: "불사조",
+    kind: "화염의 불사조",
+    model: "bird",
+    color: 0xa83621,
+    light: 0xffac35,
+    eye: 0xffdd65,
+    rarity: 3,
+    attack: 180,
+    defense: 134,
+    hp: 158,
+    type: "불꽃",
+    fast: "화염 깃털",
+    charged: "불사조의 날개",
+  },
+  thunderhawk: {
+    name: "썬더호크",
+    kind: "번개의 매",
+    model: "bird",
+    color: 0x394263,
+    light: 0xe3c75e,
+    eye: 0xf9de62,
+    rarity: 2,
+    attack: 164,
+    defense: 128,
+    hp: 142,
+    type: "번개",
+    fast: "번개 부리",
+    charged: "천둥 강하",
+  },
+  crystaldragon: {
+    name: "크리스탈드래곤",
+    kind: "수정 갑옷 드래곤",
+    model: "dragon",
+    color: 0x586a9b,
+    light: 0xc5caee,
+    eye: 0x85eff1,
+    rarity: 3,
+    attack: 168,
+    defense: 166,
+    hp: 176,
+    type: "드래곤",
+    fast: "수정 발톱",
+    charged: "프리즘 브레스",
+  },
 };
 export const BALLS = {
   basic: { name: "기본볼", factor: 1, color: "#e6504c" },
@@ -166,3 +301,46 @@ export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const copy = (s) => structuredClone(s);
 export const fail = (state, error) => ({ ok: false, state, error });
 export const success = (state, result) => ({ ok: true, state, result });
+
+export const SPECIES_COUNT = Object.keys(SPECIES).length;
+export const BERRIES = {
+  catch: {
+    name: "향기열매",
+    color: "#cc6c78",
+    description: "다음 명중의 포획 확률 ×1.5",
+    factor: 1.5,
+  },
+  calm: {
+    name: "평온열매",
+    color: "#79aace",
+    description: "다음 명중 실패 시 도망 확률 9% → 2%",
+    factor: 1,
+  },
+};
+const ALIASES = { 밤: "어둠", 그림자: "어둠", 태양: "불꽃", 폭발: "불꽃" };
+export const TYPE_CHART = {
+  물: ["불꽃", "대지"],
+  불꽃: ["풀", "얼음"],
+  풀: ["물", "대지"],
+  번개: ["물", "바람"],
+  대지: ["번개", "불꽃"],
+  얼음: ["바람", "드래곤", "풀"],
+  바람: ["풀"],
+  빛: ["어둠", "드래곤"],
+  어둠: ["빛"],
+  드래곤: ["드래곤"],
+};
+export const combatType = (type) => ALIASES[type] || type;
+export function typeMultiplier(attacker, defender) {
+  const a = combatType(attacker),
+    d = combatType(defender);
+  if (TYPE_CHART[a]?.includes(d)) return 1.6;
+  if (TYPE_CHART[d]?.includes(a) || a === d) return 0.625;
+  return 1;
+}
+export const weaknesses = (type) =>
+  Object.keys(TYPE_CHART).filter((t) => typeMultiplier(t, type) > 1);
+export const modelKind = (id) =>
+  SPECIES[id]?.model ||
+  { latte: "dog", dragon: "dragon", popcorn: "popcorn" }[id] ||
+  "cat";

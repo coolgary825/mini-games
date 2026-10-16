@@ -1,7 +1,16 @@
-import { SPECIES, BALLS, clamp, copy, fail, success } from "./data.mjs";
+import {
+  SPECIES,
+  BALLS,
+  BERRIES,
+  clamp,
+  copy,
+  fail,
+  success,
+} from "./data.mjs?v=discovery2";
 export function newProgress() {
   return {
-    version: 1,
+    version: 2,
+    berries: { catch: 3, calm: 3 },
     starterChosen: false,
     pets: [],
     balls: { basic: 30, super: 5, hyper: 0, master: 0 },
@@ -44,7 +53,7 @@ export function chooseStarter(state, speciesId, id) {
   s.discovered.push(speciesId);
   return success(s);
 }
-export function captureChance(pet, ball, grade = "normal") {
+export function captureChance(pet, ball, grade = "normal", berry = null) {
   if (ball === "master") return 1;
   if (!BALLS[ball]) return 0;
   const base = clamp(
@@ -56,6 +65,7 @@ export function captureChance(pet, ball, grade = "normal") {
     0.95,
     base *
       BALLS[ball].factor *
+      (BERRIES[berry]?.factor || 1) *
       ({ normal: 1, nice: 1.15, great: 1.35, excellent: 1.65 }[grade] || 1),
   );
 }
@@ -74,6 +84,7 @@ export function beginEncounter(state, entity) {
       speciesId: entity.speciesId,
       level: entity.level,
       iv: entity.iv,
+      shiny: !!entity.shiny,
     },
     attempts: 0,
     boss: entity.boss || false,
@@ -93,7 +104,7 @@ export function throwBall(
   if (ball !== "master" && !hit) return success(s, { kind: "miss" });
   if (grade === "great" || grade === "excellent") s.metrics.great++;
   if (grade === "excellent") s.metrics.excellent++;
-  if (ball === "master" || rng() < captureChance(e.pet, ball, grade)) {
+  if (ball === "master" || rng() < captureChance(e.pet, ball, grade, e.berry)) {
     const pet = { ...e.pet, id };
     s.pets.push(pet);
     if (!s.discovered.includes(pet.speciesId)) s.discovered.push(pet.speciesId);
@@ -104,7 +115,9 @@ export function throwBall(
     s.pendingEncounter = null;
     return success(s, { kind: "caught", pet, dust: 100 });
   }
-  if (rng() < 0.09) {
+  const fleeChance = e.berry === "calm" ? 0.02 : 0.09;
+  e.berry = null;
+  if (rng() < fleeChance) {
     s.caughtIds.push(e.sourceId);
     s.pendingEncounter = null;
     return success(s, { kind: "fled" });
@@ -140,5 +153,18 @@ export function collectSupply(state, entity, now) {
   const s = copy(state);
   s.supplyTimes[entity.id] = now;
   s.balls.basic += 5;
+  s.berries.catch++;
+  s.berries.calm++;
   return success(s, { basic: 5 });
+}
+
+export function feedBerry(state, berry) {
+  if (!state.pendingEncounter || !BERRIES[berry] || !(state.berries[berry] > 0))
+    return fail(state, "사용할 열매가 없어요.");
+  if (state.pendingEncounter.berry)
+    return fail(state, "이미 열매를 먹었어요. 다음 명중까지 효과가 유지돼요.");
+  const s = copy(state);
+  s.berries[berry]--;
+  s.pendingEncounter.berry = berry;
+  return success(s);
 }

@@ -23,8 +23,8 @@
   <div id="scene"></div>
   <select aria-label="캐릭터"></select>
   <script type="module">
-    import { createScene } from "../render.mjs";
-    import { SPECIES } from "../data.mjs";
+    import { createScene } from "../render.mjs?v=discovery2";
+    import { SPECIES } from "../data.mjs?v=discovery2";
     const scene = createScene(document.querySelector("#scene"), {
       onError: console.error,
     });

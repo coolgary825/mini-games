@@ -30,3 +30,11 @@ Implementation decisions and limits:
 - Full-window image capture remains blocked by the browser environment; actual 3D renders and DOM geometry were inspected. Non-chibi style uses original proportional 3D models, not original Pokémon assets.
 
 Final integration: copied identical coffee-go files into the original workspace; targeted launcher insertion preserves all prior content. Ego verified 12 launcher cards, no horizontal overflow at390px, and the new card opens the production welcome screen. Integrated rule tests29/29 and existing chess tests11/11 pass. Local server runs from original mini-games on port8017; no public deployment.
+
+
+Discovery update (approved scope: 9 additional species, shiny variants, two capture berries, type matchups, rotating raid bosses):
+- Rule/model suite: 41 tests pass, including all new species reachable/catchable, deterministic variants, actual berry outcomes, one-use effects, old save migration without replaying master rewards, bidirectional battle multipliers and model silhouettes/palettes.
+- Browser RED before UI: no berry action. GREEN: visible icewolf chance27%→40%, catch berry3→2, second berry blocked, ball30→29 on catch, shiny identity and consumption survive reload; collection shiny filter shows both saved variants.
+- Browser/cache RED: loaded old createPetModel while network source was updated; all new animals appeared as cats and shiny/normal portraits matched. Versioned the production import graph and CSS; GREEN normal/shiny portrait bytes differ and all36 actual WebGL portraits inspected.
+- Full-window screenshot capture is available in this update. Inspected forest capture and the contact sheet of all18 normal/shiny models. New animal shapes differ from the original cats; birds have layered feather wings and crystal dragon has additional crystal armor.
+- Beginner raid simulations with six level5 coffee pets: espresso win31s, pudding win18s, cocoa win52s using attacks/charged/dodge. Higher tiers retain existing progression.

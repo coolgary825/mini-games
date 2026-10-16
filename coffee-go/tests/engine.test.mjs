@@ -25,9 +25,8 @@ const wild = {
   expiresAt: 999999,
 };
 const start = () => chooseStarter(newProgress(), "coffee", "starter").state;
-test("new trainer has nine available species and exactly one chosen companion", () => {
+test("new trainer receives exactly one chosen companion and the original ball inventory", () => {
   let s = start();
-  assert.equal(Object.keys(SPECIES).length, 9);
   assert.deepEqual(s.balls, { basic: 30, super: 5, hyper: 0, master: 0 });
   assert.equal(s.pets.length, 1);
   assert.equal(chooseStarter(s, "mocha", "x").ok, false);

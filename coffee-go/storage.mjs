@@ -1,5 +1,5 @@
-import { newProgress } from "./engine.mjs";
-import { SPECIES, BALLS } from "./data.mjs";
+import { newProgress } from "./engine.mjs?v=discovery2";
+import { SPECIES, BALLS, BERRIES } from "./data.mjs?v=discovery2";
 export const KEY = "junwoo-coffee-go-v1";
 const nonneg = (x) => Number.isSafeInteger(x) && x >= 0;
 const ids = (x) => Array.isArray(x) && x.every((v) => typeof v === "string");
@@ -7,6 +7,7 @@ function petOK(p) {
   return (
     p &&
     typeof p.id === "string" &&
+    (p.shiny === undefined || typeof p.shiny === "boolean") &&
     SPECIES[p.speciesId] &&
     Number.isInteger(p.level) &&
     p.level >= 1 &&
@@ -17,10 +18,12 @@ function petOK(p) {
     )
   );
 }
-export function validProgress(s) {
+export function validProgress(s, { legacy = false } = {}) {
   return !!(
     s &&
-    s.version === 1 &&
+    (s.version === 2 || (legacy && s.version === 1)) &&
+    (s.version === 1 ||
+      (s.berries && Object.keys(BERRIES).every((k) => nonneg(s.berries[k])))) &&
     typeof s.starterChosen === "boolean" &&
     Array.isArray(s.pets) &&
     s.pets.every(petOK) &&
@@ -59,7 +62,9 @@ export function validProgress(s) {
     (s.pendingEncounter === null ||
       (petOK(s.pendingEncounter?.pet) &&
         typeof s.pendingEncounter.sourceId === "string" &&
-        nonneg(s.pendingEncounter.attempts)))
+        nonneg(s.pendingEncounter.attempts) &&
+        (s.pendingEncounter.berry == null ||
+          Object.hasOwn(BERRIES, s.pendingEncounter.berry))))
   );
 }
 export function loadProgress(storage) {
@@ -68,7 +73,11 @@ export function loadProgress(storage) {
     if (!raw) return { status: "new", state: newProgress() };
     try {
       const s = JSON.parse(raw);
-      if (!validProgress(s)) throw Error();
+      if (!validProgress(s, { legacy: true })) throw Error();
+      if (s.version === 1) {
+        s.version = 2;
+        s.berries = { catch: 3, calm: 3 };
+      }
       return { status: "ok", state: s };
     } catch {
       return { status: "corrupt", state: null, raw };

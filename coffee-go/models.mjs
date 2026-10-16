@@ -1,5 +1,5 @@
 import * as THREE from "../chess/vendor/three/three.module.js";
-import { SPECIES } from "./data.mjs";
+import { SPECIES, modelKind } from "./data.mjs?v=discovery2";
 export { THREE };
 function material(color, options = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: 0.82, ...options });
@@ -75,10 +75,76 @@ function whiskers(parent, x, y, z) {
       );
     }
 }
-export function createPetModel(speciesId) {
-  const d = SPECIES[speciesId] || SPECIES.coffee;
-  if (speciesId === "dragon") return dragon(d);
-  if (speciesId === "popcorn") return popcorn(d);
+export function createPetModel(speciesId, shiny = false) {
+  const source = SPECIES[speciesId] || SPECIES.coffee;
+  const d = { ...source };
+  if (shiny) {
+    for (const key of ["color", "light", "eye"]) {
+      const c = new THREE.Color(d[key]),
+        hsl = {};
+      c.getHSL(hsl);
+      c.setHSL(
+        (hsl.h + 0.37) % 1,
+        Math.max(0.42, hsl.s),
+        Math.max(0.28, 0.72 - hsl.l * 0.35),
+      );
+      d[key] = c.getHex();
+    }
+  }
+  const kind = modelKind(speciesId);
+  const root =
+    kind === "dragon"
+      ? dragon(d)
+      : kind === "popcorn"
+        ? popcorn(d)
+        : kind === "bird"
+          ? bird(d, speciesId)
+          : ["cat", "dog"].includes(kind)
+            ? feline(speciesId, d)
+            : woodland(d, kind);
+  root.userData.speciesId = speciesId;
+  root.userData.shiny = shiny;
+  if (speciesId === "crystaldragon") {
+    const crystal = material(d.light, { metalness: 0.5, roughness: 0.14 });
+    for (let i = 0; i < 7; i++) {
+      const spike = mesh(
+        root,
+        new THREE.OctahedronGeometry(0.2),
+        crystal,
+        (i % 2 ? -1 : 1) * 0.27,
+        1.6 - i * 0.07,
+        0.3 - i * 0.19,
+      );
+      spike.scale.set(0.65, 2.1, 0.65);
+      spike.rotation.z = (i % 2 ? -1 : 1) * 0.35;
+    }
+  }
+  if (shiny) {
+    const glints = new THREE.Group();
+    root.add(glints);
+    const glow = material(0xffef9a, {
+      emissive: 0xc79836,
+      emissiveIntensity: 0.7,
+      metalness: 0.4,
+      roughness: 0.25,
+    });
+    for (let i = 0; i < 5; i++) {
+      const angle = (i * Math.PI * 2) / 5;
+      const star = mesh(
+        glints,
+        new THREE.OctahedronGeometry(0.045),
+        glow,
+        Math.cos(angle) * 0.95,
+        0.5 + i * 0.28,
+        Math.sin(angle) * 0.95,
+      );
+      star.scale.y = 1.9;
+    }
+    root.userData.glints = glints;
+  }
+  return root;
+}
+function feline(speciesId, d) {
   const root = new THREE.Group();
   const coat = material(d.color),
     light = material(d.light),
@@ -521,6 +587,7 @@ function popcorn(d) {
 }
 export function animatePet(root, time, action = 0) {
   const u = root.userData;
+  if (u.glints) u.glints.rotation.y = time * 0.4;
   if (u.body) {
     u.baseBodyY ??= u.body.scale.y;
     u.body.scale.y = u.baseBodyY * (1 + Math.sin(time * 2) * 0.012);
@@ -549,4 +616,299 @@ export function disposeGroup(root) {
   });
   for (const g of geometries) g.dispose();
   for (const m of materials) m.dispose();
+}
+
+function woodland(d, kind) {
+  const root = new THREE.Group(),
+    coat = material(d.color),
+    light = material(d.light),
+    dark = material(0x20282c);
+  const bear = kind === "bear",
+    rabbit = kind === "rabbit",
+    otter = kind === "otter",
+    fox = kind === "fox";
+  const body = ellipsoid(
+    root,
+    coat,
+    0,
+    bear ? 0.9 : 0.73,
+    -0.22,
+    bear ? 0.58 : rabbit ? 0.32 : 0.34,
+    bear ? 0.66 : rabbit ? 0.42 : 0.36,
+    otter ? 0.86 : 0.68,
+  );
+  const legs = [];
+  for (const side of [-1, 1])
+    for (const front of [true, false]) {
+      const leg = new THREE.Group();
+      root.add(leg);
+      leg.position.set(side * (bear ? 0.38 : 0.25), 0.62, front ? 0.35 : -0.69);
+      const hind = rabbit && !front;
+      ellipsoid(
+        leg,
+        coat,
+        0,
+        -0.17,
+        0,
+        hind ? 0.23 : bear ? 0.19 : 0.11,
+        hind ? 0.32 : 0.28,
+        0.17,
+      );
+      ellipsoid(
+        leg,
+        light,
+        0,
+        -0.47,
+        0.1,
+        bear ? 0.21 : 0.115,
+        0.13,
+        hind ? 0.35 : 0.22,
+      );
+      if (!rabbit)
+        for (let i = -1; i <= 1; i++) {
+          const claw = mesh(
+            leg,
+            new THREE.ConeGeometry(0.025, 0.11, 5),
+            dark,
+            i * 0.055,
+            -0.48,
+            0.3,
+          );
+          claw.rotation.x = Math.PI / 2;
+        }
+      legs.push(leg);
+    }
+  const head = new THREE.Group();
+  root.add(head);
+  head.position.set(0, bear ? 1.35 : rabbit ? 1.15 : 1.19, 0.52);
+  ellipsoid(head, coat, 0, 0, 0, bear ? 0.37 : 0.27, bear ? 0.34 : 0.27, 0.32);
+  const muzzle = otter ? 0.15 : rabbit ? 0.16 : 0.3;
+  ellipsoid(head, light, 0, -0.1, 0.27, bear ? 0.24 : 0.18, 0.14, muzzle);
+  ellipsoid(
+    head,
+    dark,
+    0,
+    -0.045,
+    0.27 + muzzle,
+    bear ? 0.105 : 0.066,
+    0.045,
+    0.055,
+  );
+  for (const side of [-1, 1]) {
+    ellipsoid(head, dark, side * 0.175, 0.06, 0.27, 0.063, 0.038, 0.03);
+    ellipsoid(
+      head,
+      material(d.eye, { roughness: 0.15 }),
+      side * 0.175,
+      0.06,
+      0.296,
+      0.033,
+      0.026,
+      0.013,
+    );
+    ellipsoid(head, dark, side * 0.175, 0.06, 0.306, 0.013, 0.023, 0.008);
+    if (rabbit) {
+      const ear = ellipsoid(
+        head,
+        coat,
+        side * 0.15,
+        0.55,
+        -0.06,
+        0.1,
+        0.45,
+        0.075,
+      );
+      ear.rotation.z = side * -0.18;
+      const inner = ellipsoid(
+        head,
+        light,
+        side * 0.15,
+        0.57,
+        0.008,
+        0.055,
+        0.32,
+        0.018,
+      );
+      inner.rotation.z = side * -0.18;
+    } else if (bear || otter) {
+      ellipsoid(
+        head,
+        coat,
+        side * 0.27,
+        0.22,
+        -0.02,
+        bear ? 0.145 : 0.095,
+        bear ? 0.15 : 0.09,
+        0.075,
+      );
+      ellipsoid(
+        head,
+        light,
+        side * 0.27,
+        0.23,
+        0.04,
+        bear ? 0.075 : 0.055,
+        bear ? 0.09 : 0.05,
+        0.02,
+      );
+    } else ear(head, coat, light, side * 0.205, 0.18, -0.04, fox ? 1 : 0.8);
+  }
+  if (otter || rabbit) whiskers(head, 0.15, -0.1, 0.36);
+  let tail;
+  if (rabbit || bear)
+    tail = ellipsoid(
+      root,
+      light,
+      0,
+      0.65,
+      -0.9,
+      rabbit ? 0.17 : 0.11,
+      rabbit ? 0.18 : 0.12,
+      0.18,
+    );
+  else if (otter) {
+    tail = ellipsoid(root, coat, 0, 0.33, -1.25, 0.16, 0.12, 0.62);
+    tail.rotation.x = 0.1;
+  } else {
+    tail = curve(
+      root,
+      [
+        [0, 0.73, -0.8],
+        [0.17, 0.61, -1.15],
+        [0.55, 0.43, -1.42],
+        [0.87, 0.52, -1.4],
+      ],
+      fox ? 0.2 : 0.15,
+      coat,
+    );
+    ellipsoid(root, light, 0.85, 0.52, -1.4, fox ? 0.24 : 0.17, 0.18, 0.22);
+    for (let i = 0; i < 9; i++) {
+      const tuft = mesh(
+        root,
+        new THREE.ConeGeometry(0.1, 0.35, 5),
+        light,
+        Math.sin(i * 2.4) * 0.28,
+        1.1 + (i % 3) * 0.06,
+        0.25 + Math.cos(i * 2.4) * 0.22,
+      );
+      tuft.rotation.x = 0.6;
+      tuft.rotation.z = Math.sin(i * 2.4) * 0.8;
+    }
+  }
+  root.userData = { body, head, legs, tail };
+  return root;
+}
+function bird(d, speciesId) {
+  const root = new THREE.Group(),
+    coat = material(d.color, { roughness: 0.6 }),
+    light = material(d.light, { metalness: 0.2, roughness: 0.5 }),
+    dark = material(0x29313b);
+  const phoenix = speciesId === "phoenix";
+  const body = ellipsoid(root, coat, 0, 0.94, 0, 0.31, 0.5, 0.44);
+  ellipsoid(root, light, 0, 1.02, 0.27, 0.23, 0.32, 0.16);
+  const head = new THREE.Group();
+  head.position.set(0, 1.5, 0.23);
+  root.add(head);
+  ellipsoid(head, coat, 0, 0, 0, 0.21, 0.24, 0.26);
+  const beak = mesh(
+    head,
+    new THREE.ConeGeometry(0.105, 0.35, 5),
+    light,
+    0,
+    -0.05,
+    0.32,
+  );
+  beak.rotation.x = Math.PI / 2;
+  for (const side of [-1, 1]) {
+    ellipsoid(head, dark, side * 0.14, 0.035, 0.2, 0.055, 0.035, 0.045);
+    ellipsoid(
+      head,
+      material(d.eye, { emissive: d.eye, emissiveIntensity: 0.35 }),
+      side * 0.157,
+      0.035,
+      0.23,
+      0.025,
+      0.02,
+      0.018,
+    );
+    for (let i = 0; i < 3; i++) {
+      const crest = mesh(
+        head,
+        new THREE.ConeGeometry(0.05, 0.32 + i * 0.08, 5),
+        light,
+        side * 0.09,
+        0.24,
+        -0.05 - i * 0.07,
+      );
+      crest.rotation.x = -0.5;
+    }
+  }
+  const wings = [];
+  for (const side of [-1, 1]) {
+    const wing = new THREE.Group();
+    root.add(wing);
+    wing.position.set(side * 0.22, 1.12, -0.03);
+    const upper = ellipsoid(
+      wing,
+      coat,
+      side * 0.49,
+      0.08,
+      -0.12,
+      0.6,
+      0.13,
+      0.3,
+    );
+    upper.rotation.z = side * 0.23;
+    for (let i = 0; i < 8; i++) {
+      const feather = mesh(
+        wing,
+        new THREE.ConeGeometry(0.095, 0.65 + i * 0.065, 5),
+        i % 2 ? coat : light,
+        side * (0.3 + i * 0.14),
+        0.03 + i * 0.035,
+        -0.25 - i * 0.035,
+      );
+      feather.rotation.x = -1.1;
+      feather.rotation.z = side * (0.2 + i * 0.1);
+    }
+    wings.push(wing);
+  }
+  for (const side of [-1, 1]) {
+    curve(
+      root,
+      [
+        [side * 0.17, 0.65, 0.02],
+        [side * 0.19, 0.23, 0.03],
+        [side * 0.19, 0.1, 0.2],
+      ],
+      0.04,
+      light,
+    );
+    for (let i = -1; i <= 1; i++)
+      curve(
+        root,
+        [
+          [side * 0.19, 0.12, 0.16],
+          [side * 0.19 + i * 0.07, 0.07, 0.31],
+        ],
+        0.02,
+        dark,
+      );
+  }
+  for (let i = -2; i <= 2; i++) {
+    const feather = ellipsoid(
+      root,
+      i % 2 ? light : coat,
+      i * 0.12,
+      phoenix ? 0.6 : 0.7,
+      -0.75,
+      0.1,
+      0.055,
+      phoenix ? 0.85 : 0.45,
+    );
+    feather.rotation.y = i * 0.13;
+    feather.rotation.x = phoenix ? -0.2 : -0.1;
+  }
+  root.userData = { body, head, wings, legs: [] };
+  return root;
 }
