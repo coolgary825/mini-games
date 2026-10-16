@@ -37,7 +37,11 @@ import {
   raidStats,
   raidScore,
 } from "./battle.mjs?v=discovery2";
-import { refreshResearch, questProgress, claimQuest } from "./research.mjs?v=discovery2";
+import {
+  refreshResearch,
+  questProgress,
+  claimQuest,
+} from "./research.mjs?v=discovery2";
 import { createMap } from "./map.mjs?v=discovery2";
 import { createScene, getPortraits } from "./render.mjs?v=discovery2";
 import { gradeThrow } from "./gestures.mjs?v=discovery2";
@@ -283,7 +287,7 @@ export function createApp({
         : "도감과 가방은 위치 없이도 열 수 있어요";
       const near = entities.filter((e) => e.kind === "wild").slice(0, 3);
       const control = $(".nearby-control");
-      const key = near.map((e) => e.speciesId).join(",");
+      const key = near.map((e) => `${e.speciesId}:${!!e.shiny}`).join(",");
       if (control.dataset.species !== key) {
         control.dataset.species = key;
         control.innerHTML = near.length

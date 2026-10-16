@@ -171,3 +171,47 @@ export async function run(page, base = "http://localhost:8018") {
   );
   await page.cdp("Emulation.clearDeviceMetricsOverride", {});
 }
+
+export async function verifyHudVariant(page, base = "http://localhost:8018") {
+  await page.goto(
+    `${base}/coffee-go/tests/fixture.html?case=team&run=hud-${Date.now()}`,
+  );
+  await page.click('[data-action="begin"]');
+  await page.waitForFunction(() =>
+    document.querySelector(".map-info")?.textContent.includes("9마리"),
+  );
+  const previous = await page.evaluate(async () => {
+    const { nearbyEntities } = await import("../spawns.mjs?v=discovery2");
+    const fix = { lat: 37.5665, lng: 126.978 },
+      time = Date.now(),
+      state = fixture.read();
+    const first = nearbyEntities(fix, time, state)
+      .filter((e) => e.kind === "wild")
+      .slice(0, 3);
+    const old = [...document.querySelectorAll(".nearby-control img")].map(
+      (e) => e.src,
+    );
+    let offset = null;
+    for (let n = 1; n < 100; n++) {
+      const delta = n * 18 * 600000;
+      const future = nearbyEntities(fix, time + delta, state)
+        .filter((e) => e.kind === "wild")
+        .slice(0, 3);
+      if (future.some((e, i) => e.shiny !== first[i].shiny)) {
+        offset = delta;
+        break;
+      }
+    }
+    if (offset === null) throw Error("No distinct variant fixture found");
+    fixture.advance(offset);
+    return old;
+  });
+  await page.waitForFunction(
+    (old) =>
+      JSON.stringify(
+        [...document.querySelectorAll(".nearby-control img")].map((e) => e.src),
+      ) !== JSON.stringify(old),
+    previous,
+  );
+  console.log("PASS nearby HUD refreshes when only shiny variants change");
+}
