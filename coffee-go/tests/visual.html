@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>Coffee GO visual fixture</title
+  ><style>
+    body {
+      margin: 0;
+      background: #c7dbd0;
+    }
+    #scene {
+      height: 100dvh;
+    }
+    select {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      padding: 14px;
+    }
+  </style>
+  <div id="scene"></div>
+  <select aria-label="캐릭터"></select>
+  <script type="module">
+    import { createScene } from "../render.mjs";
+    import { SPECIES } from "../data.mjs";
+    const scene = createScene(document.querySelector("#scene"), {
+      onError: console.error,
+    });
+    const select = document.querySelector("select");
+    select.innerHTML = Object.entries(SPECIES)
+      .map(([id, s]) => `<option value="${id}">${s.name}</option>`)
+      .join("");
+    function show() {
+      scene.setEncounter({ speciesId: select.value });
+    }
+    select.onchange = show;
+    show();
+  </script>
+</html>
